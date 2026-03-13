@@ -1,18 +1,32 @@
 # Changelog
 
-All notable changes to this public showcase repository.
+All notable changes to the public showcase repository are recorded here.
 
-## 2026-03-13
+## [1.0.0-public-showcase] - 2026-03-13
 
-### Public showcase preparation
-- Sanitized teacher email mappings, technician mailbox values, and school-specific email examples.
-- Kept the single-file Google Apps Script architecture in `code.gs`.
-- Preserved the current queue, review drawer, submission activity, and status workflow improvements.
-- Recreated repository documentation for public GitHub readers.
+### Documentation and repository presentation
+- Rewrote the README for public GitHub readers with clearer VSA DT positioning, workflow framing, and documentation map links.
+- Strengthened the documentation set across technical overview, handover guidance, changelog structure, and GitHub publishing guidance.
+- Added placeholder asset structure guidance for future screenshots and diagrams.
 
-### Recent product improvements included in this snapshot
-- Expanded machine guide and help content.
-- Added submission activity awareness for same-day and last-24h submissions.
-- Improved admin queue readability and review workflow cues.
-- Added stronger operational context in the review drawer.
-- Improved Special Request handling and filter parity in admin views.
+### Public-safe preparation
+- Replaced live-style email examples and contact values with neutral placeholders.
+- Kept the public branch focused on reference material rather than live deployment specifics.
+- Clarified repo sanitization rules for documentation, screenshots, and future publishing.
+
+### Workflow and UX improvements included in this snapshot
+- Preserved the DT Student Project and Special Request split across the submission experience.
+- Preserved the reviewer queue, review drawer, and status-driven workflow updates.
+- Preserved the Machine Guide and expanded help/guidance content.
+
+### Operational hardening included in this snapshot
+- Added submission activity awareness for same-day and last-24h bursts.
+- Added stronger reviewer context in queue and drawer views.
+- Added file-size validation and lock-based protection around status changes.
+
+## [0.9.0-public-prep] - 2026-03-09
+
+### Initial public release preparation
+- Created the first scrubbed public branch state from the internal working version.
+- Added public-facing repository documentation and license files.
+- Replaced remaining private contact examples with neutral placeholders.

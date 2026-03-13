@@ -1,106 +1,144 @@
 # Handover Guide
 
-This document explains how to maintain, adapt, and deploy the Design Fabrication Dashboard.
+This document is intended for future VSA Design Technology Department maintainers and for anyone adapting the dashboard in a school workshop environment.
+
+For the public project overview, read [../README.md](../README.md). For architecture detail, read [TECHNICAL_OVERVIEW.md](TECHNICAL_OVERVIEW.md). For public publication rules, read [../GITHUB_PUBLISHING.md](../GITHUB_PUBLISHING.md).
 
 ## What This Repository Is
 
-This is a public showcase of a Google Apps Script fabrication workflow dashboard.
+This repository is a public showcase version of the VSA DT Fabrication Dashboard.
 
-It demonstrates:
-- submission handling
-- workshop queue operations
-- review workflow design
-- status tracking
-- notification flow
-- help and machine guidance content
+It is useful for:
 
-It does not contain live private deployment values.
+- understanding how the system works
+- adapting the project for future maintenance
+- documenting departmental workflow design
+- preparing future sanitized public releases
+
+It is not a full live deployment export.
 
 ## Before Real Deployment
 
-Replace these placeholder values in `code.gs`:
+Review and replace public placeholders in `code.gs` before using the app in a live school environment.
 
-- `APP.technicianCcEmail`
+Key configuration areas:
+
 - `APP.teacherEmails`
-- email placeholders shown in form text if needed
-- any branding or departmental wording you want to customize
+- `APP.technicianCcEmail`
+- email example placeholders shown in forms and help text
+- wording or branding in `APP.uiText`
 
 Also verify:
-- spreadsheet ownership
-- Drive folder permissions
+
+- spreadsheet ownership and access
+- Google Drive folder ownership and permissions
 - Apps Script deployment access settings
-- organisation mail quota and policy
+- MailApp quota and organisation policy
+- user role assignments in the `Users` sheet
+
+## Safe Editing Practices In A Single-File Apps Script Project
+
+### Make focused edits
+Most UI and client logic are embedded in large template strings. Wide edits increase the chance of syntax problems and broken rendering.
+
+### Validate after each change
+After editing `code.gs`, check syntax and editor-reported errors before treating the change as complete.
+
+### Keep data headers stable
+The sheet headers and runtime field names are tightly coupled. Avoid renaming them casually.
+
+### Keep public and private configuration separate
+If the repository stays public, keep live deployment values in a private branch or private fork.
+
+## Where To Edit Common Things
+
+### Rules and fabrication constraints
+- Seeded defaults are defined in `APP.sampleRules`.
+- Live operational changes may also be made in the `Rules` sheet after bootstrap.
+
+### User-facing wording
+- Many shared strings live in `APP.uiText`.
+- Page-specific wording also appears in renderer template strings such as `renderSubmitPage_()`, `renderOtherRequestPage_()`, `renderMachinesPage_()`, and `renderHelpPage_()`.
+
+### Teacher and notification emails
+- Teacher mappings live in `APP.teacherEmails`.
+- The technician mailbox lives in `APP.technicianCcEmail`.
+- Notification behavior is handled in `sendStatusNotification_()` and `sendOtherRequestNotification_()`.
+
+### Queue and review UX
+- Queue data is assembled in `getAdminRows()` and `getAdminOtherRequests()`.
+- Queue rendering and queue CSS live in the page shell and client logic inside `renderPage_()`.
+- Review drawer behavior is tied to the same client-side layer and related helper functions.
+
+### Machines and guidance content
+- Machine information is rendered through `renderMachinesPage_()` and supporting constants.
+- General help content is rendered through `renderHelpPage_()`.
+
+## Common Risks
+
+- breaking a template literal during a UI edit
+- changing a status code without updating all related logic
+- renaming a sheet header without updating server-side reads and writes
+- changing queue row structure without checking the drawer and mobile layout
+- adding live contact values and forgetting to sanitize them before publication
 
 ## Recommended Setup Process
 
-1. Create a new Google Apps Script project.
-2. Paste in the current `code.gs`.
-3. Run the authorisation/setup helpers.
-4. Replace placeholder teacher and technician values.
-5. Deploy as a web app.
-6. Create or verify the backing spreadsheet and Drive folders.
-7. Test with at least one student, one teacher, and one technician/admin account.
+1. create a new Google Apps Script project
+2. add the current `code.gs`
+3. run `authorizeScopes()` if needed
+4. run `bootstrap()` to create the backing structure
+5. review seeded rules, users, and issue templates
+6. replace public placeholder contacts in a private branch or deployment copy
+7. deploy as a web app
+8. test with at least one student, one teacher, and one technician/admin account
 
-## How To Work Safely In This Codebase
+## What To Check Before Deployment
 
-### 1. Make small edits
-Because most UI is embedded in large template strings, broad edits can introduce syntax mistakes quickly.
+- teacher email mappings are correct
+- technician mailbox is correct
+- rules match the intended year-group and machine policy
+- users and roles are configured correctly
+- Drive uploads are writing to the intended folder structure
+- status emails are reaching the correct recipients
+- Machine Guide wording matches the real workshop setup
 
-### 2. Validate after each change
-Run a syntax/error check after editing `code.gs`.
-
-### 3. Do not rename data headers casually
-The sheet headers and runtime object keys are tightly coupled.
-
-### 4. Keep public and private config separate
-If this repo remains public, never commit:
-- real staff emails
-- school-specific auth or API secrets
-- production spreadsheet IDs
-- private deployment URLs
-
-## Common Maintenance Tasks
-
-### Update teacher list
-Edit `APP.teacherEmails`.
-
-### Change technician CC mailbox
-Edit `APP.technicianCcEmail`.
-
-### Adjust machine/year rules
-Edit rules data or the live Rules sheet, depending on deployment approach.
-
-### Update queue UX
-Work in:
-- queue helper functions
-- queue CSS
-- admin queue row renderer
-
-### Update reviewer drawer UX
-Work in:
-- drawer helper functions
-- drawer CSS
-- `openDrawer()` rendering
-
-## Manual QA Checklist
+## Manual QA / UAT Checklist
 
 After meaningful changes, verify:
 
-1. submit flow still works for DT and Special Request paths
-2. status lookup still returns rows correctly
-3. admin queue still loads and filters correctly
-4. `My students only` still works
-5. clicking Review / View still opens the correct drawer row
-6. saving a status change still updates the sheet and UI
-7. mobile queue layout still stacks cleanly
-8. no syntax errors are reported in `code.gs`
+1. DT Student Project submission still works end to end
+2. Special Request submission still works end to end
+3. Status Lookup returns the correct records
+4. Reviewer Queue loads and filters correctly
+5. teacher-scoped queue behavior still works
+6. clicking Review or View opens the correct drawer item
+7. status changes still update sheets, UI, and audit records
+8. workflow emails still send as intended
+9. Machine Guide and Help pages still render correctly
+10. mobile queue layout still stacks cleanly
+11. no syntax or editor errors are reported in `code.gs`
 
-## Public Repo Maintenance Rule
+## How To Keep The Public Repo Sanitized
 
-If new internal deployment values get added later, sanitize them before pushing to GitHub.
+Before pushing public changes, confirm that the repo does not expose:
 
-This includes:
-- teacher dropdown defaults
-- notification recipients
-- footer/branding copy if it contains internal-only references
-- help text that exposes private internal process details
+- real staff or personal email addresses
+- live spreadsheet or Drive IDs
+- private deployment URLs
+- screenshots with real user data
+- internal-only operational notes that should remain private
+
+Areas to review carefully:
+
+- top-level config values in `code.gs`
+- help text and footer wording
+- screenshot assets under `docs/assets/`
+- README and handover wording that may drift toward live deployment specifics
+
+## Suggested Maintenance Discipline
+
+- keep the public repo focused on documentation and showcase clarity
+- keep live operational customization in a private branch or private fork
+- update docs whenever terminology or workflow behavior changes
+- record major public-facing changes in `CHANGELOG.md`
