@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Node / clasp (if used later)
+node_modules/
+.clasp.json
+.clasprc.json
+
+# Environment / secrets
+.env
+*.env.local
