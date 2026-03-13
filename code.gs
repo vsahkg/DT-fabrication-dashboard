@@ -3655,7 +3655,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentID@student.vsa.edu.hk" required>
+              <input type="email" name="student_email" placeholder="student@example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -3862,7 +3862,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@vsa.edu.hk" required>
+              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -3975,11 +3975,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Teacher In Charge Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@vsa.edu.hk" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@example.edu" required>
             </div>
             <div class="field">
               <label>Approved By (email) <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@vsa.edu.hk" required>
+              <input type="email" name="approved_by_email" placeholder="approver@example.edu" required>
               <div class="helper">Email of the teacher/HOD who approved this request.</div>
             </div>
           </div>
@@ -4634,7 +4634,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@vsa.edu.hk)</li>
+          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -4906,7 +4906,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.vsa.edu.hk"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="student@example.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>
