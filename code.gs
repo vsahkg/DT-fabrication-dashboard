@@ -19,7 +19,7 @@ const APP = {
   name: 'Design Fabrication Dashboard',
   props: PropertiesService.getScriptProperties(),
 
-  /* Public repo uses placeholders — replace before deployment */
+  /* Public showcase placeholder — replace before deployment */
   technicianCcEmail: 'dt-technician@example.edu',
 
   sheets: {
@@ -148,7 +148,7 @@ const APP = {
     ['Y8', 'laser', 20, 20, 0, 'cm', '3mm Hard Cardboard (White)', 'af,afdesign', 'TRUE', 'Consult teacher first; save whole document; no PNG', 'TRUE'],
     ['Y9', 'laser', 60, 40, 0, 'cm', '3mm Cardboard (Brown),3mm Acrylic Board (Random Colour)', 'dxf,svg,af,afdesign', 'TRUE', 'Vector only; no JPG/PNG pixels; whole document export', 'TRUE'],
     ['Y10', 'laser', 60, 40, 0, 'cm', '3mm Cardboard (Brown),3mm Acrylic Board (Random Colour)', 'af,afdesign', 'TRUE', 'Vector only; no JPG/PNG pixels', 'TRUE'],
-    ['Y10', '3d', 15, 15, 13, 'cm', 'PLA', 'stl', 'TRUE', 'Upload dimension screenshot and final STL', 'TRUE']
+    ['Y10', '3d', 30, 30, 30, 'cm', 'PLA', 'stl', 'TRUE', 'Upload dimension screenshot and final STL', 'TRUE']
   ],
 
   sampleIssues: [
@@ -365,8 +365,8 @@ const APP = {
     },
 
     /* ── Other / Special Requests ────────────────────── */
-    otherRequestIntroHeadline: 'Non-DT &amp; Special Fabrication Requests',
-    otherRequestIntroBody: 'This system is <strong>primarily for DT student coursework</strong>. This page is for other approved fabrication requests such as competitions, exhibitions, other subjects, or special projects.',
+    otherRequestIntroHeadline: '&#11088; Special Fabrication Request',
+    otherRequestIntroBody: 'Use this page for fabrication requests <strong>outside of regular DT coursework</strong> &mdash; competitions, exhibitions, other subject projects, or special builds. All requests are reviewed by the workshop team.',
     otherRequestPriorityNotice: 'DT curriculum work may be <strong>prioritised</strong> over non-DT requests. Non-DT jobs may take longer depending on current workload and machine availability.',
     otherRequestApprovalNotice: 'All requests must have a <strong>responsible teacher or staff sponsor</strong>. Requests without clear approval may be rejected or placed on hold.',
     otherRequestNoGuarantee: 'Submitting a request does <strong>not</strong> guarantee acceptance, same-day production, or deadline fulfilment. Please plan ahead and submit early.',
@@ -421,7 +421,7 @@ const APP = {
     ],
     otherRequestSuccessIntro: 'Your request has been submitted for review. It is <strong>not</strong> automatically approved.',
     otherRequestSuccessOutro: '<strong>Same-day production should not be expected.</strong> DT curriculum work may be prioritised ahead of this request. Check the <strong>Status</strong> page for updates.',
-    otherRequestHelpIntro: 'This pathway is for fabrication requests that fall outside of regular DT student coursework submissions.',
+    otherRequestHelpIntro: 'This pathway is for fabrication requests that fall outside of regular DT student coursework submissions. Student Special Requests are intended for Y6-Y12 with responsible teacher or sponsor approval.',
     otherRequestHelpEligible: [
       'Competition prototypes or display items',
       'Other subject projects requiring laser cutting or 3D printing',
@@ -442,7 +442,9 @@ const APP = {
   teacherEmails: {
     'Teacher A': 'teacher.a@example.edu',
     'Teacher B': 'teacher.b@example.edu',
-    'Teacher C': 'teacher.c@example.edu'
+    'Teacher C': 'teacher.c@example.edu',
+    'Teacher D': 'teacher.d@example.edu',
+    'Teacher E': 'teacher.e@example.edu'
   }
 };
 
@@ -454,6 +456,104 @@ const TECHNICIAN_ALLOWED_STATUSES = [
 ];
 
 const PREVIEW_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+
+/* ----- MACHINE SPECIFICATIONS (verification-safe data model) -----
+   verificationStatus: 'confirmed' | 'unverified' | 'school-guidance'
+   sourceLabel:  human-readable provenance for each machine              */
+const MACHINE_SPECS = {
+  spiritLS: {
+    displayName: 'GCC LaserPro Spirit LS Pro',
+    machineType: 'CO\u2082 Laser Cutter / Engraver',
+    category: 'laser',
+    workingSize: { value: '640 \u00d7 460 mm', extra: 'Extendable pass-through to 740 \u00d7 460 mm', status: 'confirmed' },
+    speed: { value: 'Up to 3.04 m/s (120 in/s)', status: 'confirmed' },
+    wattage: { value: '30 W \u2013 100 W (CO\u2082)', status: 'confirmed' },
+    resolution: { value: 'Up to 1 500 dpi', status: 'confirmed' },
+    zAxis: { value: '165 mm (6.5 in)', status: 'confirmed' },
+    motor: { value: 'Closed-loop DC servo', status: 'confirmed' },
+    connectivity: { value: '10Base-T Ethernet / USB Type-A 2.0 / USB Type-B 2.0', status: 'confirmed' },
+    acceptedFiles: { value: '.af / .afdesign / .svg / .dxf', status: 'school-guidance' },
+    sourceLabel: 'GCC official brochure / product page',
+    sourceUrl: 'https://www.gccworld.com/product/laser-engraver/spirit-ls',
+    schoolLimitNote: 'School submission limits (not machine limits): Y8 20\u00d720 cm, Y9 60\u00d740 cm, Y10 60\u00d740 cm. Technician review still required.',
+    goodFor: 'Flat parts, packaging nets, models, signage, engraved plates, precision prototyping',
+    beginnerTips: [
+      'Convert all text to curves/outlines before exporting',
+      'Design at 1:1 real cutting size \u2014 not scaled',
+      'Remove image layers \u2014 the laser follows vector paths only',
+      'Check your dimensions against the school year-group limit, not the machine maximum'
+    ]
+  },
+  mercuryIII: {
+    displayName: 'GCC LaserPro Mercury III',
+    machineType: 'CO\u2082 Laser Cutter / Engraver',
+    category: 'laser',
+    workingSize: { value: '635 \u00d7 458 mm (25 \u00d7 18 in)', extra: null, status: 'confirmed' },
+    speed: { value: null, status: 'unverified' },
+    wattage: { value: '12 W / 30 W / 40 W / 60 W / 80 W (CO\u2082)', status: 'confirmed' },
+    resolution: { value: 'Up to 1 500 dpi', status: 'confirmed' },
+    zAxis: { value: '165 mm (6.5 in)', status: 'confirmed' },
+    motor: { value: 'Closed-loop DC servo', status: 'confirmed' },
+    connectivity: { value: '10Base-T Ethernet / USB Type-A 2.0 / USB Type-B 2.0', status: 'confirmed' },
+    acceptedFiles: { value: '.af / .afdesign / .svg / .dxf', status: 'school-guidance' },
+    sourceLabel: 'GCC official brochure / product page',
+    sourceUrl: 'https://www.gccworld.com/product/laser-engraver/mercury-iii',
+    schoolLimitNote: 'School submission limits apply. This machine\'s larger bed does not mean any size is accepted \u2014 school year-group limits and technician review still apply.',
+    goodFor: 'Batch cutting, larger sheet projects, general-purpose sheet work',
+    beginnerTips: [
+      'Same file preparation as the Spirit LS Pro',
+      'Large files with many paths take longer to cut and queue',
+      'Keep your file clean and free of duplicate or hidden paths',
+      'School size limits still apply even though the machine bed is large'
+    ]
+  },
+  k2Plus: {
+    displayName: 'Creality K2 Plus',
+    machineType: 'FDM 3D Printer \u2014 Enclosed, Heated Chamber',
+    category: '3d',
+    buildVolume: { value: '350 \u00d7 350 \u00d7 350 mm', status: 'confirmed' },
+    speed: { value: '\u2264 600 mm/s', status: 'confirmed' },
+    acceleration: { value: '\u2264 30 000 mm/s\u00b2', status: 'confirmed' },
+    layerHeight: { value: '0.05 \u2013 0.3 mm', status: 'confirmed' },
+    nozzle: { value: '0.4 mm (max 350 \u00b0C)', status: 'confirmed' },
+    heatbed: { value: 'Max 120 \u00b0C', status: 'confirmed' },
+    chamber: { value: 'Actively heated up to 60 \u00b0C', status: 'confirmed' },
+    filaments: { value: 'PLA / PETG / TPU / ASA / PET / ABS / PA / PC / CF / GF / PPA-CF / PPS / PPS-CF (1.75 mm)', status: 'confirmed' },
+    connectivity: { value: 'USB / Wi-Fi (dual-band) / Ethernet', status: 'confirmed' },
+    sourceLabel: 'Creality official product & support page',
+    sourceUrl: 'https://www.creality.com/products/creality-k2-plus-cfs-combo',
+    schoolLimitNote: 'School submission limit: Y10 30\u00d730\u00d730 cm. The machine\'s full 350 mm build volume is NOT the student design limit. Technician review required.',
+    goodFor: 'Prototypes, display models, functional parts, mechanisms, multi-material projects',
+    beginnerTips: [
+      'Check wall thickness and overhangs \u2014 a model that looks correct on screen may not print well',
+      'Include a dimension screenshot with your STL submission',
+      'PLA is the standard school material; other filaments require approval',
+      'Design to the school limit (30\u00d730\u00d730 cm), not the machine maximum'
+    ]
+  },
+  guiderIIs: {
+    displayName: 'Flashforge Guider IIs',
+    machineType: 'Enclosed FDM 3D Printer',
+    category: '3d',
+    buildVolume: { value: '280 \u00d7 250 \u00d7 300 mm', status: 'confirmed' },
+    speed: { value: null, status: 'unverified' },
+    layerHeight: { value: null, status: 'unverified' },
+    nozzle: { value: '0.4 mm', status: 'confirmed' },
+    heatbed: { value: null, status: 'unverified' },
+    chamber: { value: 'Enclosed build chamber', status: 'confirmed' },
+    filaments: { value: 'PLA (school standard); ABS / PETG may be available', status: 'school-guidance' },
+    sourceLabel: 'Flashforge official product page',
+    sourceUrl: 'https://www.flashforge.com/product-detail/flashforge-guider-iis-3d-printer',
+    schoolLimitNote: 'School submission limit: Y10 30\u00d730\u00d730 cm. The machine\'s full build volume is NOT the student design limit. Technician review required.',
+    goodFor: 'Larger or longer-running prints, stable-temperature jobs, enclosed reliability',
+    beginnerTips: [
+      'Same STL workflow as the K2 Plus',
+      'Larger prints take significantly longer \u2014 plan ahead',
+      'Machine assignment is decided by the technician based on queue and job size',
+      'PLA is the standard school material'
+    ]
+  }
+};
 
 /* =========================
    ONE-TIME SETUP / BOOTSTRAP
@@ -511,7 +611,7 @@ function setup() {
 
 function doGet(e) {
   const page = ((e && e.parameter && e.parameter.page) || 'submit').toLowerCase();
-  const safePage = ['submit', 'status', 'admin', 'help', 'rules', 'users', 'audit', 'other'].includes(page) ? page : 'submit';
+  const safePage = ['submit', 'status', 'admin', 'machines', 'help', 'rules', 'users', 'audit', 'other'].includes(page) ? page : 'submit';
 
   let webAppUrl = '';
   try {
@@ -523,6 +623,7 @@ function doGet(e) {
   const adminPages = ['admin', 'rules', 'users', 'audit'];
   /* Server-side redirect: force students/guests to 'submit' if they try admin pages */
   const resolvedPage = (!user.isAdmin && adminPages.includes(safePage)) ? 'submit' : safePage;
+
   const boot = {
     page: resolvedPage,
     baseUrl: webAppUrl,
@@ -602,9 +703,16 @@ function submitSubmission(payload) {
   /* Send confirmation email to student */
   try { sendSubmissionConfirmation_(record); } catch (e) { Logger.log('Confirmation email failed: ' + e); }
 
+  var activity = getSubmissionActivityByEmail_(payload.student_email);
   return {
     ok: true,
-    submission_id: submissionId
+    submission_id: submissionId,
+    submitted_at: formatHongKongTimestamp_(now),
+    submissions_today: activity.counts.total,
+    dt_submissions_today: activity.counts.dt,
+    special_submissions_today: activity.counts.special,
+    last_24h_submissions: activity.last24_count,
+    recent_submissions: activity.recent
   };
 }
 
@@ -676,7 +784,17 @@ function submitOtherRequest(payload) {
   /* Send confirmation email to requester */
   try { sendOtherRequestConfirmation_(record); } catch (e) { Logger.log('Other Request confirmation email failed: ' + e); }
 
-  return { ok: true, request_id: requestId };
+  var activity = getSubmissionActivityByEmail_(payload.requester_email);
+  return {
+    ok: true,
+    request_id: requestId,
+    submitted_at: formatHongKongTimestamp_(now),
+    submissions_today: activity.counts.total,
+    dt_submissions_today: activity.counts.dt,
+    special_submissions_today: activity.counts.special,
+    last_24h_submissions: activity.last24_count,
+    recent_submissions: activity.recent
+  };
 }
 
 function validateOtherRequest_(payload) {
@@ -743,26 +861,36 @@ function validateOtherRequest_(payload) {
 function getOtherRequestStatuses(query) {
   var target = String(query || '').trim().toLowerCase();
   if (!target) return [];
-  return getRowsAsObjects_(APP.sheets.otherRequests.name)
+  return attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.otherRequests.name)
     .filter(function(r) {
       return String(r.requester_email || '').trim().toLowerCase() === target ||
              String(r.request_id || '').trim().toLowerCase() === target;
     })
-    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }), 'requester_email');
 }
 
 function getAdminOtherRequests(filters) {
   var user = requireAdmin_();
   var rows = getRowsAsObjects_(APP.sheets.otherRequests.name);
   filters = filters || {};
+  var yearGroup = String(filters.year_group || '').trim();
   var status = String(filters.status || '').trim();
   var reqType = String(filters.request_type || '').trim();
   var machine = String(filters.machine || '').trim();
+  var classNo = String(filters.class_no || '').trim().toLowerCase();
+  var teacherQuery = String(filters.teacher_query || '').trim().toLowerCase();
   var studentEmail = String(filters.student_email || '').trim().toLowerCase();
   var mineOnly = String(filters.mine_only || '').trim() === 'true';
+  if (yearGroup) rows = rows.filter(function(r) { return String(r.year_group || '').trim() === yearGroup; });
   if (status) rows = rows.filter(function(r) { return r.status === status; });
   if (reqType) rows = rows.filter(function(r) { return r.request_type === reqType; });
   if (machine) rows = rows.filter(function(r) { return String(r.machine||'').trim().toLowerCase() === machine; });
+  if (classNo) rows = rows.filter(function(r) { return String(r['class'] || '').trim().toLowerCase().indexOf(classNo) !== -1; });
+  if (teacherQuery) rows = rows.filter(function(r) {
+    return String(r.teacher_in_charge || '').trim().toLowerCase().indexOf(teacherQuery) !== -1 ||
+           String(r.teacher_in_charge_email || '').trim().toLowerCase().indexOf(teacherQuery) !== -1 ||
+           String(r.approved_by_email || '').trim().toLowerCase().indexOf(teacherQuery) !== -1;
+  });
   if (studentEmail) rows = rows.filter(function(r) { return String(r.requester_email||'').trim().toLowerCase().indexOf(studentEmail) !== -1; });
   if (mineOnly && user.email) {
     var myEmail = user.email.toLowerCase();
@@ -772,7 +900,7 @@ function getAdminOtherRequests(filters) {
     });
   }
   rows.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
-  return rows;
+  return attachSubmissionActivity_(rows, 'requester_email');
 }
 
 function updateOtherRequestStatus(requestId, status, remarks) {
@@ -787,59 +915,66 @@ function updateOtherRequestStatus(requestId, status, remarks) {
     throw new Error('Technicians can only set status to: ' + TECHNICIAN_ALLOWED_STATUSES.join(', '));
   }
 
-  var sheet = getSheet_(APP.sheets.otherRequests.name);
-  var values = sheet.getDataRange().getDisplayValues();
-  var headers = values[0];
-  var idCol = headers.indexOf('request_id');
-  if (idCol === -1) throw new Error('request_id column missing.');
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(10000);
+  try {
 
-  for (var r = 1; r < values.length; r++) {
-    if (values[r][idCol] === requestId) {
-      var rowIndex = r + 1;
-      var oldStatus = values[r][headers.indexOf('status')] || '';
-      writeCellByHeader_(sheet, headers, rowIndex, 'status', nextStatus);
-      writeCellByHeader_(sheet, headers, rowIndex, 'admin_remarks', String(remarks || '').trim());
-      writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', new Date().toISOString());
-      writeCellByHeader_(sheet, headers, rowIndex, 'updated_by', user.email || '');
+    var sheet = getSheet_(APP.sheets.otherRequests.name);
+    var values = sheet.getDataRange().getDisplayValues();
+    var headers = values[0];
+    var idCol = headers.indexOf('request_id');
+    if (idCol === -1) throw new Error('request_id column missing.');
 
-      appendObject_(APP.sheets.auditLog.name, {
-        timestamp: getAuditTimestamp_(),
-        submission_id: requestId,
-        actor_email: user.email || '',
-        action_type: 'update_other_request_status',
-        old_status: oldStatus,
-        new_status: nextStatus,
-        notes: String(remarks || '').trim()
-      });
+    for (var r = 1; r < values.length; r++) {
+      if (values[r][idCol] === requestId) {
+        var rowIndex = r + 1;
+        var oldStatus = values[r][headers.indexOf('status')] || '';
+        writeCellByHeader_(sheet, headers, rowIndex, 'status', nextStatus);
+        writeCellByHeader_(sheet, headers, rowIndex, 'admin_remarks', String(remarks || '').trim());
+        writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', new Date().toISOString());
+        writeCellByHeader_(sheet, headers, rowIndex, 'updated_by', user.email || '');
 
-      /* ---- auto-send email when status actually changed ---- */
-      var emailsSent = [];
-      var emailError = '';
-      if (oldStatus !== nextStatus) {
-        try {
-          emailsSent = sendOtherRequestNotification_(requestId, nextStatus, String(remarks || '').trim());
-        } catch (emailErr) {
-          emailError = String(emailErr.message || emailErr);
-          Logger.log('Other Request email send failed: ' + emailError);
+        appendObject_(APP.sheets.auditLog.name, {
+          timestamp: getAuditTimestamp_(),
+          submission_id: requestId,
+          actor_email: user.email || '',
+          action_type: 'update_other_request_status',
+          old_status: oldStatus,
+          new_status: nextStatus,
+          notes: String(remarks || '').trim()
+        });
+
+        /* ---- auto-send email when status actually changed ---- */
+        var emailsSent = [];
+        var emailError = '';
+        if (oldStatus !== nextStatus) {
+          try {
+            emailsSent = sendOtherRequestNotification_(requestId, nextStatus, String(remarks || '').trim());
+          } catch (emailErr) {
+            emailError = String(emailErr.message || emailErr);
+            Logger.log('Other Request email send failed: ' + emailError);
+          }
         }
+        return { ok: true, emailsSent: emailsSent, emailError: emailError, statusChanged: oldStatus !== nextStatus, oldStatus: oldStatus, newStatus: nextStatus };
       }
-      return { ok: true, emailsSent: emailsSent, emailError: emailError, statusChanged: oldStatus !== nextStatus, oldStatus: oldStatus, newStatus: nextStatus };
     }
+    throw new Error('Request not found.');
+  } finally {
+    lock.releaseLock();
   }
-  throw new Error('Request not found.');
 }
 
 function getStudentStatuses(query) {
   const target = String(query || '').trim().toLowerCase();
   if (!target) return [];
 
-  return getRowsAsObjects_(APP.sheets.submissions.name)
+  return attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.submissions.name)
     .filter(r => {
       const emailMatch = String(r.student_email || '').trim().toLowerCase() === target;
       const idMatch = String(r.submission_id || '').trim().toLowerCase() === target;
       return emailMatch || idMatch;
     })
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), 'student_email');
 }
 
 function getIssueTemplatesForClient() {
@@ -980,7 +1115,7 @@ function getAdminRows(filters) {
   }
 
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  return rows;
+  return attachSubmissionActivity_(rows, 'student_email');
 }
 
 function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
@@ -993,6 +1128,10 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
   if (user.role === 'technician' && TECHNICIAN_ALLOWED_STATUSES.indexOf(nextStatus) === -1) {
     throw new Error('Technician can only set approved, in_queue, in_production, or completed.');
   }
+
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(10000);
+  try {
 
   const sheet = getSheet_(APP.sheets.submissions.name);
   const values = sheet.getDataRange().getDisplayValues();
@@ -1053,6 +1192,9 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
   }
 
   throw new Error('Submission not found.');
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function uploadBase64File(payload) {
@@ -1064,7 +1206,16 @@ function uploadBase64File(payload) {
 
   if (!base64 || !fileName) throw new Error('Missing file payload.');
 
-  const bytes = Utilities.base64Decode(base64);
+  let bytes;
+  try {
+    bytes = Utilities.base64Decode(base64);
+  } catch (err) {
+    throw new Error('Uploaded file data is invalid. Please try again.');
+  }
+  const MAX_FILE_SIZE = 25 * 1024 * 1024;
+  if (bytes.length > MAX_FILE_SIZE) {
+    throw new Error('File exceeds 25 MB limit. Please reduce the file size and try again.');
+  }
   const blob = Utilities.newBlob(bytes, mimeType, fileName);
   const folder = getUploadFolder_(yearGroup, bucket);
   const file = folder.createFile(blob);
@@ -1105,40 +1256,42 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
   var projectName = escapeHtml_(req.project_name || 'your project');
 
   /* ---------- build requester email body ---------- */
-  var subject = 'Design Fabrication — ' + statusLabel + ' — ' + (req.project_name || 'Other Request');
+  var subject = 'Design Fabrication — ' + statusLabel + ' — ' + (req.project_name || 'Special Request');
   var body = '<p>Dear ' + requesterName + ',</p>';
 
   if (newStatus === APP.status.NEEDS_FIX) {
     body +=
-      '<p>We reviewed your Other Request for <strong>' + projectName + '</strong> ' +
+      '<p>We reviewed your Special Request for <strong>' + projectName + '</strong> ' +
       '(' + escapeHtml_(machineName) + ') and found an issue that needs your attention.</p>' +
+      '<div style="background:#fff3cd;border:1px solid #f59e0b;padding:10px 12px;border-radius:8px;margin:12px 0;font-size:13px;">' +
+      '<strong>&#9888; Action required:</strong> Please make the requested changes and <strong>resubmit</strong> through the Dashboard. Your teacher / sponsor is copied for awareness, but the revised submission still needs to come from you.</div>' +
       (remarks ? '<p><strong>Remarks from the technician team:</strong></p><blockquote style="border-left:3px solid #d35400;padding:8px 12px;margin:8px 0;background:#fef9f5;">' + escapeHtml_(remarks) + '</blockquote>' : '') +
       '<p>Please read the remarks above carefully, make the required changes, and resubmit through the Design Fabrication Dashboard.</p>';
   } else if (newStatus === APP.status.APPROVED) {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> has been <strong>approved</strong>.</p>' +
+      '<p>Your Special Request for <strong>' + projectName + '</strong> has been <strong>approved</strong>.</p>' +
       '<p>It will be queued for production shortly. No action is needed from you at this time.</p>';
   } else if (newStatus === APP.status.IN_QUEUE) {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> is now <strong>in the production queue</strong>.</p>' +
+      '<p>Your Special Request for <strong>' + projectName + '</strong> is now <strong>in the production queue</strong>.</p>' +
       '<p>You will be notified when production begins.</p>';
   } else if (newStatus === APP.status.IN_PRODUCTION) {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> is currently <strong>in production</strong>.</p>' +
+      '<p>Your Special Request for <strong>' + projectName + '</strong> is currently <strong>in production</strong>.</p>' +
       '<p>You will be notified when it is completed.</p>';
   } else if (newStatus === APP.status.COMPLETED) {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> has been <strong>completed</strong>!</p>' +
+      '<p>Your Special Request for <strong>' + projectName + '</strong> has been <strong>completed</strong>!</p>' +
       '<p><strong>Please come to the Design Technology workshop to collect your finished work at your earliest convenience.</strong></p>' +
       '<p>If you are unable to collect it soon, please inform you teacher in charge.</p>';
   } else if (newStatus === APP.status.REJECTED) {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> has been <strong>rejected</strong>.</p>' +
+      '<p>Your Special Request for <strong>' + projectName + '</strong> has been <strong>rejected</strong>.</p>' +
       (remarks ? '<p><strong>Reason:</strong> ' + escapeHtml_(remarks) + '</p>' : '') +
       '<p>Please speak with your teacher in charge for further guidance.</p>';
   } else {
     body +=
-      '<p>Your Other Request for <strong>' + projectName + '</strong> has been updated to: <strong>' + escapeHtml_(statusLabel) + '</strong>.</p>';
+      '<p>Your Special Request for <strong>' + projectName + '</strong> has been updated to: <strong>' + escapeHtml_(statusLabel) + '</strong>.</p>';
   }
   body += '<p>Best regards,<br>Design Technology Technician Team</p>';
 
@@ -1146,7 +1299,7 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
   var teacherEmail = String(req.teacher_in_charge_email || '').trim();
   var senderEmail = Session.getActiveUser().getEmail() || '';
 
-  /* ---------- NEEDS FIX: single threaded email (To: requester, CC: teacher + technician mailbox) ---------- */
+  /* ---------- NEEDS FIX: single threaded email (To: requester, CC: teacher + technician) ---------- */
   if (newStatus === APP.status.NEEDS_FIX && requesterEmail) {
     var ccList = [APP.technicianCcEmail];
     if (teacherEmail) ccList.push(teacherEmail);
@@ -1178,24 +1331,6 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
       MailApp.sendEmail({ to: requesterEmail, subject: subject, htmlBody: body });
       emailsSent.push('requester (' + requesterEmail + ')');
     }
-  }
-
-  /* ---------- send to teacher in charge (all status changes EXCEPT Needs Fix — already CC'd) ---------- */
-  if (teacherEmail && teacherEmail !== requesterEmail && newStatus !== APP.status.NEEDS_FIX) {
-    var teacherSubject = 'Design Fabrication — ' + statusLabel + ' — ' + (req.project_name || 'Other Request') + ' (by ' + (req.requester_name || 'requester') + ')';
-    var teacherBody =
-      '<p>Dear ' + escapeHtml_(req.teacher_in_charge || 'Teacher') + ',</p>' +
-      '<p>An Other Request you are listed as teacher-in-charge for has been updated:</p>' +
-      '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Project</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + projectName + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Requester</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + requesterName + ' (' + escapeHtml_(requesterEmail) + ')</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Machine</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(machineName) + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>New Status</strong></td><td style="padding:6px 12px;border:1px solid #ddd;"><strong>' + escapeHtml_(statusLabel) + '</strong></td></tr>' +
-      '</table>' +
-      (remarks ? '<p><strong>Technician Remarks:</strong> ' + escapeHtml_(remarks) + '</p>' : '') +
-      '<p>Regards,<br>Design Technology Technician Team</p>';
-    MailApp.sendEmail({ to: teacherEmail, subject: teacherSubject, htmlBody: teacherBody });
-    emailsSent.push('teacher (' + teacherEmail + ')');
   }
 
   /* ---------- audit log ---------- */
@@ -1263,10 +1398,10 @@ function sendOtherRequestConfirmation_(record) {
   var email = String(record.requester_email || '').trim();
   if (!email) return;
   var machineName = record.machine === '3d' ? '3D Print' : 'Laser Cut';
-  var subject = 'Design Fabrication — Request Received — ' + (record.project_name || 'Other Request');
+  var subject = 'Design Fabrication — Request Received — ' + (record.project_name || 'Special Request');
   var body =
     '<p>Dear ' + escapeHtml_(record.requester_name || 'Requester') + ',</p>' +
-    '<p>Your Other Request has been received and is now waiting for review.</p>' +
+    '<p>Your Special Request has been received and is now waiting for review.</p>' +
     '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Request ID</strong></td><td style="padding:6px 12px;border:1px solid #ddd;font-family:monospace;">' + escapeHtml_(record.request_id || '') + '</td></tr>' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Project</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(record.project_name || '') + '</td></tr>' +
@@ -1287,10 +1422,10 @@ function sendOtherRequestConfirmation_(record) {
   /* Also notify teacher in charge */
   var teacherEmail = String(record.teacher_in_charge_email || '').trim();
   if (teacherEmail && teacherEmail !== email) {
-    var teacherSubject = 'Design Fabrication — New Request — ' + (record.project_name || 'Other Request') + ' (by ' + (record.requester_name || 'requester') + ')';
+    var teacherSubject = 'Design Fabrication — New Request — ' + (record.project_name || 'Special Request') + ' (by ' + (record.requester_name || 'requester') + ')';
     var teacherBody =
       '<p>Dear ' + escapeHtml_(record.teacher_in_charge || 'Teacher') + ',</p>' +
-      '<p>A new Other Request has been submitted where you are listed as teacher-in-charge:</p>' +
+      '<p>A new Special Request has been submitted where you are listed as teacher-in-charge:</p>' +
       '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
       '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Requester</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(record.requester_name || '') + ' (' + escapeHtml_(record.requester_email || '') + ')</td></tr>' +
       '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Project</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(record.project_name || '') + '</td></tr>' +
@@ -1361,9 +1496,10 @@ function isTeacherRecordMatch_(row, user) {
    ========================= */
 
 /**
- * Sends automatic email notifications to both student and teacher
- * when admin/technician changes a submission's status.
- * Returns an array of recipients notified, e.g. ['student (email)','teacher (email)'].
+ * Sends automatic email notifications when admin/technician changes
+ * a submission's status. Teachers are only included on Needs Fix emails
+ * via CC; all other status updates go to the student only.
+ * Returns an array of recipients notified.
  * Throws on error so the caller can surface it to the user.
  */
 function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
@@ -1394,6 +1530,8 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       '(<strong>' + yearGroup + '</strong>, Class ' + classNo +
       ') and found the following issue(s). Please read the suggestions below carefully and follow the steps to fix each issue:</p>' +
       (issueHtml ? '<ul style="padding-left:18px;">' + issueHtml + '</ul>' : '') +
+      '<div style="background:#fff3cd;border:1px solid #f59e0b;padding:10px 12px;border-radius:8px;margin:12px 0;font-size:13px;">' +
+      '<strong>&#9888; Action required:</strong> You need to correct the file and <strong>resubmit it yourself</strong> through the Dashboard. Your teacher is copied for support, but the job will not move forward until the revised file is submitted.</div>' +
       (remarks ? '<p><strong>Additional remarks from technician:</strong> ' + escapeHtml_(remarks) + '</p>' : '') +
       '<p>Once you have made the corrections, please resubmit your file through the Design Technology Dashboard.</p>' +
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
@@ -1435,7 +1573,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
   var teacherEmail = resolveTeacherEmail_(submission, teacherName);
   var senderEmail = Session.getActiveUser().getEmail() || '';
 
-  /* ---------- NEEDS FIX: single threaded email (To: student, CC: teacher + technician mailbox) ---------- */
+  /* ---------- NEEDS FIX: single threaded email (To: student, CC: teacher + technician) ---------- */
   if (newStatus === APP.status.NEEDS_FIX && studentEmail) {
     var ccList = [APP.technicianCcEmail];
     if (teacherEmail) ccList.push(teacherEmail);
@@ -1469,35 +1607,6 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       MailApp.sendEmail({ to: studentEmail, subject: studentSubject, htmlBody: studentBody });
       emailsSent.push('student (' + studentEmail + ')');
     }
-  }
-
-  /* ---------- send to teacher (Completed, Rejected — skip Needs Fix since already CC'd above) ---------- */
-  var notifyTeacherStatuses = [APP.status.COMPLETED, APP.status.REJECTED];
-  if (teacherEmail && notifyTeacherStatuses.indexOf(newStatus) !== -1) {
-    var actionLine = getTeacherActionLine_(newStatus);
-    var teacherSubject = 'Design Technology - ' + statusLabel + ' - ' + (submission.student_name || 'Student') + ' (' + yearGroup + ', Class ' + classNo + ')';
-
-    var teacherBody = '<p>Dear ' + escapeHtml_(teacherName || 'Teacher') + ',</p>';
-    if (newStatus === APP.status.COMPLETED) {
-      teacherBody +=
-        '<p>A student\'s ' + escapeHtml_(machineName) + ' submission has been <strong>completed</strong>. Please inform them to collect their finished work from the workshop.</p>';
-    } else if (newStatus === APP.status.REJECTED) {
-      teacherBody +=
-        '<p>A student\'s ' + escapeHtml_(machineName) + ' submission has been <strong>rejected</strong>. Please discuss this with the student.</p>';
-    }
-    teacherBody +=
-      '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;white-space:nowrap;"><strong>Student</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(submission.student_name || '') + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;white-space:nowrap;"><strong>Email</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(submission.student_email || '') + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;white-space:nowrap;"><strong>Year / Class</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + yearGroup + ' / Class ' + classNo + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;white-space:nowrap;"><strong>Machine</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(machineName) + '</td></tr>' +
-      '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;white-space:nowrap;"><strong>Status</strong></td><td style="padding:6px 12px;border:1px solid #ddd;"><strong>' + escapeHtml_(statusLabel) + '</strong></td></tr>' +
-      '</table>';
-    if (remarks) teacherBody += '<p><strong>Technician Remarks:</strong> ' + escapeHtml_(remarks) + '</p>';
-    teacherBody += '<p><strong>Suggested action:</strong> ' + escapeHtml_(actionLine) + '</p>';
-    teacherBody += '<p>Regards,<br>Design Technology Technician Team</p>';
-    MailApp.sendEmail({ to: teacherEmail, subject: teacherSubject, htmlBody: teacherBody });
-    emailsSent.push('teacher (' + teacherEmail + ')');
   }
 
   /* ---------- audit log ---------- */
@@ -1652,6 +1761,173 @@ function toDateObject_(value) {
 function getSortableTime_(value) {
   const date = toDateObject_(value);
   return date ? date.getTime() : 0;
+}
+
+/**
+ * Count today's submissions (HK timezone) for a given email.
+ * Returns { total, dt, special }.
+ */
+function getTodaySubmissionCountByEmail_(email) {
+  var result = { total: 0, dt: 0, special: 0 };
+  if (!email) return result;
+  var e = String(email).trim().toLowerCase();
+  var today = Utilities.formatDate(new Date(), 'Asia/Hong_Kong', 'yyyy-MM-dd');
+  var ss = getSpreadsheet_();
+  // DT submissions
+  var subSheet = ss.getSheetByName(APP.sheets.submissions.name);
+  if (subSheet && subSheet.getLastRow() > 1) {
+    var subData = subSheet.getRange(2, 1, subSheet.getLastRow() - 1, subSheet.getLastColumn()).getValues();
+    for (var i = 0; i < subData.length; i++) {
+      var row = subData[i];
+      if (String(row[2] || '').trim().toLowerCase() === e) {
+        var ts = formatHongKongTimestamp_(row[1]);
+        if (ts && ts.substring(0, 10) === today) result.dt++;
+      }
+    }
+  }
+  // Special requests
+  var otherSheet = ss.getSheetByName(APP.sheets.otherRequests.name);
+  if (otherSheet && otherSheet.getLastRow() > 1) {
+    var otherData = otherSheet.getRange(2, 1, otherSheet.getLastRow() - 1, otherSheet.getLastColumn()).getValues();
+    for (var j = 0; j < otherData.length; j++) {
+      var orow = otherData[j];
+      if (String(orow[2] || '').trim().toLowerCase() === e) {
+        var ots = formatHongKongTimestamp_(orow[1]);
+        if (ots && ots.substring(0, 10) === today) result.special++;
+      }
+    }
+  }
+  result.total = result.dt + result.special;
+  return result;
+}
+
+function createEmptySubmissionActivity_() {
+  return {
+    counts: { total: 0, dt: 0, special: 0 },
+    last24_count: 0,
+    recent: []
+  };
+}
+
+function getSubmissionActivityMap_(emails) {
+  var targets = {};
+  (emails || []).forEach(function(email) {
+    var normalized = String(email || '').trim().toLowerCase();
+    if (normalized) targets[normalized] = true;
+  });
+  var targetList = Object.keys(targets);
+  if (!targetList.length) return {};
+
+  var activityMap = {};
+  targetList.forEach(function(email) {
+    activityMap[email] = createEmptySubmissionActivity_();
+  });
+
+  var today = Utilities.formatDate(new Date(), 'Asia/Hong_Kong', 'yyyy-MM-dd');
+  var last24Cutoff = Date.now() - (24 * 60 * 60 * 1000);
+  var ss = getSpreadsheet_();
+
+  function pushRecent_(email, item) {
+    activityMap[email].recent.push(item);
+  }
+
+  function finalize_(email) {
+    var activity = activityMap[email];
+    activity.counts.total = activity.counts.dt + activity.counts.special;
+    activity.recent = activity.recent
+      .sort(function(a, b) { return b.sort_time - a.sort_time; })
+      .slice(0, 3)
+      .map(function(item) {
+        return {
+          source: item.source,
+          id: item.id,
+          created_at: item.created_at,
+          label: item.label
+        };
+      });
+  }
+
+  var subSheet = ss.getSheetByName(APP.sheets.submissions.name);
+  if (subSheet && subSheet.getLastRow() > 1) {
+    var subData = subSheet.getRange(2, 1, subSheet.getLastRow() - 1, subSheet.getLastColumn()).getValues();
+    for (var i = 0; i < subData.length; i++) {
+      var row = subData[i];
+      var subEmail = String(row[2] || '').trim().toLowerCase();
+      if (!activityMap[subEmail]) continue;
+      var subDate = toDateObject_(row[1]);
+      if (!subDate) continue;
+      var subTs = formatHongKongTimestamp_(subDate);
+      if (subTs && subTs.substring(0, 10) === today) activityMap[subEmail].counts.dt++;
+      if (subDate.getTime() >= last24Cutoff) activityMap[subEmail].last24_count++;
+      pushRecent_(subEmail, {
+        source: 'dt',
+        id: String(row[0] || ''),
+        created_at: subTs,
+        label: String(row[7] || '').trim().toLowerCase() === '3d' ? 'DT Student Project - 3D Print' : 'DT Student Project - Laser Cut',
+        sort_time: subDate.getTime()
+      });
+    }
+  }
+
+  var otherSheet = ss.getSheetByName(APP.sheets.otherRequests.name);
+  if (otherSheet && otherSheet.getLastRow() > 1) {
+    var otherData = otherSheet.getRange(2, 1, otherSheet.getLastRow() - 1, otherSheet.getLastColumn()).getValues();
+    for (var j = 0; j < otherData.length; j++) {
+      var orow = otherData[j];
+      var otherEmail = String(orow[2] || '').trim().toLowerCase();
+      if (!activityMap[otherEmail]) continue;
+      var otherDate = toDateObject_(orow[1]);
+      if (!otherDate) continue;
+      var otherTs = formatHongKongTimestamp_(otherDate);
+      if (otherTs && otherTs.substring(0, 10) === today) activityMap[otherEmail].counts.special++;
+      if (otherDate.getTime() >= last24Cutoff) activityMap[otherEmail].last24_count++;
+      pushRecent_(otherEmail, {
+        source: 'other',
+        id: String(orow[0] || ''),
+        created_at: otherTs,
+        label: String(orow[7] || orow[6] || 'Special Request'),
+        sort_time: otherDate.getTime()
+      });
+    }
+  }
+
+  targetList.forEach(finalize_);
+  return activityMap;
+}
+
+function getSubmissionActivityByEmail_(email) {
+  var normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return createEmptySubmissionActivity_();
+  var map = getSubmissionActivityMap_([normalized]);
+  return map[normalized] || createEmptySubmissionActivity_();
+}
+
+function attachSubmissionActivity_(rows, emailField) {
+  rows = rows || [];
+  var activityMap = getSubmissionActivityMap_(rows.map(function(row) { return row[emailField]; }));
+  rows.forEach(function(row) {
+    var normalized = String(row[emailField] || '').trim().toLowerCase();
+    row._activity = activityMap[normalized] || createEmptySubmissionActivity_();
+  });
+  return rows;
+}
+
+/**
+ * Public endpoint: returns daily submission activity for an email.
+ */
+function getSubmissionActivity(email) {
+  var activity = getSubmissionActivityByEmail_(email);
+  var counts = activity.counts;
+  var warn = '';
+  if (counts.total >= 2) {
+    warn = 'You have already submitted ' + counts.total + ' request' + (counts.total > 1 ? 's' : '') + ' today. Please avoid duplicate submissions.';
+  }
+  return {
+    counts: counts,
+    last24_count: activity.last24_count,
+    recent: activity.recent,
+    warning: warn
+  };
 }
 
 function getFileExtension_(fileName) {
@@ -1996,34 +2272,38 @@ function renderPage_(page, boot) {
   var navItems = '';
   if (role === 'student' || role === 'guest') {
     navItems =
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#128301;</span> Other Requests</a>' +
+      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> DT Submit</a>' +
       '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> My Status</a>' +
+      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
+      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
       '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
   } else if (role === 'teacher') {
     navItems =
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#128301;</span> Other Requests</a>' +
+      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> DT Submit</a>' +
       '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Student Status</a>' +
       '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128203;</span> My Students</a>' +
+      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
+      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
       '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
   } else if (role === 'technician') {
     navItems =
       '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128736;</span> Queue</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#128301;</span> Other Requests</a>' +
+      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
       '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Lookup</a>' +
       '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
+      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
       '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
   } else {
     /* admin — full nav */
     navItems =
       '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128736;</span> Dashboard</a>' +
       '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#128301;</span> Other Requests</a>' +
+      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
       '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Lookup</a>' +
       '<a href="?page=rules" id="nav-rules" class="tab-btn ' + (page === 'rules' ? 'active' : '') + '" onclick="switchPage(\'rules\'); return false;"><span class="tab-icon">&#9881;</span> Rules</a>' +
       '<a href="?page=users" id="nav-users" class="tab-btn ' + (page === 'users' ? 'active' : '') + '" onclick="switchPage(\'users\'); return false;"><span class="tab-icon">&#128101;</span> Users</a>' +
       '<a href="?page=audit" id="nav-audit" class="tab-btn ' + (page === 'audit' ? 'active' : '') + '" onclick="switchPage(\'audit\'); return false;"><span class="tab-icon">&#128220;</span> Audit</a>' +
+      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
       '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
   }
 
@@ -2090,6 +2370,9 @@ function renderPage_(page, boot) {
     .tab-btn { color: rgba(255,255,255,.6); font-size: 13px; font-weight: 600; padding: 10px 16px; border-bottom: 3px solid transparent; transition: var(--transition); white-space: nowrap; text-decoration: none; display: flex; align-items: center; gap: 6px; }
     .tab-btn:hover { color: #fff; text-decoration: none; background: rgba(255,255,255,.05); }
     .tab-btn.active { color: #fff; border-bottom-color: var(--rose); }
+    .tab-btn--special { color: #fbbf24; text-shadow: 0 0 8px rgba(251,191,36,.2); }
+    .tab-btn--special:hover { color: #fde68a; background: rgba(251,191,36,.12); text-shadow: 0 0 10px rgba(251,191,36,.35); }
+    .tab-btn--special.active { color: #fde68a; border-bottom-color: #f59e0b; text-shadow: 0 0 10px rgba(251,191,36,.3); }
     .tab-icon { font-size: 15px; }
     .tab-bar-wrap { position: relative; background: var(--navy); }
     .tab-bar-wrap::before, .tab-bar-wrap::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24px; z-index: 2; pointer-events: none; transition: opacity .2s; opacity: 0; }
@@ -2213,14 +2496,92 @@ function renderPage_(page, boot) {
     @media (max-width: 520px) { .path-selector { grid-template-columns: 1fr; } }
 
     /* ---------- MACHINE INFO CARDS ---------- */
-    .machine-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 16px 0; }
-    .machine-card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 18px; }
+    .machine-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 20px 0; }
+    .machine-card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 24px; }
     .machine-card--laser { border-left: 4px solid var(--blue); }
     .machine-card--3d { border-left: 4px solid var(--amber); }
-    .machine-card h4 { font-size: 14px; font-weight: 700; margin: 0 0 2px; display: flex; align-items: center; gap: 6px; }
-    .machine-card .machine-type { font-size: 11px; font-weight: 600; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 8px; }
-    .machine-card p, .machine-card li { font-size: 13px; color: var(--slate); line-height: 1.6; }
-    .machine-card ul { padding-left: 16px; margin: 6px 0 0; }
+    .machine-card h4 { font-size: 16px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+    .machine-card .machine-type { font-size: 12px; font-weight: 600; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 12px; }
+    .machine-card p, .machine-card li { font-size: 14px; color: var(--slate); line-height: 1.7; }
+    .machine-card ul { padding-left: 18px; margin: 8px 0 0; }
+    .machine-page-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0f766e 100%); color: #fff; border-radius: var(--radius); padding: 32px 28px; margin-top: 20px; box-shadow: var(--shadow-lg); }
+    .machine-page-hero h3 { font-size: 26px; font-weight: 800; margin-bottom: 10px; }
+    .machine-page-hero p { font-size: 15px; line-height: 1.7; opacity: .92; max-width: 900px; }
+    .machine-hero-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .machine-hero-pill { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; }
+    .machine-page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+    .machine-panel { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); }
+    .machine-panel h3 { font-size: 20px; font-weight: 800; margin-bottom: 10px; color: var(--navy); }
+    .machine-panel p { font-size: 14px; color: var(--slate); line-height: 1.8; }
+    .machine-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 18px; }
+    .machine-stat { background: var(--bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 16px; }
+    .machine-stat .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--slate-lt); }
+    .machine-stat .value { font-size: 15px; font-weight: 800; color: var(--navy); margin-top: 6px; line-height: 1.5; }
+    .machine-process { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 18px; }
+    .machine-process-step { background: var(--bg); border-radius: var(--radius-sm); border: 1px solid var(--card-border); padding: 18px; }
+    .machine-process-step .num { width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; margin-bottom: 10px; }
+    .machine-process-step h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--navy); }
+    .machine-process-step p { font-size: 13px; color: var(--slate); line-height: 1.65; }
+    .machine-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 18px; }
+    .machine-report-card { background: var(--bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 20px; }
+    .machine-report-card h4 { font-size: 14px; font-weight: 800; margin-bottom: 8px; color: var(--navy); }
+    .machine-report-card ul { padding-left: 18px; margin: 0; }
+    .machine-report-card li { font-size: 13px; color: var(--slate); line-height: 1.75; }
+    .machine-search-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .machine-search-chip { display: inline-block; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; }
+    .machine-anchor-nav { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .machine-anchor-btn { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.22); color: #fff; border-radius: var(--radius-sm); padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition); text-decoration: none; }
+    .machine-anchor-btn:hover { background: rgba(255,255,255,.25); text-decoration: none; color: #fff; }
+    .machine-subsection { margin-top: 14px; }
+    .machine-subsection h5 { font-size: 13px; font-weight: 700; color: var(--navy); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .3px; }
+    .machine-subsection p, .machine-subsection li { font-size: 13px; color: var(--slate); line-height: 1.7; }
+    .machine-subsection ul { padding-left: 18px; margin: 0 0 8px; }
+    .machine-spec-highlight { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 12px 16px; margin: 14px 0 10px; }
+    .machine-spec-highlight .spec-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--slate-lt); white-space: nowrap; }
+    .machine-spec-highlight .spec-value { font-size: 16px; font-weight: 800; color: var(--navy); }
+    .machine-spec-highlight .spec-extra { font-size: 12px; font-weight: 600; color: var(--slate-lt); margin-left: 2px; }
+    .machine-spec-table { width: 100%; border-collapse: collapse; margin: 10px 0 6px; font-size: 13px; }
+    .machine-spec-table td { padding: 5px 8px; border-bottom: 1px solid var(--card-border); color: var(--slate); line-height: 1.5; }
+    .machine-spec-table td:first-child { font-weight: 700; color: var(--navy); white-space: nowrap; width: 40%; }
+    .machine-spec-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+    .machine-spec-badge--confirmed { background: #dcfce7; color: #166534; }
+    .machine-spec-badge--guidance { background: #e0e7ff; color: #3730a3; }
+    .machine-card-section { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--card-border); }
+    .machine-card-section h5 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--slate-lt); margin: 0 0 8px; }
+    .machine-card-section p, .machine-card-section li { font-size: 13px; color: var(--slate); line-height: 1.7; }
+    .machine-card-section ul { padding-left: 18px; margin: 0; }
+    .machine-school-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; font-size: 12px; color: #92400e; line-height: 1.6; }
+    .machine-school-box strong { color: #78350f; }
+    .machine-source-note { font-size: 11px; color: var(--slate-lt); margin-top: 12px; line-height: 1.6; font-style: italic; }
+    .machine-spec-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--blue); text-decoration: none; }
+    .machine-spec-link:hover { text-decoration: underline; }
+    @media (max-width: 700px) { .machine-page-grid { grid-template-columns: 1fr; } }
+
+    /* ---------- MACHINES GUIDE CALLOUT ---------- */
+    .machines-guide-callout { background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bfdbfe; border-left: 4px solid var(--blue); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 18px; display: flex; align-items: flex-start; gap: 12px; }
+    .machines-guide-callout .mgc-icon { font-size: 22px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+    .machines-guide-callout .mgc-body { flex: 1; }
+    .machines-guide-callout .mgc-body strong { font-size: 13px; display: block; margin-bottom: 4px; color: var(--navy); }
+    .machines-guide-callout .mgc-body p { font-size: 12px; color: var(--slate); line-height: 1.55; margin: 0 0 8px; }
+    .machines-guide-callout .mgc-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: var(--transition); text-decoration: none; }
+    .machines-guide-callout .mgc-btn:hover { background: var(--blue-lt); text-decoration: none; color: #fff; }
+
+    /* ---------- MACHINE-SPECIFIC REMINDER ---------- */
+    .machine-reminder { border-radius: var(--radius-sm); padding: 12px 14px; margin: 10px 0 14px; font-size: 12px; line-height: 1.6; }
+    .machine-reminder--laser { background: #fff7ed; border: 1px solid #fed7aa; border-left: 3px solid var(--orange); color: #7c2d12; }
+    .machine-reminder--3d { background: #fffbeb; border: 1px solid #fde68a; border-left: 3px solid var(--amber); color: #78350f; }
+    .machine-reminder strong { display: block; font-size: 12px; margin-bottom: 4px; }
+    .machine-reminder ul { padding-left: 16px; margin: 4px 0 6px; }
+    .machine-reminder li { margin-bottom: 2px; }
+    .machine-reminder a { font-weight: 700; text-decoration: underline; }
+
+    /* ---------- ORIENTATION CARD ---------- */
+    .orientation-card { background: var(--bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 18px; }
+    .orientation-card .oc-title { font-size: 14px; font-weight: 800; margin-bottom: 10px; color: var(--navy); display: flex; align-items: center; gap: 6px; }
+    .orientation-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .orientation-row { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+    .orientation-row strong { color: var(--navy); display: block; margin-bottom: 2px; }
+    .orientation-row span { color: var(--slate); }
 
     /* ---------- CONFIRM CHECKBOX ---------- */
     .confirm-row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 8px; font-size: 13px; line-height: 1.5; }
@@ -2326,6 +2687,80 @@ function renderPage_(page, boot) {
     tbody tr:hover { background: #f8fafc; }
     .cell-student { min-width: 160px; }
     .sub { font-size: 11px; color: var(--slate-lt); margin-top: 2px; }
+    .sub-strong { font-size: 11px; color: var(--navy); margin-top: 4px; font-weight: 700; }
+    .pill-source-dt { background: #dbeafe; color: #1e40af; font-size: 10px; }
+    .pill-source-special { background: #fef3c7; color: #92400e; font-size: 10px; }
+    .pill-repeat { background: #fef3c7; color: #92400e; font-size: 10px; }
+    .pill-repeat-strong { background: #fee2e2; color: #991b1b; font-size: 10px; }
+    .status-activity-banner { margin: 0 0 14px; }
+    .review-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .review-flag { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; line-height: 1.5; margin-top: 10px; }
+    .review-flag--warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .review-flag--info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .drawer-list { margin: 6px 0 0; padding-left: 18px; }
+    .drawer-list li { font-size: 12px; color: var(--slate); line-height: 1.6; }
+    .queue-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 2px; }
+    .queue-table thead th { background: transparent; border-bottom: 0; color: var(--slate-lt); padding: 0 8px 1px; font-size: 10px; }
+    .queue-table tbody td { padding: 11px 11px; border-top: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border); background: #fff; vertical-align: middle; }
+    .queue-table tbody td:first-child { border-left: 1px solid var(--card-border); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+    .queue-table tbody td:last-child { border-right: 1px solid var(--card-border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+    .queue-row { transition: border-color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+    .queue-row:hover td { box-shadow: 0 8px 18px rgba(15,23,42,.045); border-top-color: #cbd5e1; border-bottom-color: #cbd5e1; }
+    .queue-row--active td:first-child { box-shadow: inset 3px 0 0 var(--navy-lt); }
+    .queue-row--other td:first-child { box-shadow: inset 3px 0 0 #d97706; }
+    .queue-row--attention td { background: #fffdf7; }
+    .queue-row--done td { background: #f8fafc; border-color: #e2e8f0; }
+    .queue-row--done .queue-name, .queue-row--done .queue-status-note, .queue-row--done .queue-next-owner, .queue-row--done .queue-context-main { color: var(--slate); }
+    .queue-row--done .queue-meta, .queue-row--done .queue-meta-aux, .queue-row--done .queue-context-sub, .queue-row--done .queue-risk-note, .queue-row--done .queue-status-aux { color: #94a3b8; }
+    .queue-cell-requester { min-width: 238px; }
+    .queue-cell-context { min-width: 190px; }
+    .queue-cell-status { min-width: 212px; }
+    .queue-cell-meta { min-width: 132px; }
+    .queue-cell-action { width: 98px; text-align: right; }
+    .queue-name { font-size: 15px; font-weight: 800; color: var(--navy); line-height: 1.18; }
+    .queue-meta { font-size: 11px; color: var(--slate); margin-top: 3px; line-height: 1.32; }
+    .queue-meta-aux { font-size: 10px; color: var(--slate-lt); margin-top: 2px; line-height: 1.32; }
+    .queue-context { display: flex; flex-direction: column; gap: 4px; }
+    .queue-context-top { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 1px; }
+    .queue-context-main { font-size: 13px; font-weight: 700; color: var(--navy); line-height: 1.24; }
+    .queue-context-sub { font-size: 10px; color: var(--slate-lt); line-height: 1.28; }
+    .queue-status-block { display: flex; flex-direction: column; gap: 4px; }
+    .queue-status-block .pill { align-self: flex-start; }
+    .queue-next-owner { font-size: 11px; font-weight: 800; color: var(--navy); text-transform: uppercase; letter-spacing: .32px; }
+    .queue-status-note { font-size: 11px; color: var(--slate); line-height: 1.28; }
+    .queue-status-aux { font-size: 10px; color: var(--slate-lt); line-height: 1.28; }
+    .queue-meta-block { display: flex; flex-direction: column; gap: 6px; }
+    .queue-time-main { font-size: 11px; font-weight: 700; color: var(--navy); line-height: 1.24; }
+    .queue-time-sub { font-size: 10px; color: var(--slate-lt); line-height: 1.28; }
+    .queue-risk-stack { display: flex; flex-direction: column; gap: 4px; }
+    .queue-risk-pill { display: inline-flex; align-items: center; align-self: flex-start; border-radius: 999px; padding: 3px 8px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .42px; border: 1px solid transparent; }
+    .queue-risk-pill--ok { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+    .queue-risk-pill--soft { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
+    .queue-risk-pill--warn { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .queue-risk-pill--high { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .queue-risk-note { font-size: 10px; color: var(--slate-lt); line-height: 1.25; }
+    .queue-review-btn { width: 88px; min-width: 88px; justify-content: center; font-weight: 700; box-shadow: 0 5px 12px rgba(127,29,29,.09); }
+    .queue-review-btn--strong { box-shadow: 0 7px 16px rgba(127,29,29,.13); }
+    .queue-review-btn--quiet { box-shadow: none; opacity: .88; }
+    .queue-row--done .queue-review-btn { color: var(--slate); border-color: #cbd5e1; }
+    .queue-empty { margin-top: 12px; }
+
+    @media (max-width: 1340px) {
+      .queue-cell-requester { min-width: 224px; }
+      .queue-cell-context { min-width: 178px; }
+      .queue-cell-status { min-width: 198px; }
+      .queue-cell-meta { min-width: 124px; }
+      .queue-table tbody td { padding: 10px 10px; }
+    }
+
+    @media (max-width: 1180px) {
+      .queue-cell-requester { min-width: 196px; }
+      .queue-cell-context { min-width: 166px; }
+      .queue-cell-status { min-width: 184px; }
+      .queue-cell-meta { min-width: 118px; }
+      .queue-cell-action { width: 92px; }
+      .queue-table tbody td { padding: 10px 9px; }
+    }
 
     /* ---------- REVIEW DRAWER ---------- */
     .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.3); z-index: 200; display: none; }
@@ -2481,6 +2916,18 @@ function renderPage_(page, boot) {
     .newcomer-card h4 { font-size: 13px; font-weight: 700; margin: 0 0 4px; color: var(--navy); }
     .newcomer-card p { font-size: 12px; color: var(--slate-lt); margin: 0; line-height: 1.5; }
 
+    /* ---------- BEFORE YOU START BLOCK ---------- */
+    .bys-block { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: var(--radius); padding: 20px 24px; margin: 16px 0 20px; }
+    .bys-title { font-size: 15px; font-weight: 800; color: #92400e; margin: 0 0 12px; }
+    .bys-who { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--slate); line-height: 1.6; margin-bottom: 14px; padding: 10px 14px; background: rgba(255,255,255,.6); border-radius: var(--radius-sm); border: 1px solid rgba(251,191,36,.2); }
+    .bys-who-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .bys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 14px; }
+    .bys-item { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--slate); line-height: 1.5; }
+    .bys-check { color: #16a34a; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .bys-notices { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .bys-notice { font-size: 11px; color: #92400e; line-height: 1.5; }
+    .bys-footer { font-size: 12px; color: var(--slate-lt); line-height: 1.5; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
     /* ---------- FOOTER ---------- */
     .site-footer { max-width: 1200px; margin: 40px auto 0; padding: 20px 16px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--slate-lt); line-height: 1.6; }
     .site-footer strong { color: var(--slate); font-weight: 700; }
@@ -2493,12 +2940,38 @@ function renderPage_(page, boot) {
       .header-inner { height: 48px; }
       .logo { font-size: 14px; }
       .tab-btn { padding: 8px 12px; font-size: 12px; }
+      .tab-btn--special { text-shadow: none; }
       .card { padding: 16px; }
       .drawer { width: 100vw; }
       .qs-hero { padding: 20px 16px; }
       .qs-steps { grid-template-columns: 1fr; }
       .qs-audience { flex-direction: column; }
+      .newcomer-strip { grid-template-columns: 1fr; gap: 8px; }
+      .machines-guide-callout { flex-direction: column; text-align: center; }
+      .bys-block { padding: 16px; }
+      .bys-grid { grid-template-columns: 1fr; }
+      .bys-who { flex-direction: column; gap: 6px; }
+      .filter-bar { padding: 12px; }
+      .filter-meta { justify-content: stretch; }
+      .teacher-toggle { width: 100%; margin-right: 0; }
+      .tbl-wrap { overflow: visible; }
+      .queue-table, .queue-table thead, .queue-table tbody, .queue-table tr, .queue-table th, .queue-table td { display: block; width: 100%; }
+      .queue-table thead { display: none; }
+      .queue-table tbody { display: flex; flex-direction: column; gap: 12px; }
+      .queue-table tbody td { border: 1px solid var(--card-border); border-radius: 12px; padding: 11px 12px; margin: 0; box-shadow: none; }
+      .queue-table tbody td:first-child, .queue-table tbody td:last-child { border-radius: 12px; }
+      .queue-row { display: grid; gap: 8px; }
+      .queue-row td::before { content: attr(data-label); display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .45px; color: var(--slate-lt); margin-bottom: 6px; }
+      .queue-row--active td:first-child, .queue-row--other td:first-child { box-shadow: none; }
+      .queue-cell-action { width: auto; }
+      .queue-meta-block { gap: 8px; }
+      .queue-review-btn { min-height: 40px; }
+      .drawer-body { padding: 16px; }
+      .drawer-actions { padding: 12px 16px; }
+      .drawer-actions .btn { flex: 1 1 100%; }
+      .review-summary-grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 860px) { .machine-page-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body class="role-${escapeHtml_(role)}">
@@ -2519,6 +2992,7 @@ function renderPage_(page, boot) {
       <div id="page-other"  style="display:${page === 'other'  ? 'block' : 'none'}">${renderOtherRequestPage_()}</div>
       <div id="page-status" style="display:${page === 'status' ? 'block' : 'none'}">${renderStatusPage_(boot.currentUser)}</div>
       ` + (isAdmin ? `<div id="page-admin"  style="display:${page === 'admin'  ? 'block' : 'none'}">${renderAdminPage_(boot.currentUser)}</div>` : `<div id="page-admin" style="display:none"><div class="card"><div class="section-title">&#128274; Access Restricted</div><p>You do not have permission to view this page.</p></div></div>`) + `
+      <div id="page-machines" style="display:${page === 'machines' ? 'block' : 'none'}">${renderMachinesPage_()}</div>
       <div id="page-help"   style="display:${page === 'help'   ? 'block' : 'none'}">${renderHelpPage_()}</div>
       ` + (isAdmin ? `<div id="page-rules"  style="display:${page === 'rules'  ? 'block' : 'none'}">` + rulesPageHtml + `</div>
       <div id="page-users"  style="display:${page === 'users'  ? 'block' : 'none'}">` + usersPageHtml + `</div>
@@ -2527,9 +3001,9 @@ function renderPage_(page, boot) {
   </div>
 
   <footer class="site-footer">
-    <strong>Design Fabrication Dashboard</strong> &mdash; VSA Design &amp; Technology Department<br>
+    <strong>Design Fabrication Dashboard</strong> &mdash; School Design &amp; Technology Department<br>
     Laser Cutting &bull; 3D Printing &bull; Prototyping &bull; Creative Making<br>
-    Need help? Visit the <a href="javascript:void(0)" onclick="switchPage('help')" style="color:var(--blue);text-decoration:underline;">Help &amp; Guidelines</a> page or speak to your DT teacher.
+    Need machine details? Visit the <a href="javascript:void(0)" onclick="switchPage('machines')" style="color:var(--blue);text-decoration:underline;">Machines Guide</a> or the <a href="javascript:void(0)" onclick="switchPage('help')" style="color:var(--blue);text-decoration:underline;">Help &amp; Guidelines</a> page.
   </footer>
 
   ` + (isAdmin ? `<div class="drawer-overlay" id="reviewDrawer">
@@ -2564,13 +3038,100 @@ function renderPage_(page, boot) {
       submitted: 'Technician Review', needs_fix: 'Student Revision', approved: 'Technician Queue',
       in_queue: 'Technician Queue', in_production: 'Technician Production', completed: 'Student Collection', rejected: 'Teacher + Student Follow-up'
     };
+    var STATUS_ACTION_HINT = {
+      submitted: 'Awaiting technician review.',
+      needs_fix: 'Waiting for requester resubmission.',
+      approved: 'Ready for queueing.',
+      in_queue: 'Waiting for machine slot.',
+      in_production: 'In production.',
+      completed: 'Ready for collection.',
+      rejected: 'Follow up with teacher or requester.'
+    };
 
     function statusProgress(status) { return Number(STATUS_PROGRESS[String(status||'').trim()]||0); }
     function statusOwner(status) { return STATUS_OWNER[String(status||'').trim()]||'Workflow Team'; }
+    function statusActionHint(status) { return STATUS_ACTION_HINT[String(status||'').trim()]||'Check the latest remarks for next steps.'; }
     function statusPill(status) { var s = String(status||''); return '<span class="pill pill-' + s + '">' + esc((STATUS_LABELS[s]||s).toUpperCase()) + '</span>'; }
+    function formatDisplayTs(value) { var text = String(value||''); return text ? text.replace('T', ' ').substring(0, 16) : '\u2014'; }
+    function sourcePill(source) {
+      return source === 'other'
+        ? '<span class="pill pill-source-special" title="Special Request">SPECIAL REQUEST</span>'
+        : '<span class="pill pill-source-dt" title="DT Student Project">DT PROJECT</span>';
+    }
+    function activityPill(activity) {
+      activity = activity || {};
+      var counts = activity.counts || {};
+      var total = Number(counts.total || 0);
+      var last24 = Number(activity.last24_count || 0);
+      if (total >= 3) return '<span class="pill pill-repeat-strong">' + total + ' TODAY</span><div class="sub">' + last24 + ' in last 24h</div>';
+      if (total === 2) return '<span class="pill pill-repeat">2 TODAY</span><div class="sub">' + last24 + ' in last 24h</div>';
+      if (last24 > 1) return '<span class="sub">1 today</span><div class="sub">' + last24 + ' in last 24h</div>';
+      return '<span class="sub">No repeat flag</span>';
+    }
+    function renderRecentActivity(activity) {
+      activity = activity || {};
+      if (!activity.recent || !activity.recent.length) return '';
+      return '<ul class="drawer-list">' + activity.recent.map(function(item) {
+        return '<li><strong>' + esc(item.label || (item.source === 'other' ? 'Special Request' : 'DT Student Project')) + '</strong> &mdash; ' + esc(formatDisplayTs(item.created_at)) + '</li>';
+      }).join('') + '</ul>';
+    }
+    function queueTimeMeta(value) {
+      if (!value) return '';
+      var ts = new Date(value);
+      if (isNaN(ts.getTime())) return '';
+      var diffMins = Math.max(0, Math.round((Date.now() - ts.getTime()) / 60000));
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return diffMins + 'm ago';
+      var diffHours = Math.round(diffMins / 60);
+      if (diffHours < 24) return diffHours + 'h ago';
+      var diffDays = Math.round(diffHours / 24);
+      return diffDays + 'd ago';
+    }
+    function queueRowStateClass(status) {
+      return (status === 'completed' || status === 'rejected') ? 'queue-row--done' : 'queue-row--active';
+    }
+    function queueSourceClass(source) {
+      return source === 'other' ? 'queue-row--other' : 'queue-row--dt';
+    }
+    function queueAttentionClass(row) {
+      var activity = row && row._activity ? row._activity : {};
+      var total = Number((activity.counts || {}).total || 0);
+      if (row && (row.status === 'submitted' || row.status === 'needs_fix' || total >= 3)) return 'queue-row--attention';
+      return '';
+    }
+    function queueStatusNote(row) {
+      if (!row) return '';
+      if (row.status === 'submitted') return 'Awaiting first review';
+      if (row.status === 'needs_fix') return 'Check latest correction';
+      if (row.status === 'completed') return 'Collection / handover';
+      if (row.status === 'rejected') return 'Review remarks if needed';
+      return '';
+    }
+    function queueRiskBlock(activity) {
+      activity = activity || {};
+      var counts = activity.counts || {};
+      var total = Number(counts.total || 0);
+      var last24 = Number(activity.last24_count || 0);
+      if (total >= 3) {
+        return '<div class="queue-risk-stack"><span class="queue-risk-pill queue-risk-pill--high" title="Multiple same-day submissions">Burst today</span><span class="queue-risk-note">' + total + ' today · ' + last24 + ' in 24h</span></div>';
+      }
+      if (total === 2) {
+        return '<div class="queue-risk-stack"><span class="queue-risk-pill queue-risk-pill--warn">Repeated today</span><span class="queue-risk-note">2 today · ' + last24 + ' in 24h</span></div>';
+      }
+      if (last24 > 1) {
+        return '<div class="queue-risk-stack"><span class="queue-risk-pill queue-risk-pill--soft">Recent activity</span><span class="queue-risk-note">' + last24 + ' in last 24h</span></div>';
+      }
+      return '<div class="queue-risk-stack"><span class="queue-risk-pill queue-risk-pill--ok">Single submission</span></div>';
+    }
+    function queueReviewButtonClass(row) {
+      if (!row) return 'btn btn-primary btn-sm';
+      if (row.status === 'completed' || row.status === 'rejected') return 'btn btn-ghost btn-sm queue-review-btn queue-review-btn--quiet';
+      if (row.status === 'submitted' || row.status === 'needs_fix') return 'btn btn-primary btn-sm queue-review-btn queue-review-btn--strong';
+      return 'btn btn-primary btn-sm queue-review-btn';
+    }
 
     /* ---------- NAV ---------- */
-    var _pages = ['submit','other','status','admin','help','rules','users','audit'];
+    var _pages = ['submit','other','status','admin','machines','help','rules','users','audit'];
     var _adminPages = ['admin','rules','users','audit'];
     var _init = {};
     function switchPage(p) {
@@ -2650,6 +3211,65 @@ function renderPage_(page, boot) {
       _debounceTimers[key] = setTimeout(fn, delay || 400);
     }
 
+    /* ---------- MACHINE REMINDER HELPER ---------- */
+    function renderMachineReminder_(machine, isOther) {
+      var extra = '';
+      if (isOther) {
+        extra = '<li style="margin-top:4px;"><strong>Non-DT / special requests</strong> must be suitable for the selected machine and meet workshop approval rules. <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27)" style="font-weight:700;text-decoration:underline;">Check the Machines Guide</a> before submitting.</li>';
+      }
+      if (machine === 'laser') {
+        return '<div class="machine-reminder machine-reminder--laser">' +
+          '<strong>\\ud83d\\udd25 Laser Cutting Reminder</strong>' +
+          '<ul>' +
+          '<li>Your working file must be an <strong>editable vector file</strong> (not a screenshot, PNG, or JPG).</li>' +
+          '<li>Image-based files cannot be used as the main cutting file &mdash; the laser follows vector paths only.</li>' +
+          '<li>Unsure about file preparation? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-laser\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the Spirit LS Pro &amp; Mercury III specs on the Machines page</a>.</li>' +
+          extra +
+          '</ul></div>';
+      }
+      if (machine === '3d') {
+        return '<div class="machine-reminder machine-reminder--3d">' +
+          '<strong>\\u2699\\ufe0f 3D Printing Reminder</strong>' +
+          '<ul>' +
+          '<li>Your STL must be a <strong>printable 3D model</strong>, not just a visual shape &mdash; check wall thickness and overhangs.</li>' +
+          '<li>Include a <strong>dimension screenshot</strong> showing width, height, and depth of your model.</li>' +
+          '<li>Unsure about printability? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-3d\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the K2 Plus &amp; Guider IIs specs on the Machines page</a>.</li>' +
+          extra +
+          '</ul></div>';
+      }
+      return '';
+    }
+
+    /* ---------- SUBMISSION ACTIVITY HELPER ---------- */
+    function loadSubmissionActivity(email, msgId) {
+      var el = document.getElementById(msgId);
+      if (!el) return;
+      var e = String(email || '').trim();
+      if (!e) { el.style.display = 'none'; el.innerHTML = ''; toggleRepeatReminder_(msgId, false); return; }
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res || !res.counts) { el.style.display = 'none'; toggleRepeatReminder_(msgId, false); return; }
+          var c = res.counts;
+          var parts = [];
+          if (c.dt) parts.push(c.dt + ' DT submission' + (c.dt > 1 ? 's' : ''));
+          if (c.special) parts.push(c.special + ' Special Request' + (c.special > 1 ? 's' : ''));
+          if (parts.length === 0) { el.style.display = 'none'; el.innerHTML = ''; toggleRepeatReminder_(msgId, false); return; }
+          var html = '\\ud83d\\udcca Today: ' + parts.join(', ') + '.';
+          if (res.last24_count > c.total) html += '<br>\\u23f1 Last 24h: ' + res.last24_count + ' total request' + (res.last24_count > 1 ? 's' : '') + '.';
+          if (res.warning) html += '<br><strong style="color:var(--clr-warn,#b45309);">\\u26a0\\ufe0f ' + esc(res.warning) + '</strong>';
+          el.innerHTML = html;
+          el.style.display = 'block';
+          toggleRepeatReminder_(msgId, c.total >= 2);
+        })
+        .withFailureHandler(function() { el.style.display = 'none'; toggleRepeatReminder_(msgId, false); })
+        .getSubmissionActivity(e);
+    }
+    function toggleRepeatReminder_(msgId, show) {
+      var rId = msgId === 'dtSubmitActivity' ? 'dtRepeatReminder' : (msgId === 'otherSubmitActivity' ? 'otherRepeatReminder' : null);
+      var rem = rId ? document.getElementById(rId) : null;
+      if (rem) rem.style.display = show ? 'block' : 'none';
+    }
+
     /* ================================================
        SUBMIT PAGE
     ================================================ */
@@ -2677,6 +3297,13 @@ function renderPage_(page, boot) {
       /* Pre-fill student email if logged in */
       var emailInput = form.querySelector('[name="student_email"]');
       if (emailInput && BOOT.currentUser.email && !emailInput.value) emailInput.value = BOOT.currentUser.email;
+
+      /* Wire activity lookup on email */
+      if (emailInput) {
+        emailInput.addEventListener('blur', function() { loadSubmissionActivity(emailInput.value, 'dtSubmitActivity'); });
+        emailInput.addEventListener('change', function() { loadSubmissionActivity(emailInput.value, 'dtSubmitActivity'); });
+        if (emailInput.value) loadSubmissionActivity(emailInput.value, 'dtSubmitActivity');
+      }
 
       function setStep(idx, done) {
         var el = steps[idx]; if (!el) return;
@@ -2708,6 +3335,8 @@ function renderPage_(page, boot) {
         var year = yearSel.value, machine = machineSel.value;
         var rule = BOOT.rules.find(function(r) { return r.year_group === year && r.machine === machine; });
         if (depthField) depthField.style.display = machine === '3d' ? 'flex' : 'none';
+        var dtRem = document.getElementById('dtMachineReminder');
+        if (dtRem) dtRem.innerHTML = renderMachineReminder_(machine);
         if (!rule) {
           materialSel.innerHTML = '<option value="">Choose year + machine first</option>';
           materialSel.disabled = true;
@@ -2764,6 +3393,16 @@ function renderPage_(page, boot) {
               var suc = document.getElementById('submitSuccess');
               suc.style.display = 'block';
               suc.querySelector('.id-box-text').textContent = res.submission_id;
+              /* Populate submission activity in success state */
+              var saEl = document.getElementById('successSubmittedAt');
+              if (saEl && res.submitted_at) {
+                var parts = [];
+                parts.push('\\ud83d\\uddd3\\ufe0f Submitted: ' + formatDisplayTs(res.submitted_at));
+                if (res.submissions_today) parts.push('\\ud83d\\udcca Today: ' + res.submissions_today + ' total (' + (res.dt_submissions_today||0) + ' DT, ' + (res.special_submissions_today||0) + ' Special)');
+                if (res.last_24h_submissions > res.submissions_today) parts.push('\\u23f1 Last 24h: ' + res.last_24h_submissions + ' total requests');
+                saEl.innerHTML = parts.join('<br>');
+                saEl.style.display = 'block';
+              }
               window.scrollTo({ top: 0, behavior: 'smooth' });
               form.reset();
               materialSel.disabled = true; ruleBox.innerHTML = ''; unitsInput.value = '';
@@ -2871,10 +3510,13 @@ function renderPage_(page, boot) {
         if (deptOtherField) deptOtherField.style.display = deptSel.value === 'Other' ? 'block' : 'none';
       });
 
-      /* Show/hide competition name field */
-      if (typeSel) typeSel.addEventListener('change', function() {
-        if (competitionField) competitionField.style.display = typeSel.value === 'competition' ? 'block' : 'none';
-      });
+      /* Show/hide competition name field (triggered by type OR purpose) */
+      function updateCompetitionField_() {
+        var show = (typeSel && typeSel.value === 'competition') || (purposeSel && purposeSel.value === 'competition');
+        if (competitionField) competitionField.style.display = show ? 'block' : 'none';
+      }
+      if (typeSel) typeSel.addEventListener('change', updateCompetitionField_);
+      if (purposeSel) purposeSel.addEventListener('change', updateCompetitionField_);
 
       /* Teacher dropdown -> auto-fill teacher email */
       var teacherEmails = {` + Object.keys(APP.teacherEmails).map(function(k) {
@@ -2895,6 +3537,8 @@ function renderPage_(page, boot) {
       if (machineSel) machineSel.addEventListener('change', function() {
         var machine = machineSel.value;
         if (depthField) depthField.style.display = machine === '3d' ? 'flex' : 'none';
+        var otherRem = document.getElementById('otherMachineReminder');
+        if (otherRem) otherRem.innerHTML = renderMachineReminder_(machine, true);
         /* Build material list from all rules for that machine */
         var mats = {};
         (BOOT.rules || []).forEach(function(r) {
@@ -2914,6 +3558,13 @@ function renderPage_(page, boot) {
       /* Pre-fill requester email if logged in */
       var emailInput = form.querySelector('[name="requester_email"]');
       if (emailInput && BOOT.currentUser.email && !emailInput.value) emailInput.value = BOOT.currentUser.email;
+
+      /* Wire activity lookup on email */
+      if (emailInput) {
+        emailInput.addEventListener('blur', function() { loadSubmissionActivity(emailInput.value, 'otherSubmitActivity'); });
+        emailInput.addEventListener('change', function() { loadSubmissionActivity(emailInput.value, 'otherSubmitActivity'); });
+        if (emailInput.value) loadSubmissionActivity(emailInput.value, 'otherSubmitActivity');
+      }
 
       /* File zones */
       setupFileZone_('otherWorkingFile', function(){});
@@ -2954,6 +3605,16 @@ function renderPage_(page, boot) {
               var suc = document.getElementById('otherSuccess');
               suc.style.display = 'block';
               suc.querySelector('.id-box-text').textContent = res.request_id;
+              /* Populate submission activity in success state */
+              var saEl = document.getElementById('otherSuccessSubmittedAt');
+              if (saEl && res.submitted_at) {
+                var parts = [];
+                parts.push('\\ud83d\\uddd3\\ufe0f Submitted: ' + formatDisplayTs(res.submitted_at));
+                if (res.submissions_today) parts.push('\\ud83d\\udcca Today: ' + res.submissions_today + ' total (' + (res.dt_submissions_today||0) + ' DT, ' + (res.special_submissions_today||0) + ' Special)');
+                if (res.last_24h_submissions > res.submissions_today) parts.push('\\u23f1 Last 24h: ' + res.last_24h_submissions + ' total requests');
+                saEl.innerHTML = parts.join('<br>');
+                saEl.style.display = 'block';
+              }
               window.scrollTo({ top: 0, behavior: 'smooth' });
               form.reset();
               materialSel.innerHTML = '<option value="">\\u2014 Select machine first \\u2014</option>';
@@ -3039,20 +3700,29 @@ function renderPage_(page, boot) {
         all.sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
         var el = document.getElementById('statusResults');
         if (!all.length) {
-          el.innerHTML = '<div class="alert alert-neutral"><span class="alert-icon">\\ud83d\\udd0d</span><span>No submissions found. Check spelling or ask your teacher if you used a different email.</span></div>';
+          el.innerHTML = '<div class="alert alert-warning"><span class="alert-icon">\\ud83d\\udd0d</span><span><strong>No submissions found.</strong> Try your full school email, or paste the Submission ID / Request ID exactly as shown in the confirmation message. If you still cannot find it, ask your teacher or the technician team to confirm which email was used.</span></div>';
           return;
         }
-        el.innerHTML = renderStatusSummary_(all) + all.map(function(r) {
+        function renderCard(r) {
           var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
           var msg = STATUS_MSG[r.status] || '';
           var progress = statusProgress(r.status);
           var owner = statusOwner(r.status);
           var extra = '';
-          if (r.status === 'needs_fix' && r.admin_remarks) extra = '<div class="sub-card-msg msg-needs_fix"><strong>What to do:</strong> ' + esc(r.admin_remarks) + '</div>';
+          if (r.status === 'needs_fix') {
+            var fixMsg = r.admin_remarks || 'Review the technician feedback, fix your file, and resubmit through the Dashboard.';
+            extra = '<div class="sub-card-msg msg-needs_fix"><strong>Action required:</strong> ' + esc(fixMsg) + '</div>';
+            var daysWaiting = 0;
+            var rawDate = new Date(r.updated_at || r.created_at || '');
+            if (!isNaN(rawDate.getTime())) daysWaiting = Math.floor((Date.now() - rawDate.getTime()) / 86400000);
+            if (daysWaiting >= 3) {
+              extra += '<div class="alert alert-warning" style="margin-top:10px;"><span class="alert-icon">&#9888;</span><span><strong>Waiting for revision:</strong> ' + daysWaiting + ' day(s) since the last update.</span></div>';
+            }
+          }
           else if (msg) extra = '<div class="sub-card-msg msg-' + esc(r.status) + '">' + esc(msg) + '</div>';
-          var sourceTag = r._source === 'other' ? '<span class="pill" style="background:#e0e7ff;color:#3730a3;font-size:10px;margin-left:6px;">Other Request</span>' : '';
+          var sourceTag = '<span style="margin-left:6px;">' + sourcePill(r._source) + '</span>';
           var titleLabel = r._source === 'other'
-            ? esc(r.project_name||'Other Request') + ' \\u2013 ' + esc(MACHINE_LABELS[r.machine]||r.machine)
+            ? esc(r.project_name||'Special Request') + ' \\u2013 ' + esc(MACHINE_LABELS[r.machine]||r.machine)
             : esc(MACHINE_LABELS[r.machine]||r.machine) + ' \\u2013 ' + esc(r.material||'\\u2014');
           var detailFields = '';
           if (r._source === 'other') {
@@ -3061,7 +3731,7 @@ function renderPage_(page, boot) {
               '<div class="sub-card-field"><label>Dept</label><div class="val">' + esc(r.department_or_subject||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Teacher</label><div class="val">' + esc(r.teacher_in_charge||'\\u2014') + '</div></div>' +
               (dims.length ? '<div class="sub-card-field"><label>Size</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
-              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,10) : '\\u2014') + '</div></div>' +
+              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,16).replace('T',' ') : '\\u2014') + '</div></div>' +
               '<div class="sub-card-field" style="grid-column:1/-1"><label>Request ID</label><div class="val" style="font-family:monospace;font-size:12px;word-break:break-all;">' + esc(r.request_id||r.submission_id||'') + '</div></div>';
           } else {
             detailFields =
@@ -3069,16 +3739,38 @@ function renderPage_(page, boot) {
               '<div class="sub-card-field"><label>Class</label><div class="val">' + esc(r.design_class_no||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher||'\\u2014') + '</div></div>' +
               (dims.length ? '<div class="sub-card-field"><label>Size</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
-              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,10) : '\\u2014') + '</div></div>' +
+              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,16).replace('T',' ') : '\\u2014') + '</div></div>' +
               '<div class="sub-card-field" style="grid-column:1/-1"><label>Submission ID</label><div class="val" style="font-family:monospace;font-size:12px;word-break:break-all;">' + esc(r.submission_id||'') + '</div></div>';
           }
           return '<div class="sub-card">' +
-            '<div class="sub-card-head"><div><div class="sub-card-title">' + titleLabel + sourceTag + '</div><div class="sub-card-meta">Submitted ' + esc(r.created_at ? r.created_at.substring(0,10) : '') + '</div></div>' + statusPill(r.status) + '</div>' +
+            '<div class="sub-card-head"><div><div class="sub-card-title">' + titleLabel + sourceTag + '</div><div class="sub-card-meta">Submitted ' + esc(r.created_at ? r.created_at.substring(0,16).replace('T',' ') : '') + '</div></div>' + statusPill(r.status) + '</div>' +
             '<div class="progress-strip"><div class="progress-fill" style="width:' + progress + '%"></div></div>' +
             '<div class="progress-meta"><span>Progress: ' + progress + '%</span><span>Owner: ' + esc(owner) + '</span></div>' +
             buildTimeline(r.status) +
             '<div class="sub-card-body">' + detailFields + '</div>' + extra + '</div>';
-        }).join('');
+        }
+        function renderSection(title, subtitle, rows) {
+          if (!rows.length) return '';
+          return '<div style="margin-top:18px;">' +
+            '<div class="section-title" style="font-size:18px;margin-bottom:4px;">' + title + '</div>' +
+            '<div class="section-sub" style="margin-bottom:12px;">' + subtitle + '</div>' +
+            rows.map(renderCard).join('') +
+          '</div>';
+        }
+        var dtOnly = all.filter(function(r){ return r._source === 'dt'; });
+        var otherOnly = all.filter(function(r){ return r._source === 'other'; });
+        var statusHtml = renderStatusSummary_(all);
+        var topActivity = all[0] && all[0]._activity ? all[0]._activity : null;
+        if (topActivity && (Number(topActivity.counts.total || 0) >= 2 || Number(topActivity.last24_count || 0) >= 2)) {
+          statusHtml += '<div class="alert alert-info status-activity-banner"><span class="alert-icon">&#128202;</span><span><strong>Recent activity for this requester:</strong> ' + Number(topActivity.counts.total || 0) + ' request(s) today and ' + Number(topActivity.last24_count || 0) + ' in the last 24 hours. Review the latest record carefully before resubmitting or chasing the queue.</span></div>';
+        }
+        if (dtOnly.length && otherOnly.length) {
+          statusHtml += renderSection('DT Submissions', 'Your regular DT coursework workflow items.', dtOnly);
+          statusHtml += renderSection('Special Requests', 'Competition, club, event, or non-DT fabrication requests.', otherOnly);
+        } else {
+          statusHtml += all.map(renderCard).join('');
+        }
+        el.innerHTML = statusHtml;
       }
       function onError(err) { if (!hadError) { hadError = true; setMsg('statusMsg', err.message||String(err), 'error'); if (statusBtn) { statusBtn.disabled = false; statusBtn.innerHTML = '&#128270; Check Status'; } } }
       google.script.run.withSuccessHandler(function(rows){ dtRows = rows; dtDone = true; merge(); }).withFailureHandler(onError).getStudentStatuses(q);
@@ -3100,6 +3792,8 @@ function renderPage_(page, boot) {
       if (mine) { mine.addEventListener('change', loadAdminRows); if (BOOT.currentUser.role === 'teacher') mine.checked = true; }
       loadAdminRows();
     }
+
+    /* ---------- ADMIN TABLE ---------- */
 
     function getIssueOptionsForMachine(machine) {
       return (BOOT.issueTemplates||[]).filter(function(t){ return !t.applies_to || t.applies_to === machine; });
@@ -3134,35 +3828,46 @@ function renderPage_(page, boot) {
         document.getElementById('statTotal').textContent = rows.length;
         setMsg('adminMsg', rows.length + ' submission(s).', 'muted');
         var el = document.getElementById('adminTable');
-        if (!rows.length) { el.innerHTML = '<div class="alert alert-neutral" style="margin-top:12px"><span class="alert-icon">\\ud83d\\udce5</span><span>No submissions match the current filters.</span></div>'; return; }
-        el.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Requester</th><th>Source</th><th>Machine</th><th>Material / Size</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead><tbody>' +
+        var filterBanner = filters.mine_only === 'true'
+          ? '<div class="alert alert-info" style="margin:0 0 12px;"><span class="alert-icon">&#8505;</span><span><strong>Filtered view:</strong> showing DT submissions where you are the teacher, plus Special Requests where you are the responsible teacher or approver. Turn off <strong>My students only</strong> to see the wider queue.</span></div>'
+          : '';
+        if (!rows.length) { el.innerHTML = filterBanner + '<div class="queue-empty alert alert-neutral"><span class="alert-icon">\ud83d\udce5</span><span>' + (filters.mine_only === 'true' ? 'No records are currently linked to your teacher / sponsor account under these filters.' : 'No submissions match the current filters.') + '</span></div>'; return; }
+        el.innerHTML = filterBanner + '<div class="tbl-wrap"><table class="queue-table"><thead><tr><th>Requester</th><th>Job</th><th>Status</th><th>Queue Context</th><th>Action</th></tr></thead><tbody>' +
           rows.map(function(r, idx) {
             var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
-            var srcBadge = r._source === 'other' ? '<span class="pill" style="background:#e0e7ff;color:#3730a3;font-size:10px;">Other</span>' : '<span class="pill" style="background:#dbeafe;color:#1e40af;font-size:10px;">DT</span>';
-            var nameCell = r._source === 'other'
-              ? '<td class="cell-student"><strong>' + esc(r.requester_name||'\\u2014') + '</strong><div class="sub">' + esc(r.requester_email||'') + '</div><div class="sub">' + esc(r.request_type||'') + ' / ' + esc(r.department_or_subject||'') + '</div></td>'
-              : '<td class="cell-student"><strong>' + esc(r.student_name||'\\u2014') + '</strong><div class="sub">' + esc(r.student_email||'') + '</div><div class="sub">Class ' + esc(r.design_class_no||'\\u2014') + '</div></td>';
-            return '<tr>' +
-              nameCell +
-              '<td>' + srcBadge + '</td>' +
-              '<td>' + esc(MACHINE_LABELS[r.machine]||r.machine||'') + '</td>' +
-              '<td><div>' + esc(r.material||'\\u2014') + '</div>' + (dims.length ? '<div class="sub">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div>' : '') + '</td>' +
-              '<td>' + statusPill(r.status) + '</td>' +
-              '<td class="sub">' + esc(r.updated_at ? r.updated_at.substring(0,10) : '') + '</td>' +
-              '<td><button class="btn btn-primary btn-sm" onclick="openDrawer(' + idx + ')">Review</button></td>' +
+            var machineLabel = esc(MACHINE_LABELS[r.machine]||r.machine||'');
+            var materialLabel = esc(r.material||'\u2014');
+            var dimsLabel = dims.length ? dims.join('\u00d7') + ' ' + esc(r.units||'') : '\u2014';
+            var submittedMeta = queueTimeMeta(r.created_at);
+            var updatedMeta = queueTimeMeta(r.updated_at);
+            var statusNote = queueStatusNote(r);
+            var requesterCell = r._source === 'other'
+              ? '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.requester_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.requester_email||'') + '</div><div class="queue-meta">' + esc(r.project_name || 'Untitled Special Request') + '</div><div class="queue-meta-aux">Sponsor: ' + esc(r.teacher_in_charge || '\u2014') + (r.department_or_subject ? ' · ' + esc(r.department_or_subject) : '') + '</div></td>'
+              : '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.student_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.student_email||'') + '</div><div class="queue-meta">Class ' + esc(r.design_class_no||'\u2014') + ' · ' + esc(r.year_group||'\u2014') + '</div><div class="queue-meta-aux">Teacher: ' + esc(r.design_teacher||'\u2014') + '</div></td>';
+            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
+            var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
+            var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
+            var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
+            var rowClass = ['queue-row', queueRowStateClass(r.status), queueSourceClass(r._source), queueAttentionClass(r)].join(' ').trim();
+            return '<tr class="' + rowClass + '">' +
+              requesterCell +
+              contextCell +
+              statusCell +
+              metaCell +
+              actionCell +
             '</tr>';
           }).join('') + '</tbody></table></div>';
       }
       function onError(err) { if (!hadError) { hadError = true; setMsg('adminMsg', err.message||String(err), 'error'); } }
       if (source === 'other') {
         dtRows = []; dtDone = true;
-        google.script.run.withSuccessHandler(function(rows){ orRows = rows; orDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminOtherRequests({ status: filters.status, request_type: '', machine: filters.machine, student_email: filters.student_email, mine_only: filters.mine_only });
+        google.script.run.withSuccessHandler(function(rows){ orRows = rows; orDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminOtherRequests(filters);
       } else if (source === 'dt') {
         orRows = []; orDone = true;
         google.script.run.withSuccessHandler(function(rows){ dtRows = rows; dtDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminRows(filters);
       } else {
         google.script.run.withSuccessHandler(function(rows){ dtRows = rows; dtDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminRows(filters);
-        google.script.run.withSuccessHandler(function(rows){ orRows = rows; orDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminOtherRequests({ status: filters.status, request_type: '', machine: filters.machine, student_email: filters.student_email, mine_only: filters.mine_only });
+        google.script.run.withSuccessHandler(function(rows){ orRows = rows; orDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminOtherRequests(filters);
       }
     }
 
@@ -3178,12 +3883,27 @@ function renderPage_(page, boot) {
       var r = _adminRows[idx]; if (!r) return;
       var overlay = document.getElementById('reviewDrawer');
       var isOther = r._source === 'other';
-      document.getElementById('drawerTitle').textContent = isOther ? 'Review: ' + (r.project_name || 'Other Request') : 'Review: ' + (r.student_name || 'Submission');
+      document.getElementById('drawerTitle').textContent = isOther ? 'Review Special Request: ' + (r.project_name || 'Untitled') : 'Review: ' + (r.student_name || 'Submission');
       var isTech = BOOT.currentUser.role === 'technician';
       var techStatuses = ['approved','in_queue','in_production','completed'];
       var visibleStatuses = isTech ? techStatuses : BOOT.statuses;
       var issues = getIssueOptionsForMachine(r.machine);
       var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
+      var activity = r._activity || {};
+      var counts = activity.counts || {};
+      var summarySection = '<div class="drawer-section"><div class="drawer-section-title">Operational Summary</div>' +
+        '<div class="review-summary-grid">' +
+          '<div class="drawer-field"><label>Source</label><div class="val">' + sourcePill(r._source) + '</div></div>' +
+          '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(formatDisplayTs(r.created_at)) + '</div></div>' +
+          '<div class="drawer-field"><label>Last Updated</label><div class="val">' + esc(formatDisplayTs(r.updated_at)) + '</div></div>' +
+          '<div class="drawer-field"><label>Next Owner</label><div class="val">' + esc(statusOwner(r.status)) + '</div></div>' +
+          '<div class="drawer-field"><label>Same-day Count</label><div class="val">' + esc(String(counts.total || 0)) + ' today</div></div>' +
+          '<div class="drawer-field"><label>Last 24h</label><div class="val">' + esc(String(activity.last24_count || 0)) + ' total</div></div>' +
+        '</div>' +
+        '<div class="review-flag review-flag--info"><strong>Current workflow cue:</strong> ' + esc(statusActionHint(r.status)) + '</div>' +
+        ((counts.total || 0) >= 2 ? '<div class="review-flag review-flag--warn"><strong>Repeat-submission warning:</strong> This requester has submitted ' + esc(String(counts.total)) + ' time(s) today. Check whether this is a corrected version, a deadline-driven request, or an accidental duplicate before processing.</div>' : '') +
+        (activity.recent && activity.recent.length ? '<div class="drawer-field" style="margin-top:10px;"><label>Recent requester activity</label><div class="val">' + renderRecentActivity(activity) + '</div></div>' : '') +
+      '</div>';
 
       var detailSection = '';
       if (isOther) {
@@ -3213,7 +3933,7 @@ function renderPage_(page, boot) {
           '<div class="drawer-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher) + '</div></div></div>';
       }
 
-      var body = detailSection +
+      var body = summarySection + detailSection +
         '<div class="drawer-section"><div class="drawer-section-title">Fabrication</div>' +
         '<div class="drawer-field"><label>Machine</label><div class="val">' + esc(MACHINE_LABELS[r.machine]||r.machine) + '</div></div>' +
         '<div class="drawer-field"><label>Material</label><div class="val">' + esc(r.material||'\\u2014') + '</div></div>' +
@@ -3223,10 +3943,11 @@ function renderPage_(page, boot) {
         (r.working_file_url ? '<div class="drawer-field"><label>Working File</label><div class="val"><a href="' + r.working_file_url + '" target="_blank">\\ud83d\\udcc4 ' + esc(r.working_file_name||'Download') + '</a></div></div>' : '') +
         (r.preview_file_url ? '<div class="drawer-field"><label>Preview</label><div class="val"><a href="' + r.preview_file_url + '" target="_blank">\\ud83d\\uddbc\\ufe0f View Preview</a></div><img src="https://drive.google.com/thumbnail?id=' + esc(r.preview_file_id) + '&sz=w400" alt="Preview" style="margin-top:6px;max-width:100%;border-radius:6px;border:1px solid var(--card-border);" onerror="this.style.display=\\'none\\'"></div>' : '') +
         (isOther && r.additional_requirements ? '<div class="drawer-field"><label>Notes</label><div class="val">' + esc(r.additional_requirements) + '</div></div>' : '') +
-        '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(r.created_at ? r.created_at.substring(0,10) : '') + '</div></div>' +
+        '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(r.created_at ? r.created_at.substring(0,16).replace('T',' ') : '') + '</div></div>' +
         '<div class="drawer-field"><label>ID</label><div class="val" style="font-family:monospace;font-size:11px;word-break:break-all;">' + esc(r.submission_id || r.request_id) + '</div></div></div>' +
         '<div class="drawer-section"><div class="drawer-section-title">Review Actions</div>' +
-        '<div class="drawer-field"><label>Set Status</label><select id="drawer_status">' + visibleStatuses.map(function(s){ return '<option value="' + s + '"' + (s===r.status?' selected':'') + '>' + (STATUS_LABELS[s]||s) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="drawer-field"><label>Set Status</label><select id="drawer_status" onchange="syncDrawerActionCue_()">' + visibleStatuses.map(function(s){ return '<option value="' + s + '"' + (s===r.status?' selected':'') + '>' + (STATUS_LABELS[s]||s) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="review-flag review-flag--info" id="drawerActionCue"><strong>Next step:</strong> ' + esc(statusActionHint(r.status)) + '</div>' +
         (isTech ? '' : '<div class="drawer-field"><label>Issue (optional)</label><select id="drawer_issue"><option value="">\\u2014 No issue \\u2014</option>' + issues.map(function(t){ return '<option value="' + esc(t.issue_code) + '"' + (t.issue_code===r.issue_code?' selected':'') + '>' + esc(t.issue_label) + '</option>'; }).join('') + '</select></div>') +
         '<div class="drawer-field"><label>Remarks (student-visible)</label><textarea id="drawer_remarks" rows="3" placeholder="Notes visible to the requester\\u2026">' + esc(r.admin_remarks||'') + '</textarea></div></div>';
 
@@ -3240,9 +3961,17 @@ function renderPage_(page, boot) {
 
       overlay.classList.add('show');
       overlay.onclick = function(e) { if (e.target === overlay) closeDrawer(); };
+      syncDrawerActionCue_();
     }
 
     function closeDrawer() { document.getElementById('reviewDrawer').classList.remove('show'); }
+
+    function syncDrawerActionCue_() {
+      var statusEl = document.getElementById('drawer_status');
+      var cueEl = document.getElementById('drawerActionCue');
+      if (!statusEl || !cueEl) return;
+      cueEl.innerHTML = '<strong>Next step:</strong> ' + esc(statusActionHint(statusEl.value));
+    }
 
     function saveFromDrawer(submissionId) {
       var status = (document.getElementById('drawer_status')||{}).value||'';
@@ -3254,7 +3983,8 @@ function renderPage_(page, boot) {
       if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '\\u23f3 Saving\\u2026'; }
       function onSuccess(result) {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = 'Save Changes'; }
-        var msg = 'Saved successfully.';
+        var targetStatus = STATUS_LABELS[status] || status || 'updated';
+        var msg = 'Saved successfully. Status is now ' + targetStatus + '.';
         if (result && result.emailsSent && result.emailsSent.length > 0) {
           msg += ' Email sent to: ' + result.emailsSent.join(', ') + '.';
           showToast(msg, 'success');
@@ -3334,7 +4064,7 @@ function renderPage_(page, boot) {
       /* Swap body class */
       document.body.className = document.body.className.replace(/role-\\w+/g, 'role-student');
       /* Show only student-visible pages */
-      var studentPages = ['submit','status','help'];
+      var studentPages = ['submit','status','machines','other','help'];
       _pages.forEach(function(n) {
         var nav = document.getElementById('nav-' + n);
         if (!nav) return;
@@ -3585,10 +4315,13 @@ function renderBulletList_(items) {
 }
 
 function renderSubmitPage_() {
+  var teacherOptions = Object.keys(APP.teacherEmails).sort().map(function(t) {
+    return '<option value="' + escapeHtml_(t) + '">' + escapeHtml_(t) + '</option>';
+  }).join('');
   return `
   <div class="welcome-banner">
     <h3>&#128075; Welcome to the Design Fabrication Dashboard</h3>
-    <p>This is your one-stop system for laser cutting and 3D printing requests. Whether you&rsquo;re a DT student submitting coursework or a teacher coordinating a special project &mdash; we&rsquo;ve got you covered.</p>
+    <p>Submit your DT coursework laser cutting or 3D printing files below. Your submission will be reviewed by the technician and you&rsquo;ll receive email updates on its status.</p>
     <div class="welcome-pills">
       <span class="welcome-pill">&#128293; Laser Cutting</span>
       <span class="welcome-pill">&#9881; 3D Printing</span>
@@ -3598,36 +4331,9 @@ function renderSubmitPage_() {
   </div>
 
   <div class="card">
-    <div class="section-title">&#128196; Submit Fabrication File</div>
-    <div class="section-sub">Choose a submission path below, then fill in the form.</div>
-
-    <div class="path-selector">
-      <div class="path-card path-card--primary" id="pathCardDT" onclick="document.getElementById('pathCardDT').style.borderWidth='3px';document.getElementById('pathCardOther').style.borderWidth='2px';document.getElementById('submitFormWrap').scrollIntoView({behavior:'smooth',block:'start'});" style="border-width:3px;">
-        <div class="path-card-icon">&#128208;</div>
-        <div class="path-badge">DT Coursework</div>
-        <h3>DT Student Project</h3>
-        <p>Regular Design &amp; Technology coursework. Upload your laser-cut or 3D-print working file.</p>
-        <ul style="font-size:12px;color:var(--slate-lt);margin:8px 0 0;padding-left:16px;line-height:1.7;">
-          <li>Y8-Y10 DT students</li>
-          <li>Laser or 3D printing coursework</li>
-          <li>Quick, guided form</li>
-        </ul>
-      </div>
-      <div class="path-card path-card--secondary" id="pathCardOther" onclick="switchPage('other')">
-        <div class="path-card-icon">&#128301;</div>
-        <div class="path-badge">Special Request</div>
-        <h3>Other Request / Non-DT</h3>
-        <p>Competition entries, other subjects, exhibitions, club projects, events, or special fabrication.</p>
-        <ul style="font-size:12px;color:var(--slate-lt);margin:8px 0 0;padding-left:16px;line-height:1.7;">
-          <li>Any department, club, or competition</li>
-          <li>Teacher / sponsor approval needed</li>
-          <li>Detailed request form</li>
-        </ul>
-      </div>
-    </div>
-    <p class="path-note">&#127919; <strong>Not sure which path?</strong><br>
-    If you&rsquo;re completing a <strong>DT homework or project</strong>, choose the left card.<br>
-    If you&rsquo;re from <strong>another subject, running a club, or entering a competition</strong>, choose the right card &mdash; it&rsquo;s designed for you.</p>
+    <div class="section-title">&#128196; DT Coursework Submission</div>
+    <div class="section-sub">Submit your Design &amp; Technology laser cutting or 3D printing working file. Fill in the form below.</div>
+    <p style="font-size:12px;color:var(--slate-lt);margin:0 0 16px;line-height:1.5;">&#11088; Not DT coursework? Competitions, other subjects, clubs, or events &rarr; use <a href="javascript:void(0)" onclick="switchPage('other')" style="font-weight:700;color:var(--blue);text-decoration:underline;">Special Request</a> in the top navigation.</p>
 
     ` + renderDisclaimerBox_('&#9200; ' + APP.uiText.turnaroundHeadline, APP.uiText.turnaroundShort + renderBulletList_(APP.uiText.turnaroundFactors)) + `
 
@@ -3655,7 +4361,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="student@example.edu" required>
+              <input type="email" name="student_email" placeholder="studentID@student.school.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -3663,6 +4369,7 @@ function renderSubmitPage_() {
               <input type="text" name="student_name" placeholder="e.g. Chan Tai Man" required>
             </div>
           </div>
+          <div id="dtSubmitActivity" class="disclaimer-compact" style="display:none;margin-top:4px;"></div>
           <div class="grid g3">
             <div class="field">
               <label>Design Class No. <span class="req">*</span></label>
@@ -3672,9 +4379,7 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
-                <option value="Teacher A">Teacher A</option>
-                <option value="Teacher B">Teacher B</option>
-                <option value="Teacher C">Teacher C</option>
+                ${teacherOptions}
               </select>
             </div>
             <div class="field">
@@ -3692,7 +4397,7 @@ function renderSubmitPage_() {
           <div class="form-section-title">Machine &amp; Material</div>
           <div class="grid g3">
             <div class="field">
-              <label>Machine <span class="req">*</span> <a class="field-tip" href="javascript:void(0)" onclick="switchPage('help');setTimeout(function(){var el=document.getElementById('help-type');if(el){el.classList.add('help-expanded');el.scrollIntoView({behavior:'smooth',block:'start'})}},200)" title="Learn about machine types">?</a></label>
+              <label>Machine <span class="req">*</span> <a class="field-tip" href="javascript:void(0)" onclick="switchPage('machines')" title="View Machines Guide">?</a></label>
               <select name="machine" id="machine" required>
                 <option value="">&mdash; Select &mdash;</option>
                 <option value="laser">&#128293; Laser Cut</option>
@@ -3712,6 +4417,7 @@ function renderSubmitPage_() {
               <input type="text" name="units" id="units" readonly placeholder="auto-filled">
             </div>
           </div>
+          <div id="dtMachineReminder"></div>
           <div class="grid g3">
             <div class="field">
               <label>Width <span class="req">*</span></label>
@@ -3765,6 +4471,7 @@ function renderSubmitPage_() {
         </div>
 
         ` + renderCompactDisclaimer_('&#128337; <strong>Reminder:</strong> ' + APP.uiText.turnaroundCompact) + `
+        <div id="dtRepeatReminder" class="disclaimer-compact" style="display:none;margin-top:6px;">&#9888;&#65039; <strong>Duplicate?</strong> Please check your submission history before submitting again. Repeated identical submissions slow the review queue.</div>
 
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;">
           <button type="submit" id="submitBtn" class="btn btn-primary" style="min-width:140px;">Submit</button>
@@ -3787,6 +4494,7 @@ function renderSubmitPage_() {
           <span class="id-box-icon" title="Copy to clipboard">&#128203;</span>
         </div>
         <div class="id-box-hint">Click to copy &mdash; you&#8217;ll need this to track your request.</div>
+        <div id="successSubmittedAt" class="disclaimer-compact" style="display:none;margin-top:8px;"></div>
       </div>
 
       <div class="success-body">
@@ -3808,7 +4516,9 @@ function renderSubmitPage_() {
       <div class="success-actions">
         <button class="btn btn-primary" onclick="switchPage('status')">&#128270; Track Status</button>
         <button class="btn btn-ghost" onclick="resetSubmitForm_()">&#128221; Submit Another</button>
+        <button class="btn btn-ghost" onclick="switchPage('machines')">&#128736; View Machines Guide</button>
       </div>
+      <p style="text-align:center;font-size:12px;color:var(--slate-lt);padding:0 24px 20px;">Need help preparing your next file? The <a href="javascript:void(0)" onclick="switchPage('machines')" style="font-weight:700;">Machines Guide</a> explains file types, workflows, and report tips.</p>
     </div>
   </div>
   `;
@@ -3819,38 +4529,49 @@ function renderOtherRequestPage_() {
     return '<option value="' + escapeHtml_(t) + '">' + escapeHtml_(t) + '</option>';
   }).join('');
 
+
   return `
   <div class="card">
     <div class="section-title">&#128301; ${APP.uiText.otherRequestIntroHeadline}</div>
     <div class="section-sub">${APP.uiText.otherRequestIntroBody}</div>
-
-    <div class="newcomer-strip">
-      <div class="newcomer-card">
-        <div class="nc-icon">&#128293;</div>
-        <h4>Laser Cutting</h4>
-        <p>Cut flat materials like cardboard or acrylic with a CO&#8322; laser. Great for plates, signs, enclosures &amp; jigsaw pieces.</p>
+    <div class="orientation-line" style="font-size:12px;color:var(--slate-lt);margin-bottom:8px;">This page is for competitions, clubs, other subjects, exhibitions, and non-DT fabrication requests.</div>
+    <div class="bys-block">
+      <div class="bys-title">&#128214; Before You Start</div>
+      <div class="bys-who">
+        <div class="bys-who-icon">&#127919;</div>
+        <div><strong>Who is this for?</strong> Non-DT departments, competitions, clubs, exhibitions, events, and any fabrication need outside of regular DT coursework. Students using this pathway should normally be in <strong>Y6-Y12</strong> and have a responsible teacher or sponsor approving the request. DT students should use the <a href="javascript:void(0)" onclick="switchPage('submit')" style="font-weight:700;color:var(--blue);text-decoration:underline;">DT Submit</a> page instead.</div>
       </div>
-      <div class="newcomer-card">
-        <div class="nc-icon">&#9881;</div>
-        <h4>3D Printing</h4>
-        <p>Build 3D objects layer by layer. Perfect for prototypes, models, custom parts &amp; robotics components.</p>
+      <div class="bys-grid">
+        <div class="bys-item">
+          <span class="bys-check">&#9745;</span>
+          <span>A <strong>responsible teacher / sponsor</strong> has approved this request.</span>
+        </div>
+        <div class="bys-item">
+          <span class="bys-check">&#9745;</span>
+          <span>Your file is <strong>final or near-final</strong> quality &mdash; not a rough draft.</span>
+        </div>
+        <div class="bys-item">
+          <span class="bys-check">&#9745;</span>
+          <span>Dimensions are <strong>accurate</strong> and within machine limits.</span>
+        </div>
+        <div class="bys-item">
+          <span class="bys-check">&#9745;</span>
+          <span>Purpose, deadlines, and use case are <strong>clearly stated</strong>.</span>
+        </div>
+        <div class="bys-item">
+          <span class="bys-check">&#9745;</span>
+          <span>You understand that <strong>DT coursework may be prioritised</strong> ahead of this request.</span>
+        </div>
       </div>
-      <div class="newcomer-card">
-        <div class="nc-icon">&#128172;</div>
-        <h4>Not Sure?</h4>
-        <p>Just describe what you need in the form below and our technicians will advise the best approach.</p>
+      <div class="bys-notices">
+        <span class="bys-notice">&#9888;&#65039; ${APP.uiText.otherRequestPriorityNotice}</span>
+        <span class="bys-notice">&#128274; ${APP.uiText.otherRequestApprovalNotice}</span>
+        <span class="bys-notice">&#128337; ${APP.uiText.otherRequestNoGuarantee}</span>
       </div>
-    </div>
-
-    ` + renderDisclaimerBox_('&#9888;&#65039; Priority &amp; Approval', APP.uiText.otherRequestPriorityNotice + '<br><br>' + APP.uiText.otherRequestApprovalNotice + '<br><br>' + APP.uiText.otherRequestNoGuarantee, 'warning') + `
-
-    <div class="guide-card">
-      <div class="guide-title">&#9745; Pre-Submission Checklist</div>
-      <ul class="guide-list">` +
-        APP.uiText.otherRequestChecklist.map(function(item, i) {
-          return '<li id="otherGuide' + i + '"><span class="guide-check">&#9675;</span><span>' + item + '</span></li>';
-        }).join('') + `
-      </ul>
+      <div class="bys-footer">
+        <span>&#128736; <strong>New to the workshop?</strong></span>
+        <a href="javascript:void(0)" onclick="switchPage('machines')" style="font-weight:700;text-decoration:underline;color:var(--blue);">View Machines Guide</a> for file requirements, size limits &amp; beginner tips.
+      </div>
     </div>
 
     <div id="otherFormWrap">
@@ -3862,7 +4583,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
+              <input type="email" name="requester_email" placeholder="your-email@school.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -3870,6 +4591,7 @@ function renderOtherRequestPage_() {
               <input type="text" name="requester_name" placeholder="e.g. Chan Tai Man" required>
             </div>
           </div>
+          <div id="otherSubmitActivity" class="disclaimer-compact" style="display:none;margin-top:4px;"></div>
           <div class="grid g2">
             <div class="field">
               <label>Role <span class="req">*</span></label>
@@ -3881,10 +4603,10 @@ function renderOtherRequestPage_() {
               <label>Year Group</label>
               <select name="year_group" id="otherYearGroup">
                 <option value="">&mdash; Select &mdash;</option>
-                <option value="Y7">Y7</option><option value="Y8">Y8</option>
+                <option value="Y6">Y6</option><option value="Y7">Y7</option>
+                <option value="Y8">Y8</option>
                 <option value="Y9">Y9</option><option value="Y10">Y10</option>
                 <option value="Y11">Y11</option><option value="Y12">Y12</option>
-                <option value="Y13">Y13</option>
               </select>
             </div>
           </div>
@@ -3960,7 +4682,7 @@ function renderOtherRequestPage_() {
           <div class="section-sub">All requests must have a responsible teacher or staff sponsor.</div>
           <div class="grid g2">
             <div class="field">
-              <label>Teacher In Charge <span class="req">*</span></label>
+              <label>Responsible Teacher <span class="req">*</span></label>
               <select name="teacher_in_charge" id="otherTeacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
                 ${teacherOptions}
@@ -3974,13 +4696,13 @@ function renderOtherRequestPage_() {
           </div>
           <div class="grid g2">
             <div class="field">
-              <label>Teacher In Charge Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@example.edu" required>
+              <label>Responsible Teacher Email <span class="req">*</span></label>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@school.edu" required>
             </div>
             <div class="field">
-              <label>Approved By (email) <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@example.edu" required>
-              <div class="helper">Email of the teacher/HOD who approved this request.</div>
+              <label>Approver Email <span class="req">*</span></label>
+              <input type="email" name="approved_by_email" placeholder="approver@school.edu" required>
+              <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
         </div>
@@ -3990,10 +4712,10 @@ function renderOtherRequestPage_() {
         <!-- Section D: Fabrication Details -->
         <div class="form-section">
           <div class="form-section-title">&#128296; D. Fabrication Details</div>
-          <p style="font-size:13px;color:var(--slate-lt);margin:0 0 12px;">Not sure which machine to pick? <strong>Laser cutting</strong> cuts flat sheets (signs, plates). <strong>3D printing</strong> builds solid objects (models, parts). Still unsure? Just describe your need &mdash; we&rsquo;ll advise.</p>
+          <p style="font-size:13px;color:var(--slate-lt);margin:0 0 12px;">&#128293; <strong>Laser cutting</strong> cuts flat sheets (signs, plates, enclosures). &#9881; <strong>3D printing</strong> builds solid objects (models, parts, prototypes). Not sure? Just describe your need &mdash; our technicians will advise.</p>
           <div class="grid g3">
             <div class="field">
-              <label>Machine <span class="req">*</span> <a class="field-tip" href="javascript:void(0)" onclick="switchPage('help');setTimeout(function(){var el=document.getElementById('help-machines');if(el){el.classList.add('help-expanded');el.scrollIntoView({behavior:'smooth',block:'start'})}},200)" title="See our machines">?</a></label>
+              <label>Machine <span class="req">*</span> <a class="field-tip" href="javascript:void(0)" onclick="switchPage('machines')" title="View Machines Guide">?</a></label>
               <select name="machine" id="otherMachine" required>
                 <option value="">&mdash; Select &mdash;</option>
                 <option value="laser">&#128293; Laser Cut</option>
@@ -4019,6 +4741,10 @@ function renderOtherRequestPage_() {
                 <option value="mm">mm</option>
               </select>
             </div>
+          </div>
+          <div id="otherMachineReminder"></div>
+          <div class="disclaimer-compact" style="margin-bottom:10px;">
+            &#128207; <strong>Dimensions are a request, not a guarantee.</strong> Final approval depends on machine suitability, material availability, and technician review. The workshop may ask you to adjust your design.
           </div>
           <div class="grid g3">
             <div class="field">
@@ -4049,7 +4775,7 @@ function renderOtherRequestPage_() {
                 <input type="file" id="otherWorkingFile">
                 <div class="file-zone-icon">&#128196;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
-                <div class="file-zone-sub">Upload the file to be fabricated</div>
+                <div class="file-zone-sub">Upload the fabrication file that should be processed</div>
                 <div class="file-chosen" id="chosen_otherWorkingFile"></div>
               </div>
             </div>
@@ -4059,7 +4785,7 @@ function renderOtherRequestPage_() {
                 <input type="file" id="otherPreviewFile" accept="image/*">
                 <div class="file-zone-icon">&#128444;&#65039;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
-                <div class="file-zone-sub">PNG, JPG, or JPEG</div>
+                <div class="file-zone-sub">PNG, JPG, or JPEG screenshot showing the model or dimensions</div>
                 <div class="file-chosen" id="chosen_otherPreviewFile"></div>
               </div>
             </div>
@@ -4097,6 +4823,7 @@ function renderOtherRequestPage_() {
         </div>
 
         ` + renderCompactDisclaimer_('&#128337; <strong>Reminder:</strong> ' + APP.uiText.otherRequestNoGuarantee) + `
+        <div id="otherRepeatReminder" class="disclaimer-compact" style="display:none;margin-top:6px;">&#9888;&#65039; <strong>Duplicate?</strong> Please check your submission history before submitting again. Repeated identical submissions slow the review queue.</div>
 
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;">
           <button type="submit" id="otherSubmitBtn" class="btn btn-primary" style="min-width:140px;">Submit Request</button>
@@ -4108,7 +4835,7 @@ function renderOtherRequestPage_() {
     <div id="otherSuccess" class="submit-success" style="display:none;">
       <div class="success-hero">
         <div class="success-hero-icon">&#9989;</div>
-        <h3>Request Submitted</h3>
+        <h3>Special Request Submitted for Review</h3>
         <p>${APP.uiText.otherRequestSuccessIntro}</p>
       </div>
 
@@ -4119,6 +4846,7 @@ function renderOtherRequestPage_() {
           <span class="id-box-icon" title="Copy to clipboard">&#128203;</span>
         </div>
         <div class="id-box-hint">Click to copy &mdash; you&#8217;ll need this to track your request.</div>
+        <div id="otherSuccessSubmittedAt" class="disclaimer-compact" style="display:none;margin-top:8px;"></div>
       </div>
 
       <div class="success-body">
@@ -4138,7 +4866,8 @@ function renderOtherRequestPage_() {
 
       <div class="success-actions">
         <button class="btn btn-primary" onclick="switchPage('status')">&#128270; Track Status</button>
-        <button class="btn btn-ghost" onclick="resetOtherForm_()">&#128221; Submit Another Request</button>
+        <button class="btn btn-ghost" onclick="resetOtherForm_()">&#128221; Submit Another Special Request</button>
+        <button class="btn btn-ghost" onclick="switchPage('machines')">&#128736; Machines Guide</button>
       </div>
     </div>
   </div>
@@ -4242,7 +4971,7 @@ function renderAdminPage_(user) {
 
   <div class="card">
     <div class="filter-bar">
-      <div class="field"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Other Requests</option></select></div>
+      <div class="field"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Special Requests</option></select></div>
       <div class="field"><label>Year</label><select id="filterYear"><option value="">All</option><option value="Y8">Y8</option><option value="Y9">Y9</option><option value="Y10">Y10</option></select></div>
       <div class="field"><label>Machine</label><select id="filterMachine"><option value="">All</option><option value="laser">Laser</option><option value="3d">3D Print</option></select></div>
       <div class="field"><label>Status</label><select id="filterStatus"><option value="">All</option><option value="submitted">Submitted</option><option value="needs_fix">Needs Fix</option><option value="approved">Approved</option><option value="in_queue">In Queue</option><option value="in_production">In Prod</option><option value="completed">Done</option><option value="rejected">Rejected</option></select></div>
@@ -4258,6 +4987,371 @@ function renderAdminPage_(user) {
     <div id="adminMsg" class="inline-msg tc-muted"></div>
     <div id="adminTable"></div>
   </div>
+
+  `;
+}
+
+function renderMachinesPage_() {
+  return `
+  <div class="machine-page-hero">
+    <h3>&#128736; Workshop Machines Guide</h3>
+    <p>Everything you need to know about the workshop machines &mdash; what they do, what files they need, and what size limits apply. Review this before your first submission.</p>
+    <p style="font-size:12px;opacity:.78;margin-top:6px;">Machine specifications are based on verified manufacturer information. School submission limits and technician approval still apply &mdash; specs do not equal automatic job approval.</p>
+    <div class="machine-hero-pills">
+      <span class="machine-hero-pill">&#128293; Laser Cutting</span>
+      <span class="machine-hero-pill">&#9881; 3D Printing</span>
+      <span class="machine-hero-pill">&#128207; Submission Limits</span>
+      <span class="machine-hero-pill">&#128221; Report &amp; Process Marks</span>
+    </div>
+    <div class="machine-anchor-nav">
+      <a class="machine-anchor-btn" href="javascript:void(0)" onclick="document.getElementById('machines-laser').scrollIntoView({behavior:'smooth',block:'start'})">&#128293; Laser Cutting Overview</a>
+      <a class="machine-anchor-btn" href="javascript:void(0)" onclick="document.getElementById('machines-3d').scrollIntoView({behavior:'smooth',block:'start'})">&#9881; 3D Printing Overview</a>
+      <a class="machine-anchor-btn" href="javascript:void(0)" onclick="document.getElementById('machines-limits').scrollIntoView({behavior:'smooth',block:'start'})">&#128207; Size Limits</a>
+      <a class="machine-anchor-btn" href="javascript:void(0)" onclick="document.getElementById('machines-workflow').scrollIntoView({behavior:'smooth',block:'start'})">&#128260; Process / Workflow</a>
+      <a class="machine-anchor-btn" href="javascript:void(0)" onclick="document.getElementById('machines-report').scrollIntoView({behavior:'smooth',block:'start'})">&#128221; Report &amp; Process Marks</a>
+    </div>
+  </div>
+
+  <div class="machine-page-grid" id="machines-laser">
+    <div class="machine-panel">
+      <h3>&#128293; Laser Cutting Machines</h3>
+      <p>Laser cutting is a <strong>subtractive manufacturing process</strong>. The machine removes material from a flat sheet using a focused laser beam. In this dashboard, laser jobs must be prepared as <strong>vector-based 2D files</strong> and submitted at the final cutting size.</p>
+
+      <div class="machine-grid">
+        <div class="machine-card machine-card--laser">
+          <h4>&#128293; GCC LaserPro Spirit LS Pro</h4>
+          <div class="machine-type">CO&#8322; Laser Cutter / Engraver</div>
+          <p>The primary machine for most laser cutting work. Uses a sealed CO&#8322; laser tube with closed-loop DC servo motors for precise, repeatable cuts on flat sheet materials.</p>
+
+          <div class="machine-spec-highlight">
+            <span class="spec-label">Max Working Area</span>
+            <span class="spec-value">640 &times; 460 mm</span>
+            <span class="spec-extra">(ext. to 740 &times; 460 mm via pass-through)</span>
+          </div>
+
+          <table class="machine-spec-table">
+            <tr><td>Laser Source</td><td>CO&#8322; sealed tube &mdash; 30 W to 100 W</td></tr>
+            <tr><td>Max Engraving Speed</td><td>Up to 3.04 m/s (120 in/s)</td></tr>
+            <tr><td>Resolution</td><td>Up to 1 500 dpi</td></tr>
+            <tr><td>Z-axis Travel</td><td>165 mm (6.5 in)</td></tr>
+            <tr><td>Motor</td><td>Closed-loop DC servo</td></tr>
+            <tr><td>Connectivity</td><td>10Base-T Ethernet / USB Type-A 2.0 / USB Type-B 2.0</td></tr>
+          </table>
+
+          <div class="machine-card-section">
+            <h5>&#127919; Good For</h5>
+            <p>Flat parts, packaging nets, models, signage, engraved plates, precision prototyping.</p>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#127979; School Workflow &amp; Approval</h5>
+            <div class="machine-school-box">
+              <strong>&#9888; School limits apply &mdash; not the machine maximum.</strong><br>
+              Y8: 20&times;20 cm &bull; Y9: 60&times;40 cm &bull; Y10: 60&times;40 cm<br>
+              File format: .af / .afdesign / .svg / .dxf (as allowed by year group).<br>
+              All submissions require technician review before cutting.
+            </div>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#128161; Beginner Advice</h5>
+            <ul>
+              <li>Convert all text to curves/outlines before exporting</li>
+              <li>Design at 1:1 real cutting size &mdash; not scaled</li>
+              <li>Remove image layers &mdash; the laser follows vector paths only</li>
+              <li>Check dimensions against the <em>school year-group limit</em>, not the machine max</li>
+            </ul>
+          </div>
+
+          <div class="machine-source-note">Source: GCC official brochure &amp; product page.</div>
+          <a class="machine-spec-link" href="https://www.gccworld.com/product/laser-engraver/spirit-ls" target="_blank" rel="noopener">&#128279; View full specs on GCC website &rarr;</a>
+        </div>
+
+        <div class="machine-card machine-card--laser">
+          <h4>&#128293; GCC LaserPro Mercury III</h4>
+          <div class="machine-type">CO&#8322; Laser Cutter / Engraver</div>
+          <p>A reliable CO&#8322; laser engraver with consistent, high-quality output. Same file-preparation workflow as the Spirit LS Pro. Suitable for batch cutting and general-purpose sheet work.</p>
+
+          <div class="machine-spec-highlight">
+            <span class="spec-label">Max Working Area</span>
+            <span class="spec-value">635 &times; 458 mm (25 &times; 18 in)</span>
+          </div>
+
+          <table class="machine-spec-table">
+            <tr><td>Laser Source</td><td>CO&#8322; sealed tube &mdash; 12 W / 30 W / 40 W / 60 W / 80 W</td></tr>
+            <tr><td>Resolution</td><td>Up to 1 500 dpi</td></tr>
+            <tr><td>Z-axis Travel</td><td>165 mm (6.5 in)</td></tr>
+            <tr><td>Motor</td><td>Closed-loop DC servo</td></tr>
+            <tr><td>Connectivity</td><td>10Base-T Ethernet / USB Type-A 2.0 / USB Type-B 2.0</td></tr>
+          </table>
+
+          <div class="machine-card-section">
+            <h5>&#127919; Good For</h5>
+            <p>Batch cutting, larger sheet projects, general-purpose sheet work, heavier workloads.</p>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#127979; School Workflow &amp; Approval</h5>
+            <div class="machine-school-box">
+              <strong>&#9888; School limits still apply.</strong><br>
+              The larger bed does not mean any size is accepted &mdash; school year-group limits and technician review are required.<br>
+              File format: .af / .afdesign / .svg / .dxf (as allowed by year group).
+            </div>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#128161; Beginner Advice</h5>
+            <ul>
+              <li>Same file preparation as the Spirit LS Pro</li>
+              <li>Large files with many paths take longer to cut and queue</li>
+              <li>Keep your file clean and free of duplicate or hidden paths</li>
+              <li>School size limits still apply even though the machine bed is large</li>
+            </ul>
+          </div>
+
+          <div class="machine-source-note">Source: GCC official brochure &amp; product page.</div>
+          <a class="machine-spec-link" href="https://www.gccworld.com/product/laser-engraver/mercury-iii" target="_blank" rel="noopener">&#128279; View full specs on GCC website &rarr;</a>
+        </div>
+      </div>
+
+      <div class="machine-stat-grid">
+        <div class="machine-stat"><div class="label">Current DT Limits</div><div class="value">Y8: 20 &times; 20 cm<br>Y9: 60 &times; 40 cm<br>Y10: 60 &times; 40 cm</div></div>
+        <div class="machine-stat"><div class="label">Typical Materials</div><div class="value">3 mm hard cardboard, cardboard, acrylic</div></div>
+        <div class="machine-stat"><div class="label">Accepted Working Files</div><div class="value">.af, .afdesign<br>.svg / .dxf where allowed</div></div>
+      </div>
+    </div>
+
+    <div class="machine-panel" id="machines-3d">
+      <h3>&#9881; 3D Printing Machines</h3>
+      <p>3D printing is an <strong>additive manufacturing process</strong>. The machine builds the object layer by layer using filament. In this dashboard, 3D print jobs must be submitted as <strong>STL files</strong> with a screenshot that shows the model dimensions.</p>
+
+      <div class="machine-grid">
+        <div class="machine-card machine-card--3d">
+          <h4>&#9881; Creality K2 Plus</h4>
+          <div class="machine-type">FDM 3D Printer &mdash; Enclosed, Actively Heated Chamber</div>
+          <p>High-speed CoreXY 3D printer with an actively heated chamber and dual AI cameras. Supports a wide range of filaments including engineering-grade materials.</p>
+
+          <div class="machine-spec-highlight">
+            <span class="spec-label">Max Build Volume</span>
+            <span class="spec-value">350 &times; 350 &times; 350 mm</span>
+          </div>
+
+          <table class="machine-spec-table">
+            <tr><td>Technology</td><td>FDM (Fused Deposition Modeling)</td></tr>
+            <tr><td>Max Print Speed</td><td>&le; 600 mm/s</td></tr>
+            <tr><td>Acceleration</td><td>&le; 30 000 mm/s&sup2;</td></tr>
+            <tr><td>Layer Height</td><td>0.05 &ndash; 0.3 mm</td></tr>
+            <tr><td>Nozzle</td><td>0.4 mm &mdash; max 350 &#8451;</td></tr>
+            <tr><td>Heatbed</td><td>Max 120 &#8451;</td></tr>
+            <tr><td>Chamber</td><td>Actively heated up to 60 &#8451;</td></tr>
+            <tr><td>Supported Filaments</td><td>PLA / PETG / TPU / ASA / PET / ABS / PA / PC / CF / GF / PPA-CF / PPS / PPS-CF (1.75 mm)</td></tr>
+            <tr><td>Connectivity</td><td>USB / Wi-Fi (dual-band) / Ethernet</td></tr>
+          </table>
+
+          <div class="machine-card-section">
+            <h5>&#127919; Good For</h5>
+            <p>Prototypes, display models, functional parts, mechanisms, multi-material projects.</p>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#127979; School Workflow &amp; Approval</h5>
+            <div class="machine-school-box">
+              <strong>&#9888; School limit: 30 &times; 30 &times; 30 cm &mdash; NOT the full 350 mm build volume.</strong><br>
+              PLA is the standard school material. Other filaments require technician approval.<br>
+              Submit: STL file + dimension screenshot showing W &times; H &times; D. Technician review required.
+            </div>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#128161; Beginner Advice</h5>
+            <ul>
+              <li>Check wall thickness and overhangs &mdash; a model that looks correct on screen may not print well</li>
+              <li>Include a dimension screenshot with your STL submission</li>
+              <li>PLA is the standard school material; other filaments require approval</li>
+              <li>Design to the school limit (30&times;30&times;30 cm), not the machine maximum</li>
+            </ul>
+          </div>
+
+          <div class="machine-source-note">Source: Creality official product &amp; support page.</div>
+          <a class="machine-spec-link" href="https://www.creality.com/products/creality-k2-plus-cfs-combo" target="_blank" rel="noopener">&#128279; View full specs on Creality website &rarr;</a>
+        </div>
+
+        <div class="machine-card machine-card--3d">
+          <h4>&#9881; Flashforge Guider IIs</h4>
+          <div class="machine-type">Enclosed FDM 3D Printer</div>
+          <p>Enclosed FDM printer with a heated build chamber for reliable, consistent prints. Good for larger or longer-running jobs that benefit from a stable temperature environment. Same STL workflow as the K2 Plus.</p>
+
+          <div class="machine-spec-highlight">
+            <span class="spec-label">Max Build Volume</span>
+            <span class="spec-value">280 &times; 250 &times; 300 mm</span>
+          </div>
+
+          <table class="machine-spec-table">
+            <tr><td>Technology</td><td>FDM (Fused Deposition Modeling)</td></tr>
+            <tr><td>Nozzle</td><td>0.4 mm</td></tr>
+            <tr><td>Chamber</td><td>Enclosed build chamber</td></tr>
+            <tr><td>Filament</td><td>PLA (school standard); ABS / PETG may be available <span class="machine-spec-badge machine-spec-badge--guidance">School Guidance</span></td></tr>
+          </table>
+
+          <div class="machine-card-section">
+            <h5>&#127919; Good For</h5>
+            <p>Larger or longer-running prints, stable-temperature jobs, enclosed reliability.</p>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#127979; School Workflow &amp; Approval</h5>
+            <div class="machine-school-box">
+              <strong>&#9888; School limit: 30 &times; 30 &times; 30 cm &mdash; NOT the full build volume.</strong><br>
+              PLA is the standard school material. Machine assignment is decided by the technician based on queue and job requirements.<br>
+              Submit: STL file + dimension screenshot showing W &times; H &times; D. Technician review required.
+            </div>
+          </div>
+
+          <div class="machine-card-section">
+            <h5>&#128161; Beginner Advice</h5>
+            <ul>
+              <li>Same STL workflow as the K2 Plus</li>
+              <li>Larger prints take significantly longer &mdash; plan ahead</li>
+              <li>Machine assignment is decided by the technician based on queue and job size</li>
+              <li>PLA is the standard school material</li>
+            </ul>
+          </div>
+
+          <div class="machine-source-note">Source: Flashforge official product page.</div>
+          <a class="machine-spec-link" href="https://www.flashforge.com/product-detail/flashforge-guider-iis-3d-printer" target="_blank" rel="noopener">&#128279; View full specs on Flashforge website &rarr;</a>
+        </div>
+      </div>
+
+      <div class="machine-stat-grid">
+        <div class="machine-stat"><div class="label">Current DT Limit</div><div class="value">Y10: 30 &times; 30 &times; 30 cm</div></div>
+        <div class="machine-stat"><div class="label">Required Submission Files</div><div class="value">STL + dimension screenshot</div></div>
+        <div class="machine-stat"><div class="label">Key Design Checks</div><div class="value">wall thickness, overhangs, print time, orientation</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="machines-limits" style="margin-top:20px;">
+    <div class="section-title">&#128207; Current Submission Limits</div>
+    <div class="section-sub">These are the school-configured limits students must design to when submitting coursework.</div>
+    <table class="help-size-table">
+      <thead>
+        <tr><th>Year / Path</th><th>Machine</th><th>Current Limit</th><th>Material / File Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Y8 DT</strong></td><td>Laser Cut</td><td>20 &times; 20 cm</td><td>3 mm hard cardboard (white); .af / .afdesign</td></tr>
+        <tr><td><strong>Y9 DT</strong></td><td>Laser Cut</td><td>60 &times; 40 cm</td><td>Cardboard or acrylic; .af / .afdesign / .svg / .dxf</td></tr>
+        <tr><td><strong>Y10 DT</strong></td><td>Laser Cut</td><td>60 &times; 40 cm</td><td>Cardboard or acrylic; .af / .afdesign</td></tr>
+        <tr><td><strong>Y10 DT</strong></td><td>3D Print</td><td>30 &times; 30 &times; 30 cm</td><td>PLA; STL + dimension screenshot</td></tr>
+        <tr><td><strong>Special Request</strong></td><td>Laser / 3D</td><td>Case-by-case review</td><td>Still limited by machine capacity, materials, queue, and technician approval</td></tr>
+      </tbody>
+    </table>
+    <div class="alert alert-warning" style="margin-top:12px;">
+      <span class="alert-icon">&#9888;</span>
+      <div>For reports, do not just write the machine name. Also include the <strong>current working size limit</strong> used for your project, the <strong>material</strong>, and the <strong>file format</strong> you needed to submit.</div>
+    </div>
+  </div>
+
+  <div class="card" id="machines-workflow" style="margin-top:20px;">
+    <div class="section-title">&#128260; Process / Workflow</div>
+    <div class="section-sub">Step-by-step workflow from design to finished product &mdash; useful for both submissions and report writing.</div>
+
+    <h4 style="font-size:16px;font-weight:700;margin:0 0 12px;color:var(--navy);">&#128293; Laser Cutting Workflow</h4>
+    <div class="machine-process">
+      <div class="machine-process-step"><div class="num">1</div><h4>Design in 2D</h4><p>Create a vector drawing in Affinity Designer or another suitable vector tool. Work at 1:1 real cutting size.</p></div>
+      <div class="machine-process-step"><div class="num">2</div><h4>Clean the File</h4><p>Remove image layers, convert text to curves, and keep only usable vector paths. Delete hidden objects.</p></div>
+      <div class="machine-process-step"><div class="num">3</div><h4>Check Dimensions</h4><p>Confirm width and height are within your year&rsquo;s submission limit before saving.</p></div>
+      <div class="machine-process-step"><div class="num">4</div><h4>Submit &amp; Review</h4><p>Upload through the dashboard. The technician checks the file, material choice, and size before the job is queued.</p></div>
+    </div>
+
+    <h4 style="font-size:16px;font-weight:700;margin:24px 0 12px;color:var(--navy);">&#9881; 3D Printing Workflow</h4>
+    <div class="machine-process">
+      <div class="machine-process-step"><div class="num">1</div><h4>Model in 3D</h4><p>Create the part in Tinkercad, Fusion 360, Blender, or another modelling tool. Design for printability.</p></div>
+      <div class="machine-process-step"><div class="num">2</div><h4>Check Printability</h4><p>Verify wall thickness, overhangs, and supports. A model that looks good on screen may not print well.</p></div>
+      <div class="machine-process-step"><div class="num">3</div><h4>Export STL + Screenshot</h4><p>Export the final model as STL. Capture a screenshot showing width, height, and depth dimensions.</p></div>
+      <div class="machine-process-step"><div class="num">4</div><h4>Submit &amp; Slice</h4><p>Upload through the dashboard. The technician reviews printability, then slices, queues, and prints the model.</p></div>
+    </div>
+  </div>
+
+  <div class="card" id="machines-report" style="margin-top:20px;">
+    <div class="section-title">&#128221; Report &amp; Process Marks Guide</div>
+    <div class="section-sub">Helps both DT and non-DT students document their learning &mdash; for reports, portfolios, presentations, or annotations.</div>
+
+    <div class="machine-report-grid">
+      <div class="machine-report-card">
+        <h4>&#128196; Design Process &amp; Decisions</h4>
+        <ul>
+          <li>Name the exact machine and whether it is additive or subtractive manufacturing</li>
+          <li>Explain why this machine was the correct choice for your design</li>
+          <li>Note the dimensions used and how they relate to the size limit</li>
+          <li>Explain material choice (e.g. cardboard vs acrylic) and file format decisions</li>
+          <li>Describe any trade-offs between design intent and manufacturing limits</li>
+        </ul>
+      </div>
+      <div class="machine-report-card">
+        <h4>&#128247; Evidence &amp; Screenshots</h4>
+        <ul>
+          <li>Screenshot of your design file or 3D model in the software</li>
+          <li>Dimension view showing width, height (and depth for 3D print)</li>
+          <li>Before-and-after screenshots if you revised the design</li>
+          <li>Vector path clean-up or STL mesh check evidence</li>
+          <li>Photo of the finished fabricated piece if available</li>
+        </ul>
+      </div>
+      <div class="machine-report-card">
+        <h4>&#128270; Problems &amp; Reflections</h4>
+        <ul>
+          <li>Failed attempts or revisions &mdash; what went wrong and what you changed</li>
+          <li>File preparation issues (e.g. image layers that had to be removed)</li>
+          <li>Dimension mistakes and how you corrected them</li>
+          <li>Tolerance, fit, or kerf issues for laser-cut assemblies</li>
+          <li>Support or orientation problems for 3D prints</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">&#128269; What To Search / Research</div>
+    <div class="section-sub">If you need more information for process marks or background research, start with these topics. They are the keywords students should search and understand.</div>
+    <div class="machine-search-list">
+      <span class="machine-search-chip">CO2 laser cutter vector file workflow</span>
+      <span class="machine-search-chip">laser cutting kerf and tolerance</span>
+      <span class="machine-search-chip">laser cutting cut vs engrave</span>
+      <span class="machine-search-chip">FDM 3D printing PLA process</span>
+      <span class="machine-search-chip">STL file for 3D printing</span>
+      <span class="machine-search-chip">3D print supports and orientation</span>
+      <span class="machine-search-chip">wall thickness for 3D printing</span>
+      <span class="machine-search-chip">additive vs subtractive manufacturing</span>
+      <span class="machine-search-chip">prototype manufacturing process</span>
+      <span class="machine-search-chip">Affinity Designer vector export</span>
+      <span class="machine-search-chip">text to curves vector design</span>
+      <span class="machine-search-chip">3D print infill and shell</span>
+    </div>
+    <div class="alert alert-info" style="margin-top:14px;">
+      <span class="alert-icon">&#128161;</span>
+      <div>A strong report usually includes the <strong>machine name</strong>, <strong>process type</strong>, <strong>material</strong>, <strong>current size constraint</strong>, <strong>file format</strong>, and <strong>why that process fits the design</strong>.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">&#9989; Process Marks Checklist</div>
+    <div class="section-sub">Use this quick checklist when writing up your process or preparing your presentation.</div>
+    <div class="help-checklist">
+      <label><input type="checkbox"> I named the correct machine and process type</label>
+      <label><input type="checkbox"> I wrote whether it is additive or subtractive manufacturing</label>
+      <label><input type="checkbox"> I included the current project size limit</label>
+      <label><input type="checkbox"> I stated the material and required file format</label>
+      <label><input type="checkbox"> I explained the process steps from design to production</label>
+      <label><input type="checkbox"> I included screenshots, measurements, or production evidence</label>
+      <label><input type="checkbox"> I explained why I chose this machine and material</label>
+      <label><input type="checkbox"> I documented any problems, revisions, or failed attempts</label>
+      <label><input type="checkbox"> I showed file preparation evidence (vector clean-up, STL check, etc.)</label>
+    </div>
+    <div class="btn-group" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="switchPage('submit')">Go To Submit</button>
+      <button class="btn btn-ghost" onclick="switchPage('help')">Open Help &amp; Guidelines</button>
+    </div>
+  </div>
   `;
 }
 
@@ -4265,7 +5359,7 @@ function renderHelpPage_() {
   return `
   <div class="card">
     <div class="section-title">&#128214; Submission Guidelines</div>
-    <div class="section-sub">Everything you need to know before submitting your fabrication file. Read this page carefully &mdash; following these guidelines will help your submission get approved faster.</div>
+    <div class="section-sub">Everything you need to know before submitting your fabrication file. Read this page carefully &mdash; following these guidelines will help your submission get approved faster. For the full machine guide, use the <strong>Machines</strong> tab in the top navigation.</div>
 
     <div class="help-toc">
       <div class="help-toc-title">Table of Contents</div>
@@ -4287,7 +5381,7 @@ function renderHelpPage_() {
         <li><a href="javascript:void(0)" onclick="helpJump_('help-tips')">Good Practice Tips</a></li>
         <li><a href="javascript:void(0)" onclick="helpJump_('help-contact')">Need Help?</a></li>
         <li><a href="javascript:void(0)" onclick="helpJump_('help-turnaround')">Turnaround Time &amp; Priority</a></li>
-        <li><a href="javascript:void(0)" onclick="helpJump_('help-other')">Other / Special Requests</a></li>
+        <li><a href="javascript:void(0)" onclick="helpJump_('help-other')">Special Request</a></li>
         <li><a href="javascript:void(0)" onclick="helpJump_('help-quick')">Quick Reference (6 Key Rules)</a></li>
       </ol>
     </div>
@@ -4302,7 +5396,7 @@ function renderHelpPage_() {
         <div class="qs-step-icon">&#127919;</div>
         <div class="qs-step-num">1</div>
         <h4>Choose Your Path</h4>
-        <p>On the Submit page, pick <strong>DT Submission</strong> if you&rsquo;re a DT student, or <strong>Other Request</strong> for all other departments &amp; clubs.</p>
+        <p>Use <strong>DT Submit</strong> for DT coursework, or the <strong>Special Request</strong> tab in the navigation for all other departments, clubs &amp; competitions.</p>
       </div>
       <div class="qs-step">
         <div class="qs-step-icon">&#128196;</div>
@@ -4331,7 +5425,8 @@ function renderHelpPage_() {
       <div class="qs-audience-card">
         <h4>&#127758; Non-DT Departments / Clubs / Competitions</h4>
         <ul>
-          <li>Choose <strong>Other / Special Request</strong> on the Submit page</li>
+          <li>Use the <strong>Special Request</strong> tab in the navigation</li>
+          <li>Student requests on this pathway are for <strong>Y6-Y12</strong></li>
           <li>Your teacher or sponsor must approve the request</li>
           <li>Describe what you need &mdash; we&rsquo;ll help with the rest</li>
           <li>Great for Science fairs, art projects, robotics &amp; more</li>
@@ -4380,59 +5475,67 @@ function renderHelpPage_() {
       <span class="alert-icon">&#10060;</span>
       <div>Do <strong>NOT</strong> upload a laser cutting file to the 3D printing section, and do <strong>NOT</strong> upload a 3D model to the laser cutting section. Mismatched files will be rejected.</div>
     </div>
+    <p style="font-size:12px;color:var(--slate);margin-top:10px;">To start a submission, go to the <a href="javascript:void(0)" onclick="switchPage('submit')" style="font-weight:700;">DT Submit</a> page for DT coursework or the <a href="javascript:void(0)" onclick="switchPage('other')" style="font-weight:700;">Special Request</a> page for non-DT work.</p>
   </div>
 
   <!-- 3. Our Machines -->
   <div class="help-section" id="help-machines">
     <div class="help-section-title">&#128736; 3. Our Machines <span class="help-badge-cat help-badge-everyone">Everyone</span></div>
-    <p>The Design Fabrication workshop operates the following machines. Understanding what each machine does will help you choose the right submission type and prepare your file correctly.</p>
+    <p>The Design Fabrication workshop operates the following machines. Understanding what each machine does will help you choose the right submission type and prepare your file correctly. For the full machine guide, size-limit summary, and report checklist, open the <strong>Machines</strong> page in the top navigation.</p>
 
     <div class="machine-grid">
       <div class="machine-card machine-card--laser">
-        <h4>&#128293; GCC LaserPro Spirit LS</h4>
-        <div class="machine-type">Laser Cutter / Engraver</div>
+        <h4>&#128293; GCC LaserPro Spirit LS Pro</h4>
+        <div class="machine-type">CO&#8322; Laser Cutter / Engraver</div>
         <p>Desktop CO&#8322; laser for precise cutting and engraving on flat sheet materials such as cardboard and acrylic.</p>
         <ul>
+          <li>Max working area: <strong>640 &times; 460 mm</strong> (ext. to 740 &times; 460 mm)</li>
           <li>Cuts through sheet material along vector paths</li>
-          <li>Suitable for 2D designs (no 3D depth)</li>
           <li>Requires vector working files (.af, .afdesign, .svg, .dxf)</li>
         </ul>
       </div>
       <div class="machine-card machine-card--laser">
         <h4>&#128293; GCC LaserPro Mercury III</h4>
-        <div class="machine-type">Laser Cutter / Engraver</div>
-        <p>Larger-format CO&#8322; laser cutter for bigger projects and heavier workloads.</p>
+        <div class="machine-type">CO&#8322; Laser Cutter / Engraver</div>
+        <p>Reliable CO&#8322; laser engraver for batch cutting and larger sheet projects.</p>
         <ul>
-          <li>Same file requirements as Spirit LS</li>
-          <li>Handles larger sheet sizes</li>
+          <li>Max working area: <strong>635 &times; 458 mm</strong></li>
+          <li>Same file requirements as Spirit LS Pro</li>
           <li>Used for higher-volume or bigger projects</li>
         </ul>
       </div>
       <div class="machine-card machine-card--3d">
         <h4>&#9881; Creality K2 Plus</h4>
-        <div class="machine-type">3D Printer &mdash; FDM</div>
-        <p>Fused Deposition Modelling (FDM) printer that builds objects layer by layer from PLA filament.</p>
+        <div class="machine-type">FDM 3D Printer &mdash; Enclosed, Heated Chamber</div>
+        <p>High-speed CoreXY FDM printer that builds objects layer by layer. Supports a wide range of filaments.</p>
         <ul>
+          <li>Max build volume: <strong>350 &times; 350 &times; 350 mm</strong></li>
           <li>Prints 3D objects from STL files</li>
-          <li>Material: PLA</li>
           <li>Good for prototypes, models, and functional parts</li>
         </ul>
       </div>
       <div class="machine-card machine-card--3d">
         <h4>&#9881; Flashforge Guider IIs</h4>
-        <div class="machine-type">3D Printer &mdash; FDM</div>
-        <p>Enclosed FDM printer with a heated chamber for reliable, larger-format 3D prints.</p>
+        <div class="machine-type">Enclosed FDM 3D Printer</div>
+        <p>Enclosed FDM printer with a heated chamber for reliable, consistent 3D prints.</p>
         <ul>
+          <li>Max build volume: <strong>280 &times; 250 &times; 300 mm</strong></li>
           <li>Prints 3D objects from STL files</li>
-          <li>Material: PLA</li>
           <li>Enclosed design for stable print quality</li>
         </ul>
       </div>
     </div>
 
-    <div class="alert alert-info" style="margin-top:12px;">
+    <div class="alert alert-warning" style="margin-top:12px;">
+      <span class="alert-icon">&#9888;</span>
+      <div><strong>Machine specs &ne; automatic job approval.</strong> School limits, technician review, file readiness, material suitability, safety, and queue load all factor into whether a job is approved. Non-DT requests may have additional review constraints.</div>
+    </div>
+    <div class="alert alert-info" style="margin-top:8px;">
       <span class="alert-icon">&#128161;</span>
       <div>All laser work requires <strong>vector files</strong>. All 3D printing requires <strong>STL files</strong>. If you are unsure which machine your project needs, ask your teacher.</div>
+    </div>
+    <div style="margin-top:10px;text-align:center;">
+      <a class="btn btn-ghost btn-sm" href="javascript:void(0)" onclick="switchPage('machines')" style="margin-right:8px;">&#128736; Full Machines Guide &amp; Specifications</a>
     </div>
   </div>
 
@@ -4587,7 +5690,7 @@ function renderHelpPage_() {
         <tr><td><strong>Y8 Laser</strong></td><td>20 &times; 20 cm</td><td>3mm Hard Cardboard (White)</td></tr>
         <tr><td><strong>Y9 Laser</strong></td><td>60 &times; 40 cm</td><td>Cardboard or Acrylic</td></tr>
         <tr><td><strong>Y10 Laser</strong></td><td>60 &times; 40 cm</td><td>Cardboard or Acrylic</td></tr>
-        <tr><td><strong>Y10 3D Print</strong></td><td>15 &times; 15 &times; 13 cm</td><td>PLA</td></tr>
+        <tr><td><strong>Y10 3D Print</strong></td><td>30 &times; 30 &times; 30 cm</td><td>PLA</td></tr>
       </tbody>
     </table>
 
@@ -4597,7 +5700,7 @@ function renderHelpPage_() {
     </div>
     <div class="alert alert-warning" style="margin-top:10px;">
       <span class="alert-icon">&#128301;</span>
-      <div><strong>Non-DT / Other Requests:</strong> If you are submitting through the <em>Other Requests</em> pathway (not regular DT coursework), there is no fixed year-group size limit &mdash; but all projects are still constrained by machine bed size and available materials. Include accurate dimensions in your request so the technician can assess feasibility.</div>
+      <div><strong>Non-DT / Special Requests:</strong> If you are submitting through the <em>Special Request</em> pathway (not regular DT coursework), there is no fixed year-group size limit &mdash; but all projects are still constrained by machine bed size and available materials. Include accurate dimensions in your request so the technician can assess feasibility.</div>
     </div>
   </div>
 
@@ -4634,7 +5737,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
+          <li>Your <strong>school email</strong> (e.g. name@school.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -4837,27 +5940,27 @@ function renderHelpPage_() {
 
   <!-- 18. Other / Special Requests -->
   <div class="help-section" id="help-other">
-    <div class="help-section-title">&#128301; 18. Other / Special Requests <span class="help-badge-cat help-badge-nondt">Non-DT</span></div>
+    <div class="help-section-title">&#128301; 18. Special Request <span class="help-badge-cat help-badge-nondt">Non-DT</span></div>
     <p>${APP.uiText.otherRequestHelpIntro}</p>
 
     <h4>&#128161; Who Should Use This Pathway?</h4>
-    <p>Use the <strong>Other Requests</strong> page (not the regular Submit page) if your fabrication need falls outside normal DT coursework. This includes:</p>
+    <p>Use the <strong>Special Request</strong> page (not the regular DT Submit page) if your fabrication need falls outside normal DT coursework. Student requests on this pathway are intended for <strong>Y6-Y12</strong> and should include teacher or sponsor approval. This includes:</p>
     ` + renderBulletList_(APP.uiText.otherRequestHelpEligible) + `
 
     <h4>&#128221; What You Need</h4>
-    <p>Before submitting an Other Request, make sure you have:</p>
+    <p>Before submitting a Special Request, make sure you have:</p>
     ` + renderBulletList_(APP.uiText.otherRequestHelpRequired) + `
 
     <h4>&#9888;&#65039; Priority &amp; Expectations</h4>
     ` + renderDisclaimerBox_('Priority Notice', APP.uiText.otherRequestPriorityNotice + '<br><br>' + APP.uiText.otherRequestNoGuarantee, 'warning') + `
 
     <h4>&#128197; Workflow</h4>
-    <p>Other requests follow a similar workflow to DT submissions:</p>
+    <p>Special Requests follow a similar workflow to DT submissions:</p>
     ` + renderWorkflowList_(APP.uiText.otherRequestWorkflowSteps) + `
 
     <div class="alert alert-info" style="margin-top:10px;">
       <span class="alert-icon">&#128161;</span>
-      <div>To submit an Other Request, go to the <strong>Other Requests</strong> tab in the navigation bar.</div>
+      <div>To submit a Special Request, go to the <strong>Special Request</strong> tab in the navigation bar. For machine details, size limits, and workflow information, see the <a href="javascript:void(0)" onclick="switchPage('machines')" style="font-weight:700;">Machines Guide</a>.</div>
     </div>
   </div>
 
@@ -4906,7 +6009,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="student@example.edu"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.school.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>

@@ -4,18 +4,18 @@
 .LSOverride
 ._*
 
-# Editor
+# Editors
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
-.vscode/
-.idea/
 
-# Node / clasp (if used later)
+# Node / clasp
 node_modules/
 .clasp.json
 .clasprc.json
 
-# Environment / secrets
+# Local environment files
 .env
 *.env.local
