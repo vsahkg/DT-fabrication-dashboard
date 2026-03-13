@@ -19,8 +19,8 @@ const APP = {
   name: 'Design Fabrication Dashboard',
   props: PropertiesService.getScriptProperties(),
 
-  /* Public showcase placeholder — replace before deployment */
-  technicianCcEmail: 'dt-technician@example.edu',
+  /* CC for Needs Fix emails — all parties on one thread for follow-up */
+  technicianCcEmail: 'technicianCcEmail',
 
   sheets: {
     submissions: {
@@ -50,7 +50,8 @@ const APP = {
         'admin_remarks',
         'submitted_by',
         'updated_at',
-        'updated_by'
+        'updated_by',
+        'prototype_fidelity'
       ]
     },
     rules: {
@@ -440,12 +441,12 @@ const APP = {
   },
 
   teacherEmails: {
-    'Teacher A': 'teacher.a@example.edu',
-    'Teacher B': 'teacher.b@example.edu',
-    'Teacher C': 'teacher.c@example.edu',
-    'Teacher D': 'teacher.d@example.edu',
-    'Teacher E': 'teacher.e@example.edu'
-  }
+    
+  },
+
+  adminEmailOverrides: [
+    
+  ]
 };
 
 const TECHNICIAN_ALLOWED_STATUSES = [
@@ -685,7 +686,8 @@ function submitSubmission(payload) {
     admin_remarks: payload.additional_notes || '',
     submitted_by: payload.student_email || '',
     updated_at: now.toISOString(),
-    updated_by: payload.student_email || ''
+    updated_by: payload.student_email || '',
+    prototype_fidelity: payload.prototype_fidelity || ''
   };
 
   appendObject_(APP.sheets.submissions.name, record);
@@ -915,8 +917,7 @@ function updateOtherRequestStatus(requestId, status, remarks) {
     throw new Error('Technicians can only set status to: ' + TECHNICIAN_ALLOWED_STATUSES.join(', '));
   }
 
-  var lock = LockService.getDocumentLock();
-  lock.waitLock(10000);
+  var lock = acquireWorkflowLock_();
   try {
 
     var sheet = getSheet_(APP.sheets.otherRequests.name);
@@ -1129,8 +1130,7 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
     throw new Error('Technician can only set approved, in_queue, in_production, or completed.');
   }
 
-  var lock = LockService.getDocumentLock();
-  lock.waitLock(10000);
+  var lock = acquireWorkflowLock_();
   try {
 
   const sheet = getSheet_(APP.sheets.submissions.name);
@@ -1309,7 +1309,7 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(req.teacher_in_charge || 'Teacher in charge') +
-      (APP.technicianCcEmail ? ', DT technician mailbox' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1370,6 +1370,7 @@ function sendSubmissionConfirmation_(record) {
   var email = String(record.student_email || '').trim();
   if (!email) return;
   var machineName = record.machine === '3d' ? '3D Print' : 'Laser Cut';
+  var prototypeLabel = formatPrototypeFidelityLabel_(record.prototype_fidelity);
   var subject = 'Design Technology — Submission Received — ' + (record.student_name || 'Student');
   var body =
     '<p>Dear ' + escapeHtml_(record.student_name || 'Student') + ',</p>' +
@@ -1377,6 +1378,7 @@ function sendSubmissionConfirmation_(record) {
     '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Submission ID</strong></td><td style="padding:6px 12px;border:1px solid #ddd;font-family:monospace;">' + escapeHtml_(record.submission_id || '') + '</td></tr>' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Machine</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(machineName) + '</td></tr>' +
+    '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Prototype</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(prototypeLabel || '—') + '</td></tr>' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Material</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(record.material || '') + '</td></tr>' +
     '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Year / Class</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(record.year_group || '') + ' / Class ' + escapeHtml_(record.design_class_no || '') + '</td></tr>' +
     '</table>' +
@@ -1585,7 +1587,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(teacherName || 'Teacher') +
-      (APP.technicianCcEmail ? ', DT technician mailbox' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1636,6 +1638,7 @@ function validateSubmission_(payload) {
   payload.design_class_no = String(payload.design_class_no || '').trim();
   payload.design_teacher = String(payload.design_teacher || '').trim();
   payload.year_group = String(payload.year_group || '').trim();
+  payload.prototype_fidelity = String(payload.prototype_fidelity || '').trim().toLowerCase();
   payload.machine = String(payload.machine || '').trim().toLowerCase();
   payload.material = String(payload.material || '').trim();
 
@@ -1645,6 +1648,7 @@ function validateSubmission_(payload) {
     'design_class_no',
     'design_teacher',
     'year_group',
+    'prototype_fidelity',
     'machine',
     'material'
   ];
@@ -1661,6 +1665,13 @@ function validateSubmission_(payload) {
   if (!['laser', '3d'].includes(payload.machine)) {
     throw new Error('Machine must be laser or 3d.');
   }
+
+  if (!['low', 'hi', 'na', 'lo-fi', 'hi-fi'].includes(payload.prototype_fidelity)) {
+    throw new Error('Prototype type must be Low, Hi, or N/A.');
+  }
+
+  if (payload.prototype_fidelity === 'lo-fi') payload.prototype_fidelity = 'low';
+  if (payload.prototype_fidelity === 'hi-fi') payload.prototype_fidelity = 'hi';
 
   if (!payload.working_file || !payload.working_file.name) {
     throw new Error('Working file is required.');
@@ -1748,6 +1759,16 @@ function formatHongKongTimestamp_(value) {
   const date = toDateObject_(value);
   if (!date) return '';
   return Utilities.formatDate(date, 'Asia/Hong_Kong', "yyyy-MM-dd'T'HH:mm:ss") + '+08:00';
+}
+
+function formatPrototypeFidelityLabel_(value) {
+  var normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'low') return 'Lo fi Prototype';
+  if (normalized === 'hi') return 'Hi fi Prototype';
+  if (normalized === 'na') return 'N/A';
+  if (normalized === 'lo-fi') return 'Lo fi Prototype';
+  if (normalized === 'hi-fi') return 'Hi fi Prototype';
+  return '';
 }
 
 function toDateObject_(value) {
@@ -1976,6 +1997,25 @@ function getSheet_(name) {
   return sheet;
 }
 
+function acquireWorkflowLock_() {
+  var lock = null;
+
+  try {
+    lock = LockService.getDocumentLock();
+  } catch (e) {}
+
+  if (!lock) {
+    lock = LockService.getScriptLock();
+  }
+
+  if (!lock) {
+    throw new Error('Unable to acquire workflow lock.');
+  }
+
+  lock.waitLock(10000);
+  return lock;
+}
+
 function getRowsAsObjects_(sheetName) {
   const sheet = getSheet_(sheetName);
   const values = sheet.getDataRange().getDisplayValues();
@@ -2006,6 +2046,46 @@ function writeCellByHeader_(sheet, headers, rowIndex, headerName, value) {
    AUTH
    ========================= */
 
+function getTeacherListEntryByEmail_(email) {
+  var target = String(email || '').trim().toLowerCase();
+  if (!target) return null;
+
+  var teacherNames = Object.keys(APP.teacherEmails || {});
+  for (var i = 0; i < teacherNames.length; i++) {
+    var teacherName = teacherNames[i];
+    var teacherEmail = String(APP.teacherEmails[teacherName] || '').trim().toLowerCase();
+    if (teacherEmail === target) {
+      return {
+        email: teacherEmail,
+        name: teacherName,
+        role: 'teacher',
+        active: 'TRUE'
+      };
+    }
+  }
+
+  return null;
+}
+
+function getConfiguredUserOverride_(email) {
+  var target = String(email || '').trim().toLowerCase();
+  if (!target) return null;
+
+  if ((APP.adminEmailOverrides || []).some(function(adminEmail) {
+    return String(adminEmail || '').trim().toLowerCase() === target;
+  })) {
+    var teacherEntry = getTeacherListEntryByEmail_(target);
+    return {
+      email: target,
+      name: teacherEntry ? teacherEntry.name : target.split('@')[0],
+      role: 'admin',
+      active: 'TRUE'
+    };
+  }
+
+  return getTeacherListEntryByEmail_(target);
+}
+
 function getCurrentUser_() {
   let email = '';
   try { email = Session.getActiveUser().getEmail() || ''; } catch(e) {}
@@ -2015,17 +2095,23 @@ function getCurrentUser_() {
     return { email: '', name: '', role: 'student', isAdmin: false };
   }
 
+  email = String(email).trim();
+  var normalizedEmail = email.toLowerCase();
+
   let match = null;
   try {
     const users = getRowsAsObjects_(APP.sheets.users.name);
-    match = users.find(u => String(u.email || '').toLowerCase() === email.toLowerCase() && String(u.active).toLowerCase() !== 'false');
+    match = users.find(u => String(u.email || '').trim().toLowerCase() === normalizedEmail && String(u.active).toLowerCase() !== 'false');
   } catch(e) {}
+
+  var configuredOverride = getConfiguredUserOverride_(normalizedEmail);
+  var resolvedUser = configuredOverride || match;
 
   return {
     email,
-    name: match ? match.name : '',
-    role: match ? match.role : 'student',
-    isAdmin: !!(match && APP.adminRoles.includes(match.role))
+    name: resolvedUser ? resolvedUser.name : '',
+    role: resolvedUser ? resolvedUser.role : 'student',
+    isAdmin: !!(resolvedUser && APP.adminRoles.includes(resolvedUser.role))
   };
 }
 
@@ -3001,7 +3087,7 @@ function renderPage_(page, boot) {
   </div>
 
   <footer class="site-footer">
-    <strong>Design Fabrication Dashboard</strong> &mdash; School Design &amp; Technology Department<br>
+    <strong>Design Fabrication Dashboard</strong> &mdash; VSA Design &amp; Technology Department<br>
     Laser Cutting &bull; 3D Printing &bull; Prototyping &bull; Creative Making<br>
     Need machine details? Visit the <a href="javascript:void(0)" onclick="switchPage('machines')" style="color:var(--blue);text-decoration:underline;">Machines Guide</a> or the <a href="javascript:void(0)" onclick="switchPage('help')" style="color:var(--blue);text-decoration:underline;">Help &amp; Guidelines</a> page.
   </footer>
@@ -3053,6 +3139,13 @@ function renderPage_(page, boot) {
     function statusActionHint(status) { return STATUS_ACTION_HINT[String(status||'').trim()]||'Check the latest remarks for next steps.'; }
     function statusPill(status) { var s = String(status||''); return '<span class="pill pill-' + s + '">' + esc((STATUS_LABELS[s]||s).toUpperCase()) + '</span>'; }
     function formatDisplayTs(value) { var text = String(value||''); return text ? text.replace('T', ' ').substring(0, 16) : '\u2014'; }
+    function formatPrototypeFidelityLabel_(value) {
+      var normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'low' || normalized === 'lo-fi') return 'Lo fi Prototype';
+      if (normalized === 'hi' || normalized === 'hi-fi') return 'Hi fi Prototype';
+      if (normalized === 'na') return 'N/A';
+      return '';
+    }
     function sourcePill(source) {
       return source === 'other'
         ? '<span class="pill pill-source-special" title="Special Request">SPECIAL REQUEST</span>'
@@ -3317,7 +3410,7 @@ function renderPage_(page, boot) {
         var previewReq = !!(rule && String(rule.preview_required).toLowerCase() === 'true');
         var is3d = machineSel.value === '3d';
 
-        var s1 = ['student_email','student_name','design_class_no','design_teacher'].every(function(n) {
+        var s1 = ['student_email','student_name','design_class_no','design_teacher','prototype_fidelity'].every(function(n) {
           var i = form.querySelector('[name="' + n + '"]'); return i && String(i.value||'').trim();
         });
         var s2 = !!(yearSel.value && machineSel.value && materialSel.value && rule);
@@ -3738,6 +3831,7 @@ function renderPage_(page, boot) {
               '<div class="sub-card-field"><label>Year</label><div class="val">' + esc(r.year_group||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Class</label><div class="val">' + esc(r.design_class_no||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher||'\\u2014') + '</div></div>' +
+              '<div class="sub-card-field"><label>Prototype</label><div class="val">' + esc(formatPrototypeFidelityLabel_(r.prototype_fidelity) || '\u2014') + '</div></div>' +
               (dims.length ? '<div class="sub-card-field"><label>Size</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
               '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,16).replace('T',' ') : '\\u2014') + '</div></div>' +
               '<div class="sub-card-field" style="grid-column:1/-1"><label>Submission ID</label><div class="val" style="font-family:monospace;font-size:12px;word-break:break-all;">' + esc(r.submission_id||'') + '</div></div>';
@@ -3837,6 +3931,7 @@ function renderPage_(page, boot) {
             var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
             var machineLabel = esc(MACHINE_LABELS[r.machine]||r.machine||'');
             var materialLabel = esc(r.material||'\u2014');
+            var prototypeLabel = r._source === 'other' ? '' : formatPrototypeFidelityLabel_(r.prototype_fidelity);
             var dimsLabel = dims.length ? dims.join('\u00d7') + ' ' + esc(r.units||'') : '\u2014';
             var submittedMeta = queueTimeMeta(r.created_at);
             var updatedMeta = queueTimeMeta(r.updated_at);
@@ -3844,7 +3939,7 @@ function renderPage_(page, boot) {
             var requesterCell = r._source === 'other'
               ? '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.requester_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.requester_email||'') + '</div><div class="queue-meta">' + esc(r.project_name || 'Untitled Special Request') + '</div><div class="queue-meta-aux">Sponsor: ' + esc(r.teacher_in_charge || '\u2014') + (r.department_or_subject ? ' · ' + esc(r.department_or_subject) : '') + '</div></td>'
               : '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.student_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.student_email||'') + '</div><div class="queue-meta">Class ' + esc(r.design_class_no||'\u2014') + ' · ' + esc(r.year_group||'\u2014') + '</div><div class="queue-meta-aux">Teacher: ' + esc(r.design_teacher||'\u2014') + '</div></td>';
-            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
+            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
             var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
             var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
             var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
@@ -3930,7 +4025,8 @@ function renderPage_(page, boot) {
           '<div class="drawer-field"><label>Name</label><div class="val">' + esc(r.student_name) + '</div></div>' +
           '<div class="drawer-field"><label>Email</label><div class="val">' + esc(r.student_email) + '</div></div>' +
           '<div class="drawer-field"><label>Class</label><div class="val">' + esc(r.design_class_no) + '</div></div>' +
-          '<div class="drawer-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher) + '</div></div></div>';
+          '<div class="drawer-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher) + '</div></div>' +
+          '<div class="drawer-field"><label>Prototype</label><div class="val">' + esc(formatPrototypeFidelityLabel_(r.prototype_fidelity) || '—') + '</div></div></div>';
       }
 
       var body = summarySection + detailSection +
@@ -4315,13 +4411,10 @@ function renderBulletList_(items) {
 }
 
 function renderSubmitPage_() {
-  var teacherOptions = Object.keys(APP.teacherEmails).sort().map(function(t) {
-    return '<option value="' + escapeHtml_(t) + '">' + escapeHtml_(t) + '</option>';
-  }).join('');
   return `
   <div class="welcome-banner">
     <h3>&#128075; Welcome to the Design Fabrication Dashboard</h3>
-    <p>Submit your DT coursework laser cutting or 3D printing files below. Your submission will be reviewed by the technician and you&rsquo;ll receive email updates on its status.</p>
+    <p>Submit your DT coursework laser cutting or 3D printing files for lo-fi or hi-fi prototypes below. Your submission will be reviewed by the technician and you&rsquo;ll receive email updates on its status.</p>
     <div class="welcome-pills">
       <span class="welcome-pill">&#128293; Laser Cutting</span>
       <span class="welcome-pill">&#9881; 3D Printing</span>
@@ -4332,7 +4425,7 @@ function renderSubmitPage_() {
 
   <div class="card">
     <div class="section-title">&#128196; DT Coursework Submission</div>
-    <div class="section-sub">Submit your Design &amp; Technology laser cutting or 3D printing working file. Fill in the form below.</div>
+    <div class="section-sub">Submit your Design &amp; Technology laser cutting or 3D printing working file for a lo-fi or hi-fi prototype. Fill in the form below.</div>
     <p style="font-size:12px;color:var(--slate-lt);margin:0 0 16px;line-height:1.5;">&#11088; Not DT coursework? Competitions, other subjects, clubs, or events &rarr; use <a href="javascript:void(0)" onclick="switchPage('other')" style="font-weight:700;color:var(--blue);text-decoration:underline;">Special Request</a> in the top navigation.</p>
 
     ` + renderDisclaimerBox_('&#9200; ' + APP.uiText.turnaroundHeadline, APP.uiText.turnaroundShort + renderBulletList_(APP.uiText.turnaroundFactors)) + `
@@ -4361,7 +4454,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentID@student.school.edu" required>
+              <input type="email" name="student_email" placeholder="studentID@student.vsa.edu.hk" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -4379,7 +4472,17 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
-                ${teacherOptions}
+                <option value="Ms Cheung">Ms Cheung</option>
+                <option value="Mr Chiu">Mr Chiu</option>
+                <option value="Mr Curtis">Mr Curtis</option>
+                <option value="Mr Graham">Mr Graham</option>
+                <option value="Mr Jenkin">Mr Jenkin</option>
+                <option value="Mr Lee">Mr Lee</option>
+                <option value="Mr Reid">Mr Reid</option>
+                <option value="Mr Sunny">Mr Sunny</option>
+                <option value="Mr Wong">Mr Wong</option>
+                <option value="Miss Ivy">Miss Ivy</option>
+                <option value="Miss Ranger">Miss Ranger</option>
               </select>
             </div>
             <div class="field">
@@ -4387,6 +4490,16 @@ function renderSubmitPage_() {
               <select name="year_group" id="year_group" required>
                 <option value="">&mdash; Select year &mdash;</option>
               </select>
+            </div>
+            <div class="field">
+              <label>Prototype Type <span class="req">*</span></label>
+              <select name="prototype_fidelity" required>
+                <option value="">&mdash; Select prototype type &mdash;</option>
+                <option value="low">Lo fi Prototype</option>
+                <option value="hi">Hi fi Prototype</option>
+                <option value="na">N/A</option>
+              </select>
+              <div class="helper">Choose Lo fi Prototype, Hi fi Prototype, or N/A if this does not apply.</div>
             </div>
           </div>
         </div>
@@ -4583,7 +4696,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@school.edu" required>
+              <input type="email" name="requester_email" placeholder="your-email@vsa.edu.hk" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -4697,11 +4810,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Responsible Teacher Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@school.edu" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@vsa.edu.hk" required>
             </div>
             <div class="field">
               <label>Approver Email <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@school.edu" required>
+              <input type="email" name="approved_by_email" placeholder="approver@vsa.edu.hk" required>
               <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
@@ -5737,7 +5850,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@school.edu)</li>
+          <li>Your <strong>school email</strong> (e.g. name@vsa.edu.hk)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -6009,7 +6122,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.school.edu"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.vsa.edu.hk"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>
