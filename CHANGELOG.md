@@ -21,6 +21,7 @@ All notable documentation-facing changes to this repository are recorded here.
 
 - Removed stale or misleading README wording inherited from the earlier showcase draft.
 - Replaced school-specific email mappings in `code.gs` with public-safe placeholders and removed a named technician reference from public email text.
+- Removed remaining email-pattern placeholders, replaced teacher identity examples with generic labels, and cleared `.mailmap` personal data.
 
 ## [1.0.0-public-showcase] - 2026-03-13
 

@@ -27,7 +27,7 @@ const APP = {
   })(),
 
   /* CC for Needs Fix emails — all parties on one thread for follow-up */
-  technicianCcEmail: 'dt-technician@example.edu',
+  technicianCcEmail: 'REPLACE_WITH_TECHNICIAN_CONTACT',
 
   sheets: {
     submissions: {
@@ -462,23 +462,14 @@ const APP = {
   },
 
   teacherEmails: {
-    'Ms Cheung':    'teacher.ms-cheung@example.edu',
-    'Mr Chiu':      'teacher.mr-chiu@example.edu',
-    'Mr Graham':    'teacher.mr-graham@example.edu',
-    'Mr Jenkin':    'teacher.mr-jenkin@example.edu',
-    'Mr Wong':      'teacher.mr-wong@example.edu',
-    'Mr Lee':       'teacher.mr-lee@example.edu',
-    'Mr Reid':      'teacher.mr-reid@example.edu',
-    'Mr Sunny':     'teacher.mr-sunny@example.edu',
-    'Mr Curtis':    'teacher.mr-curtis@example.edu',
-    'Miss Ivy':     'teacher.miss-ivy@example.edu',
-    'Miss Ranger':  'teacher.miss-ranger@example.edu'
+    'Teacher A': 'REPLACE_WITH_TEACHER_A_CONTACT',
+    'Teacher B': 'REPLACE_WITH_TEACHER_B_CONTACT',
+    'Teacher C': 'REPLACE_WITH_TEACHER_C_CONTACT'
   },
 
   adminEmailOverrides: [
-    'admin.one@example.edu',
-    'admin.two@example.edu',
-    'admin.three@example.edu'
+    'REPLACE_WITH_ADMIN_CONTACT_1',
+    'REPLACE_WITH_ADMIN_CONTACT_2'
   ]
 };
 
@@ -4629,7 +4620,7 @@ function renderPage_(page, boot) {
           '<div class="compose-layout">' +
             help + warn +
             '<div class="compose-grid">' +
-              '<div class="compose-field compose-field--full"><label>To</label><input id="emailTo" type="text" value="' + esc(d.to || '') + '" placeholder="student@school.edu"></div>' +
+              '<div class="compose-field compose-field--full"><label>To</label><input id="emailTo" type="text" value="' + esc(d.to || '') + '" placeholder="Enter recipient contact"></div>' +
               '<div class="compose-field"><label>CC</label><input id="emailCc" type="text" value="' + esc(d.cc || '') + '" placeholder="Optional: comma-separated emails"></div>' +
               '<div class="compose-field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '" placeholder="Email subject"></div>' +
             '</div>' +
@@ -5110,7 +5101,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentID@student.vsa.edu.hk" required>
+              <input type="email" name="student_email" placeholder="Enter your school email" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -5128,17 +5119,9 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
-                <option value="Ms Cheung">Ms Cheung</option>
-                <option value="Mr Chiu">Mr Chiu</option>
-                <option value="Mr Curtis">Mr Curtis</option>
-                <option value="Mr Graham">Mr Graham</option>
-                <option value="Mr Jenkin">Mr Jenkin</option>
-                <option value="Mr Lee">Mr Lee</option>
-                <option value="Mr Reid">Mr Reid</option>
-                <option value="Mr Sunny">Mr Sunny</option>
-                <option value="Mr Wong">Mr Wong</option>
-                <option value="Miss Ivy">Miss Ivy</option>
-                <option value="Miss Ranger">Miss Ranger</option>
+                <option value="Teacher A">Teacher A</option>
+                <option value="Teacher B">Teacher B</option>
+                <option value="Teacher C">Teacher C</option>
               </select>
             </div>
             <div class="field">
@@ -5356,7 +5339,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@vsa.edu.hk" required>
+              <input type="email" name="requester_email" placeholder="Enter your school email" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -5470,11 +5453,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Responsible Teacher Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@vsa.edu.hk" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="Enter sponsor contact" required>
             </div>
             <div class="field">
               <label>Approver Email <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@vsa.edu.hk" required>
+              <input type="email" name="approved_by_email" placeholder="Enter approver contact" required>
               <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
@@ -6512,7 +6495,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@vsa.edu.hk)</li>
+          <li>Your <strong>school email</strong></li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -6826,7 +6809,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.vsa.edu.hk"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="Enter school account"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>
