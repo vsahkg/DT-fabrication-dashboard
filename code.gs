@@ -18,9 +18,16 @@ function authorizeScopes() {
 const APP = {
   name: 'Design Fabrication Dashboard',
   props: PropertiesService.getScriptProperties(),
+  timeZone: (function() {
+    try {
+      return Session.getScriptTimeZone() || 'UTC';
+    } catch (e) {
+      return 'UTC';
+    }
+  })(),
 
   /* CC for Needs Fix emails — all parties on one thread for follow-up */
-  technicianCcEmail: 'technicianCcEmail',
+  technicianCcEmail: 'dt-technician@example.edu',
 
   sheets: {
     submissions: {
@@ -68,6 +75,20 @@ const APP = {
         'preview_required',
         'notes',
         'active'
+      ]
+    },
+    submissionControls: {
+      name: 'SubmissionControls',
+      headers: [
+        'control_id',
+        'year_group',
+        'class_no',
+        'deadline_at',
+        'is_closed',
+        'message',
+        'active',
+        'updated_at',
+        'updated_by'
       ]
     },
     issueTemplates: {
@@ -441,11 +462,23 @@ const APP = {
   },
 
   teacherEmails: {
-    
+    'Ms Cheung':    'teacher.ms-cheung@example.edu',
+    'Mr Chiu':      'teacher.mr-chiu@example.edu',
+    'Mr Graham':    'teacher.mr-graham@example.edu',
+    'Mr Jenkin':    'teacher.mr-jenkin@example.edu',
+    'Mr Wong':      'teacher.mr-wong@example.edu',
+    'Mr Lee':       'teacher.mr-lee@example.edu',
+    'Mr Reid':      'teacher.mr-reid@example.edu',
+    'Mr Sunny':     'teacher.mr-sunny@example.edu',
+    'Mr Curtis':    'teacher.mr-curtis@example.edu',
+    'Miss Ivy':     'teacher.miss-ivy@example.edu',
+    'Miss Ranger':  'teacher.miss-ranger@example.edu'
   },
 
   adminEmailOverrides: [
-    
+    'admin.one@example.edu',
+    'admin.two@example.edu',
+    'admin.three@example.edu'
   ]
 };
 
@@ -573,6 +606,7 @@ function bootstrap() {
 
   ensureSheet_(spreadsheet, APP.sheets.submissions.name, APP.sheets.submissions.headers);
   ensureSheet_(spreadsheet, APP.sheets.rules.name, APP.sheets.rules.headers);
+  ensureSheet_(spreadsheet, APP.sheets.submissionControls.name, APP.sheets.submissionControls.headers);
   ensureSheet_(spreadsheet, APP.sheets.issueTemplates.name, APP.sheets.issueTemplates.headers);
   ensureSheet_(spreadsheet, APP.sheets.users.name, APP.sheets.users.headers);
   ensureSheet_(spreadsheet, APP.sheets.auditLog.name, APP.sheets.auditLog.headers);
@@ -628,7 +662,9 @@ function doGet(e) {
   const boot = {
     page: resolvedPage,
     baseUrl: webAppUrl,
+    appTimeZone: getAppTimeZone_(),
     rules: getRulesForClient(),
+    submissionControls: getSubmissionControlsForClient(),
     issueTemplates: user.isAdmin ? getIssueTemplatesForClient() : [],
     currentUser: user,
     statuses: user.isAdmin ? Object.values(APP.status) : [],
@@ -655,6 +691,128 @@ function getRulesForClient() {
   return getRowsAsObjects_(APP.sheets.rules.name).filter(r => String(r.active).toLowerCase() !== 'false');
 }
 
+function getSubmissionControlsSheet_() {
+  return ensureSheet_(getSpreadsheet_(), APP.sheets.submissionControls.name, APP.sheets.submissionControls.headers);
+}
+
+function getSubmissionControlRows_() {
+  var sheet = getSubmissionControlsSheet_();
+  var values = sheet.getDataRange().getDisplayValues();
+  if (values.length < 2) return [];
+
+  var headers = values[0];
+  return values.slice(1).map(function(row) {
+    var obj = {};
+    headers.forEach(function(h, i) { obj[h] = row[i] || ''; });
+    return obj;
+  });
+}
+
+function normalizeClassNo_(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function isTrueValue_(value) {
+  return String(value || '').trim().toLowerCase() === 'true';
+}
+
+function isFalseValue_(value) {
+  return String(value || '').trim().toLowerCase() === 'false';
+}
+
+function compareSubmissionControls_(a, b) {
+  var aActive = isFalseValue_(a.active) ? 0 : 1;
+  var bActive = isFalseValue_(b.active) ? 0 : 1;
+  if (bActive !== aActive) return bActive - aActive;
+
+  var aSpecific = normalizeClassNo_(a.class_no) ? 1 : 0;
+  var bSpecific = normalizeClassNo_(b.class_no) ? 1 : 0;
+  if (bSpecific !== aSpecific) return bSpecific - aSpecific;
+
+  return getSortableTime_(b.updated_at) - getSortableTime_(a.updated_at);
+}
+
+function getSubmissionControlsForClient() {
+  return getSubmissionControlRows_()
+    .filter(function(row) { return !isFalseValue_(row.active); })
+    .sort(compareSubmissionControls_);
+}
+
+function getSubmissionControlDecision_(yearGroup, classNo) {
+  var targetYear = String(yearGroup || '').trim().toUpperCase();
+  var requestedClass = String(classNo || '').trim();
+  var targetClass = normalizeClassNo_(requestedClass);
+
+  if (!targetYear) {
+    return {
+      blocked: false,
+      status: 'open',
+      message: '',
+      scope_label: ''
+    };
+  }
+
+  var matched = getSubmissionControlsForClient()
+    .filter(function(row) {
+      if (String(row.year_group || '').trim().toUpperCase() !== targetYear) return false;
+      var controlClass = normalizeClassNo_(row.class_no);
+      return !controlClass || controlClass === targetClass;
+    })
+    .sort(compareSubmissionControls_)[0];
+
+  var scopeLabel = targetYear + (requestedClass ? ' Class ' + requestedClass : '');
+  if (!matched) {
+    return {
+      blocked: false,
+      status: 'open',
+      message: '',
+      scope_label: scopeLabel
+    };
+  }
+
+  var controlClassNo = String(matched.class_no || '').trim();
+  var matchedScopeLabel = String(matched.year_group || '').trim().toUpperCase() + (controlClassNo ? ' Class ' + controlClassNo : '');
+  var deadline = toDateObject_(matched.deadline_at);
+  var customMessage = String(matched.message || '').trim();
+
+  if (isTrueValue_(matched.is_closed)) {
+    return {
+      blocked: true,
+      status: 'closed',
+      message: customMessage || ('Submissions for ' + matchedScopeLabel + ' are currently closed. Please speak to your teacher or the technician team.'),
+      scope_label: matchedScopeLabel,
+      deadline_at: matched.deadline_at || '',
+      control_id: matched.control_id || '',
+      year_group: matched.year_group || '',
+      class_no: matched.class_no || ''
+    };
+  }
+
+  if (deadline && deadline.getTime() < Date.now()) {
+    return {
+      blocked: true,
+      status: 'deadline_passed',
+      message: customMessage || ('The submission deadline for ' + matchedScopeLabel + ' passed on ' + formatHongKongTimestamp_(deadline) + '. Please speak to your teacher if you need an exception.'),
+      scope_label: matchedScopeLabel,
+      deadline_at: matched.deadline_at || '',
+      control_id: matched.control_id || '',
+      year_group: matched.year_group || '',
+      class_no: matched.class_no || ''
+    };
+  }
+
+  return {
+    blocked: false,
+    status: deadline ? 'deadline_set' : 'open',
+    message: customMessage || (deadline ? ('Submission deadline for ' + matchedScopeLabel + ': ' + formatHongKongTimestamp_(deadline) + '.') : ''),
+    scope_label: matchedScopeLabel,
+    deadline_at: matched.deadline_at || '',
+    control_id: matched.control_id || '',
+    year_group: matched.year_group || '',
+    class_no: matched.class_no || ''
+  };
+}
+
 function submitSubmission(payload) {
   validateSubmission_(payload);
 
@@ -663,7 +821,7 @@ function submitSubmission(payload) {
 
   const record = {
     submission_id: submissionId,
-    created_at: now.toISOString(),
+    created_at: formatAppTimestamp_(now),
     student_email: payload.student_email || '',
     student_name: payload.student_name || '',
     design_class_no: payload.design_class_no || '',
@@ -685,7 +843,7 @@ function submitSubmission(payload) {
     issue_code: '',
     admin_remarks: payload.additional_notes || '',
     submitted_by: payload.student_email || '',
-    updated_at: now.toISOString(),
+    updated_at: formatAppTimestamp_(now),
     updated_by: payload.student_email || '',
     prototype_fidelity: payload.prototype_fidelity || ''
   };
@@ -730,7 +888,7 @@ function submitOtherRequest(payload) {
 
   const record = {
     request_id: requestId,
-    created_at: now.toISOString(),
+    created_at: formatAppTimestamp_(now),
     requester_email: payload.requester_email || '',
     requester_name: payload.requester_name || '',
     requester_role: payload.requester_role || '',
@@ -767,7 +925,7 @@ function submitOtherRequest(payload) {
     issue_code: '',
     admin_remarks: '',
     submitted_by: payload.requester_email || '',
-    updated_at: now.toISOString(),
+    updated_at: formatAppTimestamp_(now),
     updated_by: payload.requester_email || ''
   };
 
@@ -863,12 +1021,12 @@ function validateOtherRequest_(payload) {
 function getOtherRequestStatuses(query) {
   var target = String(query || '').trim().toLowerCase();
   if (!target) return [];
-  return attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.otherRequests.name)
+  return attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.otherRequests.name)
     .filter(function(r) {
       return String(r.requester_email || '').trim().toLowerCase() === target ||
              String(r.request_id || '').trim().toLowerCase() === target;
     })
-    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }), 'requester_email');
+    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }), 'requester_email'));
 }
 
 function getAdminOtherRequests(filters) {
@@ -932,7 +1090,7 @@ function updateOtherRequestStatus(requestId, status, remarks) {
         var oldStatus = values[r][headers.indexOf('status')] || '';
         writeCellByHeader_(sheet, headers, rowIndex, 'status', nextStatus);
         writeCellByHeader_(sheet, headers, rowIndex, 'admin_remarks', String(remarks || '').trim());
-        writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', new Date().toISOString());
+        writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', formatAppTimestamp_(new Date()));
         writeCellByHeader_(sheet, headers, rowIndex, 'updated_by', user.email || '');
 
         appendObject_(APP.sheets.auditLog.name, {
@@ -969,13 +1127,43 @@ function getStudentStatuses(query) {
   const target = String(query || '').trim().toLowerCase();
   if (!target) return [];
 
-  return attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.submissions.name)
+  return attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.submissions.name)
     .filter(r => {
       const emailMatch = String(r.student_email || '').trim().toLowerCase() === target;
       const idMatch = String(r.submission_id || '').trim().toLowerCase() === target;
       return emailMatch || idMatch;
     })
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), 'student_email');
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), 'student_email'));
+}
+
+function attachStudentFeedback_(rows) {
+  rows = rows || [];
+  if (!rows.length) return rows;
+
+  var issueLabelMap = getIssueTemplateLabelMap_();
+  rows.forEach(function(row) {
+    var issueCodes = String(row.issue_code || '')
+      .split(',')
+      .map(function(code) { return String(code || '').trim(); })
+      .filter(Boolean);
+
+    row.admin_remarks = String(row.admin_remarks || '').trim();
+    row.issue_labels = issueCodes.map(function(code) {
+      return issueLabelMap[code] || code;
+    });
+    row.issue_label = row.issue_labels.join(', ');
+  });
+
+  return rows;
+}
+
+function getIssueTemplateLabelMap_() {
+  return getIssueTemplatesForClient().reduce(function(map, row) {
+    var issueCode = String(row.issue_code || '').trim();
+    if (!issueCode) return map;
+    map[issueCode] = String(row.issue_label || issueCode).trim() || issueCode;
+    return map;
+  }, {});
 }
 
 function getIssueTemplatesForClient() {
@@ -1022,8 +1210,13 @@ function generateEmailDraft(submissionId, issueCodes, remarks) {
 
   return {
     to: submission.student_email || '',
+    cc: '',
     subject: subject,
-    body_html: body
+    body_html: body,
+    draft_type: 'student_review',
+    draft_title: 'Student Email Draft',
+    helper_note: 'Edit the message below before sending. Keep the requested action and next steps explicit so the student knows exactly what to fix.',
+    submission_id: submission.submission_id || submissionId
   };
 }
 
@@ -1075,11 +1268,80 @@ function generateTeacherUpdateDraft(submissionId, statusOverride, issueCodeOverr
 
   return {
     to: teacherEmail || '',
+    cc: '',
     subject: subject,
     body_html: body,
     missing_to: !teacherEmail,
-    teacher_name: teacherName
+    teacher_name: teacherName,
+    draft_type: 'teacher_update',
+    draft_title: 'Teacher Update Draft',
+    helper_note: 'Use this to brief the teacher clearly on current status, any problem found, and the follow-up you need from them.',
+    submission_id: submission.submission_id || submissionId
   };
+}
+
+function sendComposedEmail(payload) {
+  const actor = requireAdmin_();
+  payload = payload || {};
+
+  const to = normalizeEmailList_(payload.to);
+  const cc = normalizeEmailList_(payload.cc, true);
+  const subject = String(payload.subject || '').trim();
+  const bodyHtml = String(payload.body_html || '').trim();
+  const submissionId = String(payload.submission_id || '').trim();
+  const draftType = String(payload.draft_type || 'custom_email').trim();
+
+  if (!to) throw new Error('Recipient email is required.');
+  if (!subject) throw new Error('Email subject is required.');
+  if (!bodyHtml) throw new Error('Email body is required.');
+
+  const emailOpts = {
+    to: to,
+    subject: subject,
+    htmlBody: bodyHtml,
+    name: APP.name
+  };
+  if (cc) emailOpts.cc = cc;
+  if (actor.email) emailOpts.replyTo = actor.email;
+
+  MailApp.sendEmail(emailOpts);
+
+  appendObject_(APP.sheets.auditLog.name, {
+    timestamp: getAuditTimestamp_(),
+    submission_id: submissionId,
+    actor_email: actor.email || '',
+    action_type: 'manual_email_sent',
+    old_status: '',
+    new_status: '',
+    notes: [draftType, 'to:' + to, cc ? 'cc:' + cc : '', subject].filter(Boolean).join(' | ')
+  });
+
+  return {
+    ok: true,
+    to: to,
+    cc: cc,
+    subject: subject
+  };
+}
+
+function normalizeEmailList_(value, allowEmpty) {
+  const raw = String(value || '').trim();
+  if (!raw) return allowEmpty ? '' : '';
+
+  const parts = raw.split(/[;,\n]+/)
+    .map(function(part) { return String(part || '').trim(); })
+    .filter(Boolean);
+
+  if (!parts.length) return allowEmpty ? '' : '';
+
+  const unique = [];
+  parts.forEach(function(email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('Invalid email address: ' + email);
+    }
+    if (unique.indexOf(email) === -1) unique.push(email);
+  });
+  return unique.join(',');
 }
 
 function getSpreadsheetUrl() {
@@ -1162,7 +1424,7 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
       writeCellByHeader_(sheet, headers, rowIndex, 'status', nextStatus);
       writeCellByHeader_(sheet, headers, rowIndex, 'issue_code', resolvedIssueCode || '');
       writeCellByHeader_(sheet, headers, rowIndex, 'admin_remarks', nextRemarks);
-      writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', new Date().toISOString());
+      writeCellByHeader_(sheet, headers, rowIndex, 'updated_at', formatAppTimestamp_(new Date()));
       writeCellByHeader_(sheet, headers, rowIndex, 'updated_by', user.email || '');
 
       appendObject_(APP.sheets.auditLog.name, {
@@ -1309,7 +1571,7 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(req.teacher_in_charge || 'Teacher in charge') +
-      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', DT Technician' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1587,7 +1849,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(teacherName || 'Teacher') +
-      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', DT Technician' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1623,6 +1885,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
   });
   return emailsSent;
 }
+
 
 /* =========================
    VALIDATION
@@ -1672,6 +1935,11 @@ function validateSubmission_(payload) {
 
   if (payload.prototype_fidelity === 'lo-fi') payload.prototype_fidelity = 'low';
   if (payload.prototype_fidelity === 'hi-fi') payload.prototype_fidelity = 'hi';
+
+  var submissionControl = getSubmissionControlDecision_(payload.year_group, payload.design_class_no);
+  if (submissionControl.blocked) {
+    throw new Error(submissionControl.message || 'Submissions are currently closed for this class or year group.');
+  }
 
   if (!payload.working_file || !payload.working_file.name) {
     throw new Error('Working file is required.');
@@ -1752,13 +2020,25 @@ function parseOptionalDimension_(value, label) {
 }
 
 function getAuditTimestamp_() {
-  return formatHongKongTimestamp_(new Date());
+  return formatAppTimestamp_(new Date());
+}
+
+function getAppTimeZone_() {
+  return APP.timeZone || 'UTC';
+}
+
+function formatAppTimestamp_(value) {
+  const date = toDateObject_(value);
+  if (!date) return '';
+  const timeZone = getAppTimeZone_();
+  const base = Utilities.formatDate(date, timeZone, "yyyy-MM-dd'T'HH:mm:ss");
+  const offset = Utilities.formatDate(date, timeZone, 'Z');
+  if (!offset || offset === 'Z') return base + 'Z';
+  return base + offset.slice(0, 3) + ':' + offset.slice(3);
 }
 
 function formatHongKongTimestamp_(value) {
-  const date = toDateObject_(value);
-  if (!date) return '';
-  return Utilities.formatDate(date, 'Asia/Hong_Kong', "yyyy-MM-dd'T'HH:mm:ss") + '+08:00';
+  return formatAppTimestamp_(value);
 }
 
 function formatPrototypeFidelityLabel_(value) {
@@ -1769,6 +2049,38 @@ function formatPrototypeFidelityLabel_(value) {
   if (normalized === 'lo-fi') return 'Lo fi Prototype';
   if (normalized === 'hi-fi') return 'Hi fi Prototype';
   return '';
+}
+
+function parseTimeZoneOffsetMinutes_(offsetText) {
+  var raw = String(offsetText || '').trim();
+  if (!raw || raw === 'Z') return 0;
+  var sign = raw.charAt(0) === '-' ? -1 : 1;
+  var hours = Number(raw.slice(1, 3)) || 0;
+  var minutes = Number(raw.slice(3, 5)) || 0;
+  return sign * (hours * 60 + minutes);
+}
+
+function parseAppDateTimeInput_(value) {
+  var raw = String(value || '').trim();
+  if (!raw) return null;
+
+  var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return toDateObject_(raw);
+
+  var year = Number(match[1]);
+  var month = Number(match[2]);
+  var day = Number(match[3]);
+  var hour = Number(match[4]);
+  var minute = Number(match[5]);
+  var utcMillis = Date.UTC(year, month - 1, day, hour, minute, 0);
+  var guess = new Date(utcMillis);
+  var offsetMinutes = parseTimeZoneOffsetMinutes_(Utilities.formatDate(guess, getAppTimeZone_(), 'Z'));
+  var adjusted = new Date(utcMillis - offsetMinutes * 60000);
+  var adjustedOffsetMinutes = parseTimeZoneOffsetMinutes_(Utilities.formatDate(adjusted, getAppTimeZone_(), 'Z'));
+  if (adjustedOffsetMinutes !== offsetMinutes) {
+    adjusted = new Date(utcMillis - adjustedOffsetMinutes * 60000);
+  }
+  return adjusted;
 }
 
 function toDateObject_(value) {
@@ -1785,14 +2097,14 @@ function getSortableTime_(value) {
 }
 
 /**
- * Count today's submissions (HK timezone) for a given email.
+ * Count today's submissions using the configured script timezone for a given email.
  * Returns { total, dt, special }.
  */
 function getTodaySubmissionCountByEmail_(email) {
   var result = { total: 0, dt: 0, special: 0 };
   if (!email) return result;
   var e = String(email).trim().toLowerCase();
-  var today = Utilities.formatDate(new Date(), 'Asia/Hong_Kong', 'yyyy-MM-dd');
+  var today = Utilities.formatDate(new Date(), getAppTimeZone_(), 'yyyy-MM-dd');
   var ss = getSpreadsheet_();
   // DT submissions
   var subSheet = ss.getSheetByName(APP.sheets.submissions.name);
@@ -1801,7 +2113,7 @@ function getTodaySubmissionCountByEmail_(email) {
     for (var i = 0; i < subData.length; i++) {
       var row = subData[i];
       if (String(row[2] || '').trim().toLowerCase() === e) {
-        var ts = formatHongKongTimestamp_(row[1]);
+        var ts = formatAppTimestamp_(row[1]);
         if (ts && ts.substring(0, 10) === today) result.dt++;
       }
     }
@@ -1813,7 +2125,7 @@ function getTodaySubmissionCountByEmail_(email) {
     for (var j = 0; j < otherData.length; j++) {
       var orow = otherData[j];
       if (String(orow[2] || '').trim().toLowerCase() === e) {
-        var ots = formatHongKongTimestamp_(orow[1]);
+        var ots = formatAppTimestamp_(orow[1]);
         if (ots && ots.substring(0, 10) === today) result.special++;
       }
     }
@@ -1844,7 +2156,7 @@ function getSubmissionActivityMap_(emails) {
     activityMap[email] = createEmptySubmissionActivity_();
   });
 
-  var today = Utilities.formatDate(new Date(), 'Asia/Hong_Kong', 'yyyy-MM-dd');
+  var today = Utilities.formatDate(new Date(), getAppTimeZone_(), 'yyyy-MM-dd');
   var last24Cutoff = Date.now() - (24 * 60 * 60 * 1000);
   var ss = getSpreadsheet_();
 
@@ -1877,7 +2189,7 @@ function getSubmissionActivityMap_(emails) {
       if (!activityMap[subEmail]) continue;
       var subDate = toDateObject_(row[1]);
       if (!subDate) continue;
-      var subTs = formatHongKongTimestamp_(subDate);
+      var subTs = formatAppTimestamp_(subDate);
       if (subTs && subTs.substring(0, 10) === today) activityMap[subEmail].counts.dt++;
       if (subDate.getTime() >= last24Cutoff) activityMap[subEmail].last24_count++;
       pushRecent_(subEmail, {
@@ -1899,7 +2211,7 @@ function getSubmissionActivityMap_(emails) {
       if (!activityMap[otherEmail]) continue;
       var otherDate = toDateObject_(orow[1]);
       if (!otherDate) continue;
-      var otherTs = formatHongKongTimestamp_(otherDate);
+      var otherTs = formatAppTimestamp_(otherDate);
       if (otherTs && otherTs.substring(0, 10) === today) activityMap[otherEmail].counts.special++;
       if (otherDate.getTime() >= last24Cutoff) activityMap[otherEmail].last24_count++;
       pushRecent_(otherEmail, {
@@ -2257,6 +2569,82 @@ function seedUsers_(sheet) {
 function getAdminRulesRows() {
   requireAdmin_();
   return getRowsAsObjects_(APP.sheets.rules.name);
+}
+
+function getAdminSubmissionControlRows() {
+  requireAdmin_();
+  return getSubmissionControlRows_().sort(compareSubmissionControls_);
+}
+
+function saveAdminSubmissionControl(data) {
+  var user = requireAdmin_();
+  if (user.role !== 'admin') throw new Error('Only admins can manage submission deadlines and cutoffs.');
+
+  var yearGroup = String((data && data.year_group) || '').trim().toUpperCase();
+  var classNo = String((data && data.class_no) || '').trim();
+  var deadlineAt = String((data && data.deadline_at) || '').trim();
+  var deadlineDate = deadlineAt ? parseAppDateTimeInput_(deadlineAt) : null;
+  var message = String((data && data.message) || '').trim();
+  var active = isFalseValue_(data && data.active) ? 'FALSE' : 'TRUE';
+  var isClosed = isTrueValue_(data && data.is_closed) ? 'TRUE' : 'FALSE';
+
+  if (!yearGroup) throw new Error('Year group is required.');
+  if (deadlineAt && !deadlineDate) throw new Error('Deadline must be a valid date and time.');
+  if (active !== 'FALSE' && isClosed !== 'TRUE' && !deadlineAt) {
+    throw new Error('Set a deadline or use Cut Off Now.');
+  }
+
+  var sheet = getSubmissionControlsSheet_();
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  var rows = getSubmissionControlRows_();
+  var targetClass = normalizeClassNo_(classNo);
+  var existingIndex = rows.findIndex(function(row) {
+    return String(row.year_group || '').trim().toUpperCase() === yearGroup && normalizeClassNo_(row.class_no) === targetClass;
+  });
+  var now = formatAppTimestamp_(new Date());
+  var controlId = existingIndex === -1
+    ? Utilities.getUuid()
+    : String(rows[existingIndex].control_id || '').trim() || Utilities.getUuid();
+  var record = {
+    control_id: controlId,
+    year_group: yearGroup,
+    class_no: classNo,
+    deadline_at: active === 'FALSE' ? '' : (deadlineDate ? formatAppTimestamp_(deadlineDate) : ''),
+    is_closed: active === 'FALSE' ? 'FALSE' : isClosed,
+    message: message,
+    active: active,
+    updated_at: now,
+    updated_by: user.email || ''
+  };
+
+  if (existingIndex === -1) {
+    appendObject_(APP.sheets.submissionControls.name, record);
+  } else {
+    var rowIndex = existingIndex + 2;
+    Object.keys(record).forEach(function(key) {
+      writeCellByHeader_(sheet, headers, rowIndex, key, record[key]);
+    });
+  }
+
+  var scopeLabel = yearGroup + (classNo ? ' Class ' + classNo : '');
+  var actionLabel = active === 'FALSE'
+    ? 'reopen_submission_scope'
+    : (isClosed === 'TRUE' ? 'close_submission_scope' : 'set_submission_deadline');
+  appendObject_(APP.sheets.auditLog.name, {
+    timestamp: getAuditTimestamp_(),
+    submission_id: '',
+    actor_email: user.email || '',
+    action_type: actionLabel,
+    old_status: '',
+    new_status: '',
+    notes: scopeLabel + (record.deadline_at ? ' deadline=' + record.deadline_at : '') + (record.message ? ' message=' + record.message : '')
+  });
+
+  return {
+    ok: true,
+    controls: getSubmissionControlsForClient(),
+    rows: getAdminSubmissionControlRows()
+  };
 }
 
 function saveAdminRule(rowIndex, data) {
@@ -2776,6 +3164,9 @@ function renderPage_(page, boot) {
     .sub-strong { font-size: 11px; color: var(--navy); margin-top: 4px; font-weight: 700; }
     .pill-source-dt { background: #dbeafe; color: #1e40af; font-size: 10px; }
     .pill-source-special { background: #fef3c7; color: #92400e; font-size: 10px; }
+    .pill-prototype-low { background: #dcfce7; color: #166534; font-size: 10px; }
+    .pill-prototype-hi { background: #fee2e2; color: #991b1b; font-size: 10px; }
+    .pill-prototype-na { background: #e2e8f0; color: #475569; font-size: 10px; }
     .pill-repeat { background: #fef3c7; color: #92400e; font-size: 10px; }
     .pill-repeat-strong { background: #fee2e2; color: #991b1b; font-size: 10px; }
     .status-activity-banner { margin: 0 0 14px; }
@@ -2876,6 +3267,28 @@ function renderPage_(page, boot) {
     .email-preview { padding: 16px 20px; }
     .email-preview h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
     .email-body { font-size: 13px; line-height: 1.6; }
+    .compose-modal { width: 820px; max-width: 95vw; }
+    .compose-layout { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .compose-help { background: #f8fafc; border: 1px solid #dbeafe; color: #1e3a8a; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+    .compose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .compose-field { display: flex; flex-direction: column; gap: 6px; }
+    .compose-field label { font-size: 11px; font-weight: 700; letter-spacing: .2px; text-transform: uppercase; color: var(--slate); }
+    .compose-field input { width: 100%; }
+    .compose-field--full { grid-column: 1 / -1; }
+    .compose-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border: 1px solid var(--card-border); border-bottom: none; border-radius: 10px 10px 0 0; background: var(--bg); }
+    .compose-toolbar-label { font-size: 11px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: .2px; margin-right: 2px; }
+    .compose-toolbar button { min-width: 34px; }
+    .compose-editor-wrap { border: 1px solid var(--card-border); border-radius: 0 0 10px 10px; overflow: hidden; }
+    .compose-editor { min-height: 280px; padding: 14px; font-size: 13px; line-height: 1.6; background: #fff; outline: none; }
+    .compose-editor:empty:before { content: attr(data-placeholder); color: #94a3b8; }
+    .compose-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid var(--card-border); background: #fff; }
+    .compose-status { font-size: 12px; color: var(--slate); min-height: 18px; }
+    .compose-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    @media (max-width: 760px) {
+      .compose-grid { grid-template-columns: 1fr; }
+      .compose-modal { width: 96vw; }
+      .compose-footer { align-items: stretch; }
+    }
 
     /* ---------- TOAST ---------- */
     .toast-container { position: fixed; top: 70px; right: 16px; z-index: 400; display: flex; flex-direction: column; gap: 8px; }
@@ -2990,35 +3403,18 @@ function renderPage_(page, boot) {
 
     /* ---------- WELCOME BANNER ---------- */
     .welcome-banner { background: linear-gradient(135deg, #f0f4ff 0%, #fefce8 100%); border: 1px solid #e0e7ff; border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; }
-    .welcome-banner h3 { font-size: 16px; font-weight: 800; margin: 0 0 4px; color: var(--navy); }
-    .welcome-banner p { font-size: 13px; color: var(--slate); margin: 0; line-height: 1.6; }
     .welcome-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     .welcome-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 16px; background: #fff; border: 1px solid var(--card-border); color: var(--slate); }
 
     /* ---------- NEWCOMER INFO-STRIP ---------- */
     .newcomer-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
-    .newcomer-card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
     .newcomer-card .nc-icon { font-size: 28px; margin-bottom: 6px; line-height: 1; }
-    .newcomer-card h4 { font-size: 13px; font-weight: 700; margin: 0 0 4px; color: var(--navy); }
-    .newcomer-card p { font-size: 12px; color: var(--slate-lt); margin: 0; line-height: 1.5; }
-
-    /* ---------- BEFORE YOU START BLOCK ---------- */
-    .bys-block { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: var(--radius); padding: 20px 24px; margin: 16px 0 20px; }
-    .bys-title { font-size: 15px; font-weight: 800; color: #92400e; margin: 0 0 12px; }
-    .bys-who { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--slate); line-height: 1.6; margin-bottom: 14px; padding: 10px 14px; background: rgba(255,255,255,.6); border-radius: var(--radius-sm); border: 1px solid rgba(251,191,36,.2); }
-    .bys-who-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
-    .bys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 14px; }
     .bys-item { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--slate); line-height: 1.5; }
     .bys-check { color: #16a34a; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
     .bys-notices { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
     .bys-notice { font-size: 11px; color: #92400e; line-height: 1.5; }
     .bys-footer { font-size: 12px; color: var(--slate-lt); line-height: 1.5; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-    /* ---------- FOOTER ---------- */
-    .site-footer { max-width: 1200px; margin: 40px auto 0; padding: 20px 16px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--slate-lt); line-height: 1.6; }
     .site-footer strong { color: var(--slate); font-weight: 700; }
-
-    /* ---------- INLINE HELP TIP ---------- */
     .field-tip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 1px solid var(--card-border); font-size: 10px; font-weight: 700; color: var(--slate-lt); cursor: help; margin-left: 4px; vertical-align: middle; text-decoration: none; }
     .field-tip:hover { background: var(--blue); color: #fff; border-color: var(--blue); text-decoration: none; }
 
@@ -3138,7 +3534,32 @@ function renderPage_(page, boot) {
     function statusOwner(status) { return STATUS_OWNER[String(status||'').trim()]||'Workflow Team'; }
     function statusActionHint(status) { return STATUS_ACTION_HINT[String(status||'').trim()]||'Check the latest remarks for next steps.'; }
     function statusPill(status) { var s = String(status||''); return '<span class="pill pill-' + s + '">' + esc((STATUS_LABELS[s]||s).toUpperCase()) + '</span>'; }
-    function formatDisplayTs(value) { var text = String(value||''); return text ? text.replace('T', ' ').substring(0, 16) : '\u2014'; }
+    function formatDisplayTs(value) {
+      if (!value) return '\u2014';
+      var dt = new Date(value);
+      if (isNaN(dt.getTime())) {
+        var text = String(value || '');
+        return text ? text.replace('T', ' ').substring(0, 16) : '\u2014';
+      }
+      try {
+        var parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: BOOT.appTimeZone || 'UTC',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).formatToParts(dt);
+        var map = {};
+        parts.forEach(function(part) {
+          if (part.type !== 'literal') map[part.type] = part.value;
+        });
+        return (map.year || '0000') + '-' + (map.month || '00') + '-' + (map.day || '00') + ' ' + (map.hour || '00') + ':' + (map.minute || '00');
+      } catch (err) {
+        return dt.toISOString().replace('T', ' ').substring(0, 16);
+      }
+    }
     function formatPrototypeFidelityLabel_(value) {
       var normalized = String(value || '').trim().toLowerCase();
       if (normalized === 'low' || normalized === 'lo-fi') return 'Lo fi Prototype';
@@ -3150,6 +3571,98 @@ function renderPage_(page, boot) {
       return source === 'other'
         ? '<span class="pill pill-source-special" title="Special Request">SPECIAL REQUEST</span>'
         : '<span class="pill pill-source-dt" title="DT Student Project">DT PROJECT</span>';
+    }
+    function prototypePill(value) {
+      var normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'low' || normalized === 'lo-fi') {
+        return '<span class="pill pill-prototype-low" title="Prototype Type">LO FI</span>';
+      }
+      if (normalized === 'hi' || normalized === 'hi-fi') {
+        return '<span class="pill pill-prototype-hi" title="Prototype Type">HI FI</span>';
+      }
+      if (normalized === 'na') {
+        return '<span class="pill pill-prototype-na" title="Prototype Type">N/A</span>';
+      }
+      return '';
+    }
+    function normalizeClassNoClient_(value) {
+      return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+    }
+    function compareSubmissionControlsClient_(a, b) {
+      var aActive = String(a.active || '').toLowerCase() === 'false' ? 0 : 1;
+      var bActive = String(b.active || '').toLowerCase() === 'false' ? 0 : 1;
+      if (bActive !== aActive) return bActive - aActive;
+      var aSpecific = normalizeClassNoClient_(a.class_no) ? 1 : 0;
+      var bSpecific = normalizeClassNoClient_(b.class_no) ? 1 : 0;
+      if (bSpecific !== aSpecific) return bSpecific - aSpecific;
+      return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
+    }
+    function getSubmissionControlDecisionClient_(yearGroup, classNo) {
+      var targetYear = String(yearGroup || '').trim().toUpperCase();
+      var requestedClass = String(classNo || '').trim();
+      var targetClass = normalizeClassNoClient_(requestedClass);
+      if (!targetYear) return { blocked: false, status: 'open', message: '', scope_label: '' };
+
+      var controls = (BOOT.submissionControls || []).filter(function(row) {
+        if (String(row.active || '').toLowerCase() === 'false') return false;
+        if (String(row.year_group || '').trim().toUpperCase() !== targetYear) return false;
+        var controlClass = normalizeClassNoClient_(row.class_no);
+        return !controlClass || controlClass === targetClass;
+      }).sort(compareSubmissionControlsClient_);
+
+      var fallbackScope = targetYear + (requestedClass ? ' Class ' + requestedClass : '');
+      if (!controls.length) return { blocked: false, status: 'open', message: '', scope_label: fallbackScope };
+
+      var matched = controls[0];
+      var matchedClass = String(matched.class_no || '').trim();
+      var scopeLabel = String(matched.year_group || '').trim().toUpperCase() + (matchedClass ? ' Class ' + matchedClass : '');
+      var deadlineText = matched.deadline_at ? formatDisplayTs(matched.deadline_at) : '';
+      var customMessage = String(matched.message || '').trim();
+
+      if (String(matched.is_closed || '').toLowerCase() === 'true') {
+        return {
+          blocked: true,
+          status: 'closed',
+          message: customMessage || ('Submissions for ' + scopeLabel + ' are currently closed. Please speak to your teacher or the technician team.'),
+          scope_label: scopeLabel,
+          deadline_at: matched.deadline_at || ''
+        };
+      }
+
+      var deadlineMs = matched.deadline_at ? new Date(matched.deadline_at).getTime() : NaN;
+      if (!isNaN(deadlineMs) && deadlineMs < Date.now()) {
+        return {
+          blocked: true,
+          status: 'deadline_passed',
+          message: customMessage || ('The submission deadline for ' + scopeLabel + ' passed on ' + deadlineText + '. Please speak to your teacher if you need an exception.'),
+          scope_label: scopeLabel,
+          deadline_at: matched.deadline_at || ''
+        };
+      }
+
+      return {
+        blocked: false,
+        status: matched.deadline_at ? 'deadline_set' : 'open',
+        message: customMessage || (deadlineText ? ('Submission deadline for ' + scopeLabel + ': ' + deadlineText + '.') : ''),
+        scope_label: scopeLabel,
+        deadline_at: matched.deadline_at || ''
+      };
+    }
+    function renderSubmissionControlNotice_(el, decision) {
+      if (!el) return;
+      if (!decision || (!decision.message && !decision.blocked)) {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        return;
+      }
+      var icon = decision.blocked ? '&#128274;' : '&#9200;';
+      var cls = decision.blocked ? 'alert alert-warning' : 'alert alert-info';
+      el.className = cls;
+      el.innerHTML = '<span class="alert-icon">' + icon + '</span><span>' + esc(decision.message) + '</span>';
+      el.style.display = 'flex';
+    }
+    function syncSubmissionControls_(controls) {
+      BOOT.submissionControls = controls || [];
     }
     function activityPill(activity) {
       activity = activity || {};
@@ -3261,79 +3774,6 @@ function renderPage_(page, boot) {
       initPage(BOOT.page);
     }
 
-    /* ---------- TOAST ---------- */
-    function showToast(msg, type) {
-      var c = document.getElementById('toastContainer');
-      var t = document.createElement('div');
-      t.className = 'toast toast-' + (type || 'success');
-      t.textContent = msg;
-      c.appendChild(t);
-      setTimeout(function() { t.remove(); }, 3500);
-    }
-
-    /* ---------- HELPERS ---------- */
-    function setMsg(id, text, cls) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.className = 'inline-msg tc-' + (cls||'muted');
-      el.textContent = text || '';
-    }
-    function copySuccessId_(box) {
-      var text = box.querySelector('.id-box-text').textContent;
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(function() {
-          showToast('Submission ID copied!', 'success');
-        });
-      }
-    }
-    function resetSubmitForm_() {
-      document.getElementById('submitSuccess').style.display = 'none';
-      document.getElementById('submitFormWrap').style.display = 'block';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    function esc(str) {
-      return String(str||'')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
-
-    /* ---------- DEBOUNCE ---------- */
-    var _debounceTimers = {};
-    function debounce_(key, fn, delay) {
-      if (_debounceTimers[key]) clearTimeout(_debounceTimers[key]);
-      _debounceTimers[key] = setTimeout(fn, delay || 400);
-    }
-
-    /* ---------- MACHINE REMINDER HELPER ---------- */
-    function renderMachineReminder_(machine, isOther) {
-      var extra = '';
-      if (isOther) {
-        extra = '<li style="margin-top:4px;"><strong>Non-DT / special requests</strong> must be suitable for the selected machine and meet workshop approval rules. <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27)" style="font-weight:700;text-decoration:underline;">Check the Machines Guide</a> before submitting.</li>';
-      }
-      if (machine === 'laser') {
-        return '<div class="machine-reminder machine-reminder--laser">' +
-          '<strong>\\ud83d\\udd25 Laser Cutting Reminder</strong>' +
-          '<ul>' +
-          '<li>Your working file must be an <strong>editable vector file</strong> (not a screenshot, PNG, or JPG).</li>' +
-          '<li>Image-based files cannot be used as the main cutting file &mdash; the laser follows vector paths only.</li>' +
-          '<li>Unsure about file preparation? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-laser\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the Spirit LS Pro &amp; Mercury III specs on the Machines page</a>.</li>' +
-          extra +
-          '</ul></div>';
-      }
-      if (machine === '3d') {
-        return '<div class="machine-reminder machine-reminder--3d">' +
-          '<strong>\\u2699\\ufe0f 3D Printing Reminder</strong>' +
-          '<ul>' +
-          '<li>Your STL must be a <strong>printable 3D model</strong>, not just a visual shape &mdash; check wall thickness and overhangs.</li>' +
-          '<li>Include a <strong>dimension screenshot</strong> showing width, height, and depth of your model.</li>' +
-          '<li>Unsure about printability? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-3d\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the K2 Plus &amp; Guider IIs specs on the Machines page</a>.</li>' +
-          extra +
-          '</ul></div>';
-      }
-      return '';
-    }
-
-    /* ---------- SUBMISSION ACTIVITY HELPER ---------- */
     function loadSubmissionActivity(email, msgId) {
       var el = document.getElementById(msgId);
       if (!el) return;
@@ -3357,6 +3797,7 @@ function renderPage_(page, boot) {
         .withFailureHandler(function() { el.style.display = 'none'; toggleRepeatReminder_(msgId, false); })
         .getSubmissionActivity(e);
     }
+
     function toggleRepeatReminder_(msgId, show) {
       var rId = msgId === 'dtSubmitActivity' ? 'dtRepeatReminder' : (msgId === 'otherSubmitActivity' ? 'otherRepeatReminder' : null);
       var rem = rId ? document.getElementById(rId) : null;
@@ -3371,8 +3812,11 @@ function renderPage_(page, boot) {
       var machineSel = document.getElementById('machine');
       var materialSel = document.getElementById('material');
       var ruleBox = document.getElementById('ruleBox');
+      var submissionControlNotice = document.getElementById('submissionControlNotice');
       var unitsInput = document.getElementById('units');
       var form = document.getElementById('submitForm');
+      var submitBtn = document.getElementById('submitBtn');
+      var classNoInput = form.querySelector('[name="design_class_no"]');
       var widthInput = form.querySelector('[name="width"]');
       var heightInput = form.querySelector('[name="height"]');
       var depthInput = form.querySelector('[name="depth"]');
@@ -3405,6 +3849,16 @@ function renderPage_(page, boot) {
         if (m) m.textContent = done ? '\\u2713' : '\\u25cb';
       }
 
+      function applySubmissionAvailability_() {
+        var decision = getSubmissionControlDecisionClient_(yearSel.value, classNoInput ? classNoInput.value : '');
+        renderSubmissionControlNotice_(submissionControlNotice, decision);
+        if (submitBtn && submitBtn.dataset.busy !== '1') {
+          submitBtn.disabled = !!decision.blocked;
+          submitBtn.textContent = decision.blocked ? 'Submissions Closed' : 'Submit';
+        }
+        return decision;
+      }
+
       function updateGuide() {
         var rule = BOOT.rules.find(function(r) { return r.year_group === yearSel.value && r.machine === machineSel.value; });
         var previewReq = !!(rule && String(rule.preview_required).toLowerCase() === 'true');
@@ -3435,6 +3889,7 @@ function renderPage_(page, boot) {
           materialSel.disabled = true;
           ruleBox.innerHTML = '';
           unitsInput.value = '';
+          applySubmissionAvailability_();
           updateGuide(); return;
         }
         var mats = String(rule.materials||'').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
@@ -3449,11 +3904,16 @@ function renderPage_(page, boot) {
         if (ext.length) chips.push('\\ud83d\\udcc4 ' + ext.join(', '));
         if (previewReq) chips.push('\\ud83d\\uddbc\\ufe0f Preview required');
         ruleBox.innerHTML = '<strong>' + esc(year) + ' \\u2013 ' + esc(MACHINE_LABELS[machine]||machine) + ' Requirements</strong>' + '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">' + chips.map(function(c){ return '<span class="rule-chip">' + c + '</span>'; }).join('') + '</div>' + (rule.notes ? '<div class="rule-row" style="margin-top:8px;"><span class="rule-icon">\\u2139\\ufe0f</span><span>' + esc(rule.notes) + '</span></div>' : '');
+        applySubmissionAvailability_();
         updateGuide();
       }
 
       yearSel.addEventListener('change', applyRules);
       machineSel.addEventListener('change', applyRules);
+      if (classNoInput) {
+        classNoInput.addEventListener('input', applySubmissionAvailability_);
+        classNoInput.addEventListener('change', applySubmissionAvailability_);
+      }
       applyRules();
 
       ['width','height','depth'].forEach(function(dim) {
@@ -3469,7 +3929,13 @@ function renderPage_(page, boot) {
 
       form.addEventListener('submit', async function(ev) {
         ev.preventDefault();
-        var btn = document.getElementById('submitBtn');
+        var btn = submitBtn;
+        var availability = applySubmissionAvailability_();
+        if (availability.blocked) {
+          setMsg('submitMsg', availability.message || 'Submissions are currently closed for this class or year group.', 'error');
+          return;
+        }
+        btn.dataset.busy = '1';
         btn.disabled = true;
         btn.innerHTML = '\\u23f3 Uploading\\u2026';
         setMsg('submitMsg', 'Uploading files to Drive\\u2026', 'muted');
@@ -3501,12 +3967,13 @@ function renderPage_(page, boot) {
               materialSel.disabled = true; ruleBox.innerHTML = ''; unitsInput.value = '';
               document.querySelectorAll('.file-chosen').forEach(function(el){ el.textContent = ''; });
               updateGuide();
-              btn.disabled = false; btn.innerHTML = 'Submit';
+              btn.dataset.busy = '';
+              applySubmissionAvailability_();
               showToast('Submission received!', 'success');
             })
-            .withFailureHandler(function(err) { setMsg('submitMsg', err.message||String(err), 'error'); btn.disabled = false; btn.innerHTML = 'Submit'; })
+            .withFailureHandler(function(err) { setMsg('submitMsg', err.message||String(err), 'error'); btn.dataset.busy = ''; applySubmissionAvailability_(); })
             .submitSubmission(payload);
-        } catch(err) { setMsg('submitMsg', err.message||String(err), 'error'); btn.disabled = false; btn.innerHTML = 'Submit'; }
+        } catch(err) { setMsg('submitMsg', err.message||String(err), 'error'); btn.dataset.busy = ''; applySubmissionAvailability_(); }
       });
     }
 
@@ -3803,8 +4270,7 @@ function renderPage_(page, boot) {
           var owner = statusOwner(r.status);
           var extra = '';
           if (r.status === 'needs_fix') {
-            var fixMsg = r.admin_remarks || 'Review the technician feedback, fix your file, and resubmit through the Dashboard.';
-            extra = '<div class="sub-card-msg msg-needs_fix"><strong>Action required:</strong> ' + esc(fixMsg) + '</div>';
+            extra = '<div class="sub-card-msg msg-needs_fix"><strong>Action required:</strong> Review the feedback below, fix your file, and resubmit through the Dashboard.</div>';
             var daysWaiting = 0;
             var rawDate = new Date(r.updated_at || r.created_at || '');
             if (!isNaN(rawDate.getTime())) daysWaiting = Math.floor((Date.now() - rawDate.getTime()) / 86400000);
@@ -3813,6 +4279,13 @@ function renderPage_(page, boot) {
             }
           }
           else if (msg) extra = '<div class="sub-card-msg msg-' + esc(r.status) + '">' + esc(msg) + '</div>';
+          if (r.issue_label || r.admin_remarks) {
+            extra += '<div class="sub-card-msg" style="white-space:normal;">' +
+              '<strong>Technician feedback</strong>' +
+              (r.issue_label ? '<div style="margin-top:6px;"><strong>Issue:</strong> ' + esc(r.issue_label) + '</div>' : '') +
+              (r.admin_remarks ? '<div style="margin-top:6px;white-space:pre-wrap;"><strong>Remarks:</strong> ' + esc(r.admin_remarks) + '</div>' : '') +
+            '</div>';
+          }
           var sourceTag = '<span style="margin-left:6px;">' + sourcePill(r._source) + '</span>';
           var titleLabel = r._source === 'other'
             ? esc(r.project_name||'Special Request') + ' \\u2013 ' + esc(MACHINE_LABELS[r.machine]||r.machine)
@@ -3824,7 +4297,7 @@ function renderPage_(page, boot) {
               '<div class="sub-card-field"><label>Dept</label><div class="val">' + esc(r.department_or_subject||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Teacher</label><div class="val">' + esc(r.teacher_in_charge||'\\u2014') + '</div></div>' +
               (dims.length ? '<div class="sub-card-field"><label>Size</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
-              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,16).replace('T',' ') : '\\u2014') + '</div></div>' +
+              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(formatDisplayTs(r.updated_at)) + '</div></div>' +
               '<div class="sub-card-field" style="grid-column:1/-1"><label>Request ID</label><div class="val" style="font-family:monospace;font-size:12px;word-break:break-all;">' + esc(r.request_id||r.submission_id||'') + '</div></div>';
           } else {
             detailFields =
@@ -3833,11 +4306,11 @@ function renderPage_(page, boot) {
               '<div class="sub-card-field"><label>Teacher</label><div class="val">' + esc(r.design_teacher||'\\u2014') + '</div></div>' +
               '<div class="sub-card-field"><label>Prototype</label><div class="val">' + esc(formatPrototypeFidelityLabel_(r.prototype_fidelity) || '\u2014') + '</div></div>' +
               (dims.length ? '<div class="sub-card-field"><label>Size</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
-              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(r.updated_at ? r.updated_at.substring(0,16).replace('T',' ') : '\\u2014') + '</div></div>' +
+              '<div class="sub-card-field"><label>Updated</label><div class="val">' + esc(formatDisplayTs(r.updated_at)) + '</div></div>' +
               '<div class="sub-card-field" style="grid-column:1/-1"><label>Submission ID</label><div class="val" style="font-family:monospace;font-size:12px;word-break:break-all;">' + esc(r.submission_id||'') + '</div></div>';
           }
           return '<div class="sub-card">' +
-            '<div class="sub-card-head"><div><div class="sub-card-title">' + titleLabel + sourceTag + '</div><div class="sub-card-meta">Submitted ' + esc(r.created_at ? r.created_at.substring(0,16).replace('T',' ') : '') + '</div></div>' + statusPill(r.status) + '</div>' +
+            '<div class="sub-card-head"><div><div class="sub-card-title">' + titleLabel + sourceTag + '</div><div class="sub-card-meta">Submitted ' + esc(formatDisplayTs(r.created_at)) + '</div></div>' + statusPill(r.status) + '</div>' +
             '<div class="progress-strip"><div class="progress-fill" style="width:' + progress + '%"></div></div>' +
             '<div class="progress-meta"><span>Progress: ' + progress + '%</span><span>Owner: ' + esc(owner) + '</span></div>' +
             buildTimeline(r.status) +
@@ -3939,7 +4412,7 @@ function renderPage_(page, boot) {
             var requesterCell = r._source === 'other'
               ? '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.requester_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.requester_email||'') + '</div><div class="queue-meta">' + esc(r.project_name || 'Untitled Special Request') + '</div><div class="queue-meta-aux">Sponsor: ' + esc(r.teacher_in_charge || '\u2014') + (r.department_or_subject ? ' · ' + esc(r.department_or_subject) : '') + '</div></td>'
               : '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.student_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.student_email||'') + '</div><div class="queue-meta">Class ' + esc(r.design_class_no||'\u2014') + ' · ' + esc(r.year_group||'\u2014') + '</div><div class="queue-meta-aux">Teacher: ' + esc(r.design_teacher||'\u2014') + '</div></td>';
-            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
+            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + (prototypeLabel ? prototypePill(r.prototype_fidelity) : '') + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">Prototype: ' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
             var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
             var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
             var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
@@ -4039,7 +4512,7 @@ function renderPage_(page, boot) {
         (r.working_file_url ? '<div class="drawer-field"><label>Working File</label><div class="val"><a href="' + r.working_file_url + '" target="_blank">\\ud83d\\udcc4 ' + esc(r.working_file_name||'Download') + '</a></div></div>' : '') +
         (r.preview_file_url ? '<div class="drawer-field"><label>Preview</label><div class="val"><a href="' + r.preview_file_url + '" target="_blank">\\ud83d\\uddbc\\ufe0f View Preview</a></div><img src="https://drive.google.com/thumbnail?id=' + esc(r.preview_file_id) + '&sz=w400" alt="Preview" style="margin-top:6px;max-width:100%;border-radius:6px;border:1px solid var(--card-border);" onerror="this.style.display=\\'none\\'"></div>' : '') +
         (isOther && r.additional_requirements ? '<div class="drawer-field"><label>Notes</label><div class="val">' + esc(r.additional_requirements) + '</div></div>' : '') +
-        '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(r.created_at ? r.created_at.substring(0,16).replace('T',' ') : '') + '</div></div>' +
+        '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(formatDisplayTs(r.created_at)) + '</div></div>' +
         '<div class="drawer-field"><label>ID</label><div class="val" style="font-family:monospace;font-size:11px;word-break:break-all;">' + esc(r.submission_id || r.request_id) + '</div></div></div>' +
         '<div class="drawer-section"><div class="drawer-section-title">Review Actions</div>' +
         '<div class="drawer-field"><label>Set Status</label><select id="drawer_status" onchange="syncDrawerActionCue_()">' + visibleStatuses.map(function(s){ return '<option value="' + s + '"' + (s===r.status?' selected':'') + '>' + (STATUS_LABELS[s]||s) + '</option>'; }).join('') + '</select></div>' +
@@ -4138,78 +4611,144 @@ function renderPage_(page, boot) {
         .getSpreadsheetUrl();
     }
 
-    /* ---------- PREVIEW STUDENT VIEW ---------- */
-    var _studentPreviewActive = false;
-    function previewStudentView() {
-      if (_studentPreviewActive) {
-        /* Exit preview */
-        _studentPreviewActive = false;
-        document.body.className = document.body.className.replace(/role-student/g, 'role-' + BOOT.currentUser.role);
-        document.getElementById('studentPreviewBanner').remove();
-        /* Restore admin nav */
-        var navBar = document.querySelector('.tab-bar');
-        _pages.forEach(function(n) {
-          var nav = document.getElementById('nav-' + n);
-          if (nav) nav.style.display = '';
-        });
-        switchPage('admin');
-        showToast('Exited student preview.','success');
-        return;
-      }
-      _studentPreviewActive = true;
-      /* Swap body class */
-      document.body.className = document.body.className.replace(/role-\\w+/g, 'role-student');
-      /* Show only student-visible pages */
-      var studentPages = ['submit','status','machines','other','help'];
-      _pages.forEach(function(n) {
-        var nav = document.getElementById('nav-' + n);
-        if (!nav) return;
-        nav.style.display = studentPages.indexOf(n) !== -1 ? '' : 'none';
-      });
-      /* Add preview banner */
-      var banner = document.createElement('div');
-      banner.id = 'studentPreviewBanner';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:#fbbf24;color:#78350f;text-align:center;padding:6px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;';
-      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
-      document.body.prepend(banner);
-      switchPage('submit');
-      showToast('Now viewing as student. Admin pages are hidden.','success');
-    }
-
     /* ---------- EMAIL MODAL ---------- */
     function showEmailModal_(draft) {
-      var d = draft || {};
-      window.__emailDraft = d;
+      var d = Object.assign({ to: '', cc: '', subject: '', body_html: '', draft_type: 'custom_email', draft_title: 'Email Draft', helper_note: '' }, draft || {});
+      window.__emailDraft = Object.assign({}, d);
+      window.__emailDraftOriginal = Object.assign({}, d);
       var existing = document.getElementById('emailOverlay');
       if (existing) existing.remove();
       var overlay = document.createElement('div');
       overlay.id = 'emailOverlay';
       overlay.className = 'overlay';
-      var warn = d.missing_to ? '<div class="alert alert-warning" style="margin:10px 20px 0;"><span class="alert-icon">&#9888;</span><span>Recipient email missing. Copy this draft and add it manually.</span></div>' : '';
+      var warn = d.missing_to ? '<div class="alert alert-warning" style="margin:0;"><span class="alert-icon">&#9888;</span><span>Recipient email missing. Add the address before sending.</span></div>' : '';
+      var help = d.helper_note ? '<div class="compose-help">' + esc(d.helper_note) + '</div>' : '';
       overlay.innerHTML =
-        '<div class="modal">' +
-          '<div class="modal-head"><h3>&#9993; Email Draft</h3><button class="modal-close" onclick="document.getElementById(\\'emailOverlay\\').remove()">&times;</button></div>' +
-          '<div class="email-meta"><p><strong>To:</strong> ' + esc(d.to) + '</p><p><strong>Subject:</strong> ' + esc(d.subject) + '</p></div>' + warn +
-          '<div class="email-preview"><h4>Email Body</h4><div class="email-body" id="emailBody">' + (d.body_html||'') + '</div></div>' +
-          '<div class="btn-group" style="padding:14px 20px;border-top:1px solid var(--card-border);">' +
-            '<button class="btn btn-primary btn-sm" onclick="copyEmailHtml_()">&#128203; Copy HTML</button>' +
-            '<button class="btn btn-ghost btn-sm" onclick="openMailDraft_()">Open in Mail</button>' +
-            '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\\'emailOverlay\\').remove()">Close</button>' +
+        '<div class="modal compose-modal">' +
+          '<div class="modal-head"><h3>&#9993; ' + esc(d.draft_title || 'Email Draft') + '</h3><button class="modal-close" onclick="closeEmailModal_()">&times;</button></div>' +
+          '<div class="compose-layout">' +
+            help + warn +
+            '<div class="compose-grid">' +
+              '<div class="compose-field compose-field--full"><label>To</label><input id="emailTo" type="text" value="' + esc(d.to || '') + '" placeholder="student@school.edu"></div>' +
+              '<div class="compose-field"><label>CC</label><input id="emailCc" type="text" value="' + esc(d.cc || '') + '" placeholder="Optional: comma-separated emails"></div>' +
+              '<div class="compose-field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '" placeholder="Email subject"></div>' +
+            '</div>' +
+            '<div class="compose-toolbar">' +
+              '<span class="compose-toolbar-label">Format</span>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;bold&quot;)"><strong>B</strong></button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;italic&quot;)"><em>I</em></button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;insertUnorderedList&quot;)">&#8226; List</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;action&quot;)">Action Block</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;next_steps&quot;)">Next Steps</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;collection&quot;)">Collection Note</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;signature&quot;)">Signature</button>' +
+            '</div>' +
+            '<div class="compose-editor-wrap">' +
+              '<div id="emailEditor" class="compose-editor" contenteditable="true" data-placeholder="Type your message here\u2026">' + (d.body_html || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="compose-footer">' +
+            '<div id="emailComposerMsg" class="compose-status">Edit the email, then send it directly or open it in your mail client.</div>' +
+            '<div class="compose-actions">' +
+              '<button class="btn btn-primary btn-sm" id="sendEmailBtn" onclick="sendEmailDraft_()">&#9993; Send Email</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="copyEmailHtml_()">&#128203; Copy HTML</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="openMailDraft_()">Open in Mail</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="restoreEmailDraft_()">Restore Draft</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="closeEmailModal_()">Close</button>' +
+            '</div>' +
           '</div></div>';
       document.body.appendChild(overlay);
       overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+      var editor = document.getElementById('emailEditor');
+      if (editor) editor.focus();
+    }
+
+    function closeEmailModal_() {
+      var overlay = document.getElementById('emailOverlay');
+      if (overlay) overlay.remove();
+    }
+
+    function collectEmailDraft_() {
+      var base = window.__emailDraft || {};
+      var editor = document.getElementById('emailEditor');
+      return {
+        to: ((document.getElementById('emailTo')||{}).value || '').trim(),
+        cc: ((document.getElementById('emailCc')||{}).value || '').trim(),
+        subject: ((document.getElementById('emailSubject')||{}).value || '').trim(),
+        body_html: editor ? editor.innerHTML.trim() : '',
+        draft_type: base.draft_type || 'custom_email',
+        draft_title: base.draft_title || 'Email Draft',
+        submission_id: base.submission_id || ''
+      };
+    }
+
+    function setEmailComposerMsg_(msg, tone) {
+      var el = document.getElementById('emailComposerMsg');
+      if (!el) return;
+      el.textContent = msg || '';
+      el.style.color = tone === 'error' ? '#b91c1c' : tone === 'success' ? '#166534' : 'var(--slate)';
+    }
+
+    function setEmailModalBusy_(busy, label) {
+      var btn = document.getElementById('sendEmailBtn');
+      if (!btn) return;
+      btn.disabled = !!busy;
+      btn.innerHTML = busy ? (label || '&#9993; Sending\u2026') : '&#9993; Send Email';
+    }
+
+    function restoreEmailDraft_() {
+      var original = window.__emailDraftOriginal || {};
+      var toEl = document.getElementById('emailTo');
+      var ccEl = document.getElementById('emailCc');
+      var subjectEl = document.getElementById('emailSubject');
+      var editor = document.getElementById('emailEditor');
+      if (toEl) toEl.value = original.to || '';
+      if (ccEl) ccEl.value = original.cc || '';
+      if (subjectEl) subjectEl.value = original.subject || '';
+      if (editor) editor.innerHTML = original.body_html || '';
+      setEmailComposerMsg_('Draft restored to the generated version.', 'success');
+    }
+
+    function formatEmailEditor_(command) {
+      var editor = document.getElementById('emailEditor');
+      if (!editor) return;
+      editor.focus();
+      try { document.execCommand(command, false, null); } catch (e) {}
+    }
+
+    function insertHtmlAtCursor_(html) {
+      var editor = document.getElementById('emailEditor');
+      if (!editor) return;
+      editor.focus();
+      try {
+        document.execCommand('insertHTML', false, html);
+      } catch (e) {
+        editor.innerHTML += html;
+      }
+    }
+
+    function insertEmailSnippet_(kind) {
+      var snippets = {
+        action: '<p><strong>Action required:</strong> Please review the points below carefully and update your file before submitting the next version.</p>',
+        next_steps: '<p><strong>Suggested next steps:</strong></p><ul><li>Check the file format and dimensions</li><li>Correct the issue noted above</li><li>Resubmit the updated file through the dashboard</li></ul>',
+        collection: '<p><strong>Collection:</strong> Once the job is completed, please collect it from the Design Technology workshop.</p>',
+        signature: '<p>Best regards,<br>Design Technology Technician Team</p>'
+      };
+      insertHtmlAtCursor_(snippets[kind] || '');
     }
 
     function openMailDraft_() {
-      var d = window.__emailDraft || {};
+      var d = collectEmailDraft_();
       var to = encodeURIComponent(String(d.to||''));
       var subject = encodeURIComponent(String(d.subject||''));
       var bodyText = '';
       try {
         bodyText = String(d.body_html||'')
-          .replace(/<br\\s*\\/?>/gi, '\\n')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<\/li>/gi, '\n')
           .replace(/<[^>]+>/g, ' ')
-          .replace(/\\s+/g, ' ')
+          .replace(/\s+/g, ' ')
           .trim();
       } catch(e) {}
       var body = encodeURIComponent(bodyText);
@@ -4217,16 +4756,39 @@ function renderPage_(page, boot) {
     }
 
     function copyEmailHtml_() {
-      var body = document.getElementById('emailBody');
-      if (!body) return;
+      var current = collectEmailDraft_();
+      if (!current.body_html) return;
       if (navigator.clipboard) {
-        navigator.clipboard.writeText(body.innerHTML).then(function(){ showToast('HTML copied to clipboard.','success'); });
+        navigator.clipboard.writeText(current.body_html).then(function(){ showToast('HTML copied to clipboard.','success'); });
       } else {
+        var body = document.getElementById('emailEditor');
+        if (!body) return;
         var r = document.createRange(); r.selectNodeContents(body);
         var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
         document.execCommand('copy');
         showToast('Copied.','success');
       }
+    }
+
+    function sendEmailDraft_() {
+      var current = collectEmailDraft_();
+      if (!current.to) { setEmailComposerMsg_('Add at least one recipient before sending.', 'error'); return; }
+      if (!current.subject) { setEmailComposerMsg_('Add a subject before sending.', 'error'); return; }
+      if (!current.body_html || current.body_html === '<br>') { setEmailComposerMsg_('Email body is empty.', 'error'); return; }
+      setEmailModalBusy_(true, '&#9993; Sending\u2026');
+      setEmailComposerMsg_('Sending email\u2026', 'muted');
+      google.script.run
+        .withSuccessHandler(function(result) {
+          setEmailModalBusy_(false);
+          setEmailComposerMsg_('Email sent successfully to ' + (result.to || current.to) + '.', 'success');
+          showToast('Email sent successfully.','success');
+        })
+        .withFailureHandler(function(err) {
+          setEmailModalBusy_(false);
+          setEmailComposerMsg_(err.message || String(err), 'error');
+          showToast(err.message || String(err), 'error');
+        })
+        .sendComposedEmail(current);
     }
 
     /* ================================================
@@ -4235,6 +4797,7 @@ function renderPage_(page, boot) {
     function initRulesPage() {
       if (!BOOT.currentUser.isAdmin || BOOT.currentUser.role !== 'admin') return;
       loadRulesTable();
+      loadSubmissionControlsTable();
     }
     function loadRulesTable() {
       setMsg('rulesMsg','Loading\\u2026','muted');
@@ -4249,6 +4812,98 @@ function renderPage_(page, boot) {
         })
         .withFailureHandler(function(err) { setMsg('rulesMsg', err.message||String(err), 'error'); })
         .getAdminRulesRows();
+    }
+    function loadSubmissionControlsTable() {
+      setMsg('submissionControlMsg','Loading\u2026','muted');
+      google.script.run
+        .withSuccessHandler(function(rows) {
+          setMsg('submissionControlMsg', rows.length + ' control(s).', 'muted');
+          var el = document.getElementById('submissionControlsTable');
+          if (!el) return;
+          if (!rows.length) {
+            el.innerHTML = '<div class="alert alert-info" style="margin-top:12px;"><span class="alert-icon">&#128161;</span><span>No class or year-group deadlines are active yet.</span></div>';
+            return;
+          }
+          el.innerHTML = '<table class="config-table"><thead><tr><th>Scope</th><th>Deadline</th><th>Status</th><th>Message</th><th>Updated</th></tr></thead><tbody>' +
+            rows.map(function(r) {
+              var isActive = String(r.active || '').toLowerCase() !== 'false';
+              var isClosed = String(r.is_closed || '').toLowerCase() === 'true';
+              var scope = esc(r.year_group || '') + (r.class_no ? ' · Class ' + esc(r.class_no) : ' · All classes');
+              var status = !isActive
+                ? '<span class="badge badge-inactive">Inactive</span>'
+                : (isClosed
+                  ? '<span class="badge badge-inactive">Closed</span>'
+                  : (r.deadline_at ? '<span class="badge badge-active">Deadline</span>' : '<span class="badge badge-active">Open</span>'));
+              return '<tr><td>' + scope + '</td><td style="white-space:nowrap;">' + esc(r.deadline_at ? formatDisplayTs(r.deadline_at) : '\u2014') + '</td><td>' + status + '</td><td style="max-width:260px;">' + esc(r.message || '\u2014') + '</td><td style="white-space:nowrap;">' + esc(r.updated_at ? formatDisplayTs(r.updated_at) : '\u2014') + '<br><span style="font-size:11px;color:var(--slate-lt);">' + esc(r.updated_by || '') + '</span></td></tr>';
+            }).join('') + '</tbody></table>';
+        })
+        .withFailureHandler(function(err) { setMsg('submissionControlMsg', err.message||String(err), 'error'); })
+        .getAdminSubmissionControlRows();
+    }
+    function resetSubmissionControlForm_() {
+      var yearEl = document.getElementById('submissionControlYear');
+      var classEl = document.getElementById('submissionControlClass');
+      var deadlineEl = document.getElementById('submissionControlDeadline');
+      var messageEl = document.getElementById('submissionControlMessage');
+      if (yearEl) yearEl.value = '';
+      if (classEl) classEl.value = '';
+      if (deadlineEl) deadlineEl.value = '';
+      if (messageEl) messageEl.value = '';
+      setMsg('submissionControlMsg', '', 'muted');
+    }
+    function saveSubmissionControlAction(action) {
+      var yearEl = document.getElementById('submissionControlYear');
+      var classEl = document.getElementById('submissionControlClass');
+      var deadlineEl = document.getElementById('submissionControlDeadline');
+      var messageEl = document.getElementById('submissionControlMessage');
+      var yearGroup = (yearEl && yearEl.value || '').trim();
+      var classNo = (classEl && classEl.value || '').trim();
+      var deadlineAt = (deadlineEl && deadlineEl.value || '').trim();
+      var message = (messageEl && messageEl.value || '').trim();
+
+      if (!yearGroup) {
+        showToast('Choose a year group first.', 'error');
+        return;
+      }
+
+      var payload = {
+        year_group: yearGroup,
+        class_no: classNo,
+        deadline_at: deadlineAt,
+        message: message,
+        active: 'TRUE',
+        is_closed: 'FALSE'
+      };
+      var successMsg = 'Submission control saved.';
+
+      if (action === 'deadline') {
+        if (!deadlineAt) {
+          showToast('Set a deadline date and time first.', 'error');
+          return;
+        }
+        successMsg = 'Deadline saved.';
+      } else if (action === 'cutoff') {
+        payload.deadline_at = '';
+        payload.is_closed = 'TRUE';
+        successMsg = 'Submissions cut off for this scope.';
+      } else if (action === 'reopen') {
+        payload.deadline_at = '';
+        payload.is_closed = 'FALSE';
+        payload.active = 'FALSE';
+        successMsg = 'Submissions reopened for this scope.';
+      }
+
+      setMsg('submissionControlMsg', 'Saving\u2026', 'muted');
+      google.script.run
+        .withSuccessHandler(function(res) {
+          syncSubmissionControls_(res && res.controls ? res.controls : []);
+          loadSubmissionControlsTable();
+          showToast(successMsg, 'success');
+          if (action !== 'deadline') resetSubmissionControlForm_();
+          else setMsg('submissionControlMsg', 'Saved.', 'muted');
+        })
+        .withFailureHandler(function(err) { setMsg('submissionControlMsg', err.message||String(err), 'error'); })
+        .saveAdminSubmissionControl(payload);
     }
 
     /* ================================================
@@ -4302,7 +4957,7 @@ function renderPage_(page, boot) {
           var el = document.getElementById('auditTable');
           el.innerHTML = '<table class="config-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Submission</th><th>Status</th><th>Notes</th></tr></thead><tbody>' +
             rows.map(function(r) {
-              return '<tr><td style="white-space:nowrap;">' + esc(r.timestamp ? r.timestamp.substring(0,19).replace('T',' ') : '') + '</td><td>' + esc(r.actor_email) + '</td><td>' + esc(r.action_type) + '</td><td style="font-family:monospace;font-size:11px;max-width:120px;word-break:break-all;">' + esc(r.submission_id) + '</td><td>' + (r.new_status ? statusPill(r.new_status) : esc(r.old_status + ' \\u2192 ' + r.new_status)) + '</td><td style="max-width:250px;">' + esc(r.notes) + '</td></tr>';
+              return '<tr><td style="white-space:nowrap;">' + esc(formatDisplayTs(r.timestamp)) + '</td><td>' + esc(r.actor_email) + '</td><td>' + esc(r.action_type) + '</td><td style="font-family:monospace;font-size:11px;max-width:120px;word-break:break-all;">' + esc(r.submission_id) + '</td><td>' + (r.new_status ? statusPill(r.new_status) : esc(r.old_status + ' \\u2192 ' + r.new_status)) + '</td><td style="max-width:250px;">' + esc(r.notes) + '</td></tr>';
             }).join('') + '</tbody></table>';
         })
         .withFailureHandler(function(err) { setMsg('auditMsg', err.message||String(err),'error'); })
@@ -4437,7 +5092,7 @@ function renderSubmitPage_() {
         <li id="guideStep2"><span class="guide-check">&#9675;</span><span>Select your year and machine to see the correct file rules.</span></li>
         <li id="guideStep3"><span class="guide-check">&#9675;</span><span>Enter your design dimensions. Check they are within limits.</span></li>
         <li id="guideStep4"><span class="guide-check">&#9675;</span><span>Upload the correct working file and preview image (if required).</span></li>
-        <li id="guideStep5"><span class="guide-check">&#9675;</span><span>` + APP.uiText.turnaroundChecklistReminder + `</span></li>
+        <li id="guideStep5"><span class="guide-check">&#9675;</span><span>` + APP.uiText.turnaroundChecklistReminder + ` Only <strong>one working file</strong> is allowed per submission. For laser work, submit <strong>one page / one artboard only</strong>. If you need a second page or another working file, it must go into the queue as a <strong>new submission</strong>.</span></li>
       </ul>
       <div class="guide-progress">
         <div class="progress-strip"><div id="submitGuideBar" class="progress-fill" style="width:0%"></div></div>
@@ -4447,6 +5102,7 @@ function renderSubmitPage_() {
 
     <div id="submitFormWrap">
       <div id="ruleBox" class="rule-box"></div>
+      <div id="submissionControlNotice" style="display:none;margin:12px 0 16px;"></div>
 
       <form id="submitForm" autocomplete="off">
         <div class="form-section">
@@ -4552,6 +5208,10 @@ function renderSubmitPage_() {
 
         <div class="form-section">
           <div class="form-section-title">Files</div>
+          <div class="alert alert-warning" style="margin-bottom:12px;">
+            <span class="alert-icon">&#9888;</span>
+            <div><strong>One submission = one working file.</strong> For laser cutting, that working file must contain <strong>one page / one artboard only</strong>. If you need to make a second page, upload it as a <strong>separate submission</strong> so it joins the queue separately.</div>
+          </div>
           <div class="grid g2">
             <div class="field">
               <label>Working File <span class="req">*</span></label>
@@ -4559,7 +5219,7 @@ function renderSubmitPage_() {
                 <input type="file" id="workingFile">
                 <div class="file-zone-icon">&#128196;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
-                <div class="file-zone-sub">Affinity Designer (.af, .afdesign), SVG, DXF, or STL</div>
+                <div class="file-zone-sub">Affinity Designer (.af, .afdesign), SVG, DXF, or STL. One working file only per submission.</div>
                 <div class="file-chosen" id="chosen_workingFile"></div>
               </div>
             </div>
@@ -4991,8 +5651,8 @@ function renderStatusPage_(user) {
   var isStudentView = !user || !user.isAdmin;
   var title = isStudentView ? '&#128270; My Submission Status' : '&#128270; Submission Lookup';
   var sub = isStudentView
-    ? 'Enter your school email or submission ID to check your fabrication progress. Your results will load automatically.'
-    : 'Look up any submission by student email or submission ID.';
+    ? 'Enter your school email, Submission ID, or Request ID to check your fabrication progress. Your results will load automatically.'
+    : 'Look up any submission by student email, Submission ID, or Request ID.';
   return `
   <div class="card">
     <div class="section-title">${title}</div>
@@ -5001,7 +5661,7 @@ function renderStatusPage_(user) {
     ` + renderDisclaimerBox_('&#9200; Turnaround Time Notice', APP.uiText.turnaroundStatusNotice) + `
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <input id="statusQuery" type="text" placeholder="Email or Submission ID" style="flex:1;min-width:220px;">
+      <input id="statusQuery" type="text" placeholder="Email, Submission ID, or Request ID" style="flex:1;min-width:220px;">
       <button class="btn btn-primary" onclick="loadStatuses()" style="white-space:nowrap;">&#128270; Check Status</button>
     </div>
     <div id="statusMsg" class="inline-msg tc-muted" style="margin-bottom:12px;"></div>
@@ -5009,7 +5669,7 @@ function renderStatusPage_(user) {
       <div id="statusEmptyState" style="text-align:center;padding:32px 16px;color:var(--muted);">
         <div style="font-size:36px;margin-bottom:12px;">&#128269;</div>
         <p style="margin:0 0 6px;font-weight:600;">No search yet</p>
-        <p style="margin:0 0 18px;font-size:13px;">Enter your school email to see all your submissions, or paste a specific Submission ID to look up a single entry.</p>
+        <p style="margin:0 0 18px;font-size:13px;">Enter your school email to see all your submissions, or paste a specific Submission ID or Request ID to look up a single entry.</p>
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;max-width:600px;margin:0 auto;">
           <div style="flex:1;min-width:160px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:14px;text-align:center;">
             <div style="font-size:22px;margin-bottom:4px;">&#128232;</div>
@@ -5665,6 +6325,7 @@ function renderHelpPage_() {
       <li><span><strong>.svg</strong> &mdash; Scalable Vector Graphics (Y9+)</span></li>
       <li><span><strong>.dxf</strong> &mdash; AutoCAD Drawing Exchange Format (Y9+)</span></li>
     </ul>
+    <p><strong>Important:</strong> Upload <strong>one working file only</strong> for each submission. For laser cutting, that file must contain <strong>one page / one artboard only</strong>. If your project needs a second page, submit that second page as a <strong>new job</strong> so it enters the queue separately.</p>
 
     <h4>&#10060; Do NOT Upload These as Your Working File</h4>
     <p>The following file types are <strong>not accepted</strong> as the main laser cutting file:</p>
@@ -5737,6 +6398,7 @@ function renderHelpPage_() {
     <ul class="do-list">
       <li><span><strong>.stl</strong> &mdash; Standard Tessellation Language file</span></li>
     </ul>
+    <p><strong>Important:</strong> Upload <strong>one STL working file only</strong> per submission. If you need to print another separate file or version, send it as a <strong>new submission</strong> so it joins the queue separately.</p>
 
     <h4>&#128207; Your 3D Print Submission Should Also Include</h4>
     <ul>
@@ -5896,6 +6558,7 @@ function renderHelpPage_() {
       <label><input type="checkbox"> I selected the correct <strong>year group</strong></label>
       <label><input type="checkbox"> I selected the correct <strong>machine</strong> (Laser or 3D)</label>
       <label><input type="checkbox"> I selected the correct <strong>material</strong></label>
+      <label><input type="checkbox"> I uploaded <strong>one working file only</strong> for this submission</label>
     </div>
 
     <div class="help-checklist">
@@ -5903,6 +6566,7 @@ function renderHelpPage_() {
       <label><input type="checkbox"> I uploaded an <strong>.af or .afdesign</strong> file</label>
       <label><input type="checkbox"> My file uses <strong>vector paths only</strong> (no images/raster layers)</label>
       <label><input type="checkbox"> My file is the <strong>whole document / whole artboard</strong></label>
+      <label><input type="checkbox"> My laser file contains <strong>one page / one artboard only</strong></label>
       <label><input type="checkbox"> My design is within the <strong>size limit</strong> for my year</label>
       <label><input type="checkbox"> I uploaded a <strong>preview image</strong> if required</label>
     </div>
@@ -5910,6 +6574,7 @@ function renderHelpPage_() {
     <div class="help-checklist">
       <div class="help-checklist-title">&#9881; 3D Printing</div>
       <label><input type="checkbox"> I uploaded a valid <strong>.stl</strong> file</label>
+      <label><input type="checkbox"> This submission contains <strong>one STL working file only</strong></label>
       <label><input type="checkbox"> I checked my <strong>model dimensions</strong> in my 3D software</label>
       <label><input type="checkbox"> I uploaded a <strong>dimension screenshot</strong></label>
       <label><input type="checkbox"> My model is within the <strong>size limit</strong></label>
@@ -6094,16 +6759,55 @@ function renderHelpPage_() {
 }
 
 function renderRulesPage_() {
+  var yearOptions = ['Y8', 'Y9', 'Y10'].map(function(year) {
+    return '<option value="' + year + '">' + year + '</option>';
+  }).join('');
   return `
   <div class="card">
     <div class="section-title">&#9881; Rules Configuration</div>
-    <div class="section-sub">View and manage fabrication rules by year group and machine type. Edit directly in the Google Sheet for now.</div>
+    <div class="section-sub">View fabrication rules and manage submission deadlines or cutoffs for specific DT classes and year groups.</div>
     <div id="rulesMsg" class="inline-msg tc-muted"></div>
     <div id="rulesTable" style="margin-top:12px;overflow-x:auto;"></div>
     <div style="margin-top:12px;">
       <button class="btn btn-ghost btn-sm" onclick="openMasterSheet()">&#128196; Edit in Sheet</button>
       <button class="btn btn-ghost btn-sm" onclick="loadRulesTable()" style="margin-left:8px;">&#8635; Refresh</button>
     </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">&#128274; Submission Deadlines &amp; Cutoff</div>
+    <div class="section-sub">DT coursework only. Leave Class No. blank to apply the control to the whole year group.</div>
+    <div class="grid g3" style="margin-top:14px;">
+      <div class="field">
+        <label>Year Group</label>
+        <select id="submissionControlYear">
+          <option value="">&mdash; Select year &mdash;</option>
+          ${yearOptions}
+        </select>
+      </div>
+      <div class="field">
+        <label>Class No. <span class="helper" style="display:inline;">optional</span></label>
+        <input type="text" id="submissionControlClass" placeholder="e.g. 8.1">
+      </div>
+      <div class="field">
+        <label>Deadline</label>
+        <input type="datetime-local" id="submissionControlDeadline">
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Message</label>
+      <textarea id="submissionControlMessage" rows="2" placeholder="Optional message shown to students when the deadline or cutoff applies."></textarea>
+      <div class="helper">Example: Final DT deadline passed. Speak to your teacher before requesting a late submission.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+      <button class="btn btn-primary btn-sm" onclick="saveSubmissionControlAction('deadline')">&#9200; Set Deadline</button>
+      <button class="btn btn-danger btn-sm" onclick="saveSubmissionControlAction('cutoff')">&#128274; Cut Off Now</button>
+      <button class="btn btn-ghost btn-sm" onclick="saveSubmissionControlAction('reopen')">&#9989; Reopen</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetSubmissionControlForm_()">&#10060; Clear</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadSubmissionControlsTable()">&#8635; Refresh List</button>
+    </div>
+    <div id="submissionControlMsg" class="inline-msg tc-muted" style="margin-top:10px;"></div>
+    <div id="submissionControlsTable" style="margin-top:12px;overflow-x:auto;"></div>
   </div>
   `;
 }
