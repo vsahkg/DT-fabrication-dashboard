@@ -1,144 +1,176 @@
 # Handover Guide
 
-This document is intended for future VSA Design Technology Department maintainers and for anyone adapting the dashboard in a school workshop environment.
+This guide is for future maintainers or anyone adapting the dashboard for workshop operations.
 
-For the public project overview, read [../README.md](../README.md). For architecture detail, read [TECHNICAL_OVERVIEW.md](TECHNICAL_OVERVIEW.md). For public publication rules, read [../GITHUB_PUBLISHING.md](../GITHUB_PUBLISHING.md).
+For the project overview, read [../README.md](../README.md). For architecture notes, read [TECHNICAL_OVERVIEW.md](TECHNICAL_OVERVIEW.md). For publication rules, read [../GITHUB_PUBLISHING.md](../GITHUB_PUBLISHING.md).
 
 ## What This Repository Is
 
-This repository is a public showcase version of the VSA DT Fabrication Dashboard.
+This repository is the source snapshot for a Google Apps Script fabrication workflow tool.
 
 It is useful for:
 
-- understanding how the system works
-- adapting the project for future maintenance
-- documenting departmental workflow design
-- preparing future sanitized public releases
+- understanding the workflow design
+- maintaining or extending the current implementation
+- preparing future deployment copies
+- preparing a sanitised GitHub publication
 
-It is not a full live deployment export.
+It should not be assumed to be a fully scrubbed public export at all times. Review configuration carefully before publishing.
 
 ## Before Real Deployment
 
-Review and replace public placeholders in `code.gs` before using the app in a live school environment.
+Review these configuration surfaces in `code.gs`:
 
-Key configuration areas:
-
-- `APP.teacherEmails`
 - `APP.technicianCcEmail`
-- email example placeholders shown in forms and help text
-- wording or branding in `APP.uiText`
+- `APP.teacherEmails`
+- `APP.adminEmailOverrides`
+- `APP.uiText`
 
-Also verify:
+Also confirm:
 
-- spreadsheet ownership and access
-- Google Drive folder ownership and permissions
-- Apps Script deployment access settings
-- MailApp quota and organisation policy
-- user role assignments in the `Users` sheet
+- spreadsheet ownership and sharing
+- Drive folder permissions
+- Apps Script deployment access policy
+- MailApp quota and sender behaviour
+- user rows in the `Users` sheet
+- `Rules` and `SubmissionControls` rows match the intended policy
 
-## Safe Editing Practices In A Single-File Apps Script Project
+## Working With A Single-File GAS Project
 
 ### Make focused edits
-Most UI and client logic are embedded in large template strings. Wide edits increase the chance of syntax problems and broken rendering.
+
+UI, client logic, and shared wording are deeply interleaved inside template strings. Broad edits increase break risk.
 
 ### Validate after each change
-After editing `code.gs`, check syntax and editor-reported errors before treating the change as complete.
 
-### Keep data headers stable
-The sheet headers and runtime field names are tightly coupled. Avoid renaming them casually.
+After editing `code.gs`, check Apps Script syntax and the rendered web app before considering the change done.
 
-### Keep public and private configuration separate
-If the repository stays public, keep live deployment values in a private branch or private fork.
+### Keep headers stable
+
+Sheet headers and runtime object keys are tightly coupled. If you rename a header, you must update all read and write logic that depends on it.
+
+### Watch for config drift
+
+Teacher mappings, admin override emails, submit-page dropdown options, and public docs can drift apart if changed independently.
 
 ## Where To Edit Common Things
 
-### Rules and fabrication constraints
-- Seeded defaults are defined in `APP.sampleRules`.
-- Live operational changes may also be made in the `Rules` sheet after bootstrap.
+### Rules and validation
+
+- `APP.sampleRules` seeds default rows
+- `Rules` sheet stores live rule rows
+- `getMatchingRule_()` and `validateSubmission_()` enforce them
+
+### Submission cutoff windows
+
+- `SubmissionControls` sheet stores deadline and closure rows
+- `getSubmissionControlDecision_()` resolves effective state
+- `saveAdminSubmissionControl()` is the admin write path
 
 ### User-facing wording
-- Many shared strings live in `APP.uiText`.
-- Page-specific wording also appears in renderer template strings such as `renderSubmitPage_()`, `renderOtherRequestPage_()`, `renderMachinesPage_()`, and `renderHelpPage_()`.
 
-### Teacher and notification emails
-- Teacher mappings live in `APP.teacherEmails`.
-- The technician mailbox lives in `APP.technicianCcEmail`.
-- Notification behavior is handled in `sendStatusNotification_()` and `sendOtherRequestNotification_()`.
+- shared strings live in `APP.uiText`
+- page-specific copy also lives in `renderSubmitPage_()`, `renderOtherRequestPage_()`, `renderMachinesPage_()`, and `renderHelpPage_()`
+
+### Teacher and admin identity mapping
+
+- teacher mappings live in `APP.teacherEmails`
+- elevated-role email overrides live in `APP.adminEmailOverrides`
+- submit-page teacher dropdown content is hardcoded in `renderSubmitPage_()`
+
+### Notification behaviour
+
+- automatic emails: `sendSubmissionConfirmation_()`, `sendOtherRequestConfirmation_()`, `sendStatusNotification_()`, `sendOtherRequestNotification_()`
+- manual drafts: `generateEmailDraft()`, `generateTeacherUpdateDraft()`, `sendComposedEmail()`
 
 ### Queue and review UX
-- Queue data is assembled in `getAdminRows()` and `getAdminOtherRequests()`.
-- Queue rendering and queue CSS live in the page shell and client logic inside `renderPage_()`.
-- Review drawer behavior is tied to the same client-side layer and related helper functions.
 
-### Machines and guidance content
-- Machine information is rendered through `renderMachinesPage_()` and supporting constants.
-- General help content is rendered through `renderHelpPage_()`.
+- `getAdminRows()` and `getAdminOtherRequests()` assemble queue data
+- queue rendering and drawer rendering live in the client JS inside `renderPage_()`
+- repeat-submission context comes from the `getSubmissionActivity*` helper family
 
 ## Common Risks
 
-- breaking a template literal during a UI edit
-- changing a status code without updating all related logic
-- renaming a sheet header without updating server-side reads and writes
-- changing queue row structure without checking the drawer and mobile layout
-- adding live contact values and forgetting to sanitize them before publication
+- breaking a template literal while editing HTML or JS
+- renaming a sheet header without updating all dependent code
+- changing a status without updating queue labels, notifications, and help text
+- changing teacher mappings but forgetting the submit-page dropdown
+- updating deadline / cutoff logic without re-testing DT submission blocking
+- publishing school-specific contact values unintentionally
 
 ## Recommended Setup Process
 
-1. create a new Google Apps Script project
-2. add the current `code.gs`
-3. run `authorizeScopes()` if needed
-4. run `bootstrap()` to create the backing structure
-5. review seeded rules, users, and issue templates
-6. replace public placeholder contacts in a private branch or deployment copy
-7. deploy as a web app
-8. test with at least one student, one teacher, and one technician/admin account
+1. create a new Apps Script project
+2. paste in `code.gs`
+3. run `authorizeScopes()`
+4. run `bootstrap()`
+5. review the generated spreadsheet and folder tree
+6. update school-specific config values as needed
+7. review `Rules`, `Users`, and optional `SubmissionControls`
+8. deploy as web app
+9. perform end-to-end testing with at least one student, one teacher, and one technician/admin account
 
 ## What To Check Before Deployment
 
-- teacher email mappings are correct
-- technician mailbox is correct
-- rules match the intended year-group and machine policy
-- users and roles are configured correctly
-- Drive uploads are writing to the intended folder structure
-- status emails are reaching the correct recipients
-- Machine Guide wording matches the real workshop setup
+- `APP.teacherEmails` matches the real staff list
+- submit-page teacher dropdown options match the mapping
+- `APP.technicianCcEmail` is correct
+- `APP.adminEmailOverrides` only contains intended elevated accounts
+- `Rules` match current workshop policy
+- `SubmissionControls` rows are current and intentional
+- Drive uploads land in the expected folders
+- automatic emails reach the intended recipients
+- Machines and Help content still match the real workshop setup
 
-## Manual QA / UAT Checklist
+## Manual QA Checklist
 
 After meaningful changes, verify:
 
-1. DT Student Project submission still works end to end
-2. Special Request submission still works end to end
-3. Status Lookup returns the correct records
-4. Reviewer Queue loads and filters correctly
-5. teacher-scoped queue behavior still works
-6. clicking Review or View opens the correct drawer item
-7. status changes still update sheets, UI, and audit records
-8. workflow emails still send as intended
-9. Machine Guide and Help pages still render correctly
-10. mobile queue layout still stacks cleanly
-11. no syntax or editor errors are reported in `code.gs`
+1. DT submission works end to end
+2. Special Request submission works end to end
+3. blocked DT classes or year groups are actually blocked when a cutoff row applies
+4. status lookup returns both DT and Special Request rows correctly
+5. teacher queue scoping still works
+6. technician status restrictions still work
+7. review drawer opens the correct record
+8. manual draft generation works for student and teacher emails
+9. status changes write to sheets and `AuditLog`
+10. automatic emails still send correctly
+11. Machines and Help pages render correctly on desktop and mobile
+12. no new syntax or editor errors are reported in `code.gs`
 
-## How To Keep The Public Repo Sanitized
+## Public Publishing Discipline
 
-Before pushing public changes, confirm that the repo does not expose:
+Before pushing to a public GitHub repo, confirm the repository does not expose:
 
-- real staff or personal email addresses
-- live spreadsheet or Drive IDs
-- private deployment URLs
-- screenshots with real user data
-- internal-only operational notes that should remain private
+- real staff email addresses unless intentionally public
+- internal spreadsheet IDs
+- Drive folder IDs
+- deployment URLs
+- screenshots with private data
+- internal-only notes
 
-Areas to review carefully:
+Review these areas carefully:
 
 - top-level config values in `code.gs`
-- help text and footer wording
-- screenshot assets under `docs/assets/`
-- README and handover wording that may drift toward live deployment specifics
+- email examples and footer text
+- docs wording that implies a sanitised snapshot when the branch is not yet sanitised
+- screenshots and diagrams under `docs/assets/`
+
+## If This Workspace Came From A ZIP Download
+
+This workspace may not contain `.git` metadata.
+
+If so, do not assume you can push immediately. First either:
+
+1. initialise a local git repository and connect the correct remote, or
+2. sync these files into a clean clone of the target GitHub repository
+
+That avoids accidental history loss or pushing from the wrong origin.
 
 ## Suggested Maintenance Discipline
 
-- keep the public repo focused on documentation and showcase clarity
-- keep live operational customization in a private branch or private fork
-- update docs whenever terminology or workflow behavior changes
-- record major public-facing changes in `CHANGELOG.md`
+- keep code changes small and validated
+- update docs whenever workflows, roles, or sheet fields change
+- treat queue, email, and status changes as one combined review area
+- review publication safety before every GitHub push

@@ -1,43 +1,66 @@
 # Technical Overview
 
-This document explains how the VSA DT Fabrication Dashboard is structured and how the main application areas fit together.
+This document explains how the current `code.gs` implementation is organised and where the main operational responsibilities live.
 
-For the public project overview, start with [../README.md](../README.md). For operational maintenance guidance, see [HANDOVER.md](HANDOVER.md).
+For the broader repository overview, see [../README.md](../README.md). For maintenance and rollout guidance, see [HANDOVER.md](HANDOVER.md).
 
-## Top-Level Architecture Summary
+## Architecture Summary
 
-The dashboard is a single-file Google Apps Script web application stored in `code.gs`.
+The application is a single-file Google Apps Script web app.
 
-It combines four layers in one Apps Script file:
+That one file contains four tightly coupled layers:
 
-1. configuration and seeded sample data
-2. server-side Apps Script functions
-3. HTML rendering through HtmlService
+1. top-level configuration and seeded data
+2. server-side workflow and persistence functions
+3. HTML page renderers
 4. inline CSS and client-side JavaScript
 
-This is a deployment-oriented architecture. It is less modular than a multi-file web app, but it keeps the system portable inside the Apps Script environment and matches how the project is actually maintained.
+This is deployment-friendly inside Apps Script, but it makes changes more fragile than in a modular web application.
 
-## Platform Responsibilities
+## Top-Level Configuration Surface
 
-- Google Apps Script hosts the web app and runs server-side logic.
-- Google Sheets stores the structured operational records.
-- Google Drive stores uploaded files and preview assets.
-- MailApp sends confirmation and workflow notification emails.
+The `APP` object is the main configuration surface.
 
-## Rendering Structure
+Important sections include:
 
-### Entry point
-- `authorizeScopes()` is used to trigger the Google authorisation flow when needed.
-- `bootstrap()` creates and seeds the basic project structure.
-- `doGet(e)` is the main web entry point.
+- `APP.sheets` for all sheet definitions
+- `APP.sampleRules` for seeded fabrication rules
+- `APP.sampleIssues` for seeded issue templates
+- `APP.status` for the workflow enum
+- `APP.uiText` for shared user-facing wording
+- `APP.teacherEmails` for teacher-name to email resolution
+- `APP.adminEmailOverrides` for elevated-role email overrides
+- `APP.technicianCcEmail` for threaded `Needs Fix` communication
 
-### Page assembly
-- `doGet(e)` resolves the requested page and current user context.
-- `renderPage_()` builds the full HTML shell.
-- `renderPage_()` embeds all CSS, the boot payload, all page HTML, and the client-side JavaScript.
+Other important constants outside `APP` include:
 
-### Page renderers
-Important page renderers include:
+- `TECHNICIAN_ALLOWED_STATUSES`
+- `PREVIEW_IMAGE_EXTENSIONS`
+- `MACHINE_SPECS`
+
+## Bootstrapping and Entry Points
+
+### One-time / setup entry points
+
+- `authorizeScopes()` triggers Mail, Drive, and Spreadsheet authorisation
+- `bootstrap()` creates folders, spreadsheet, sheets, seed rows, and script properties
+- `setup()` is just an alias to `bootstrap()`
+
+### Web entry point
+
+- `doGet(e)` resolves the requested page, role context, rules payload, status options, and UI text before rendering the page shell
+
+## Rendering Model
+
+`renderPage_()` builds the full HTML document, including:
+
+- role-adaptive navigation
+- page container switching
+- all inline CSS
+- boot payload serialisation
+- all client-side JavaScript
+
+### Main page renderers
 
 - `renderSubmitPage_()`
 - `renderOtherRequestPage_()`
@@ -45,162 +68,200 @@ Important page renderers include:
 - `renderAdminPage_()`
 - `renderMachinesPage_()`
 - `renderHelpPage_()`
+- `renderRulesPage_()`
+- `renderUsersPage_()`
+- `renderAuditPage_()`
 
-Because those renderers use large template strings, they are among the most regression-sensitive parts of the codebase.
+These renderers are regression-sensitive because they rely on very large template strings.
 
-## Major Function Groups
+## Persistence Model
 
-### Configuration and seeded content
-The top-level `APP` object contains the main configuration surface.
+The app uses Google Sheets as its structured store and Google Drive for files.
 
-Important areas include:
+Current logical tables:
 
-- `APP.sheets` for logical sheet definitions
-- `APP.status` for workflow statuses
-- `APP.sampleRules` for seeded rule data
-- `APP.sampleIssues` for seeded issue templates
-- `APP.uiText` for user-facing wording
-- `APP.teacherEmails` and `APP.technicianCcEmail` for notification-related configuration
+- `Submissions`
+- `Rules`
+- `SubmissionControls`
+- `IssueTemplates`
+- `Users`
+- `AuditLog`
+- `OtherRequests`
 
-### Submission and validation
-The two main submission paths are handled by:
+General write pattern:
 
-- `submitSubmission()` for DT Student Projects
-- `submitOtherRequest()` for Special Requests
+1. client JS calls a server function with `google.script.run`
+2. server validates payload and resolves access
+3. rows are appended or updated in Google Sheets
+4. Drive files are created for uploads
+5. audit and email side effects are applied
 
-These flows depend on validation helpers, record creation, audit entries, and confirmation emails.
+## Submission and Validation Functions
 
-### Status lookup and queue data
-User-facing and reviewer-facing retrieval is primarily handled by:
+### DT workflow
+
+- `submitSubmission()` writes DT submission rows
+- `validateSubmission_()` enforces required fields, file rules, dimension limits, and prototype type
+- `getSubmissionControlDecision_()` checks whether a year group or class submission window is closed
+
+### Special Request workflow
+
+- `submitOtherRequest()` writes `OtherRequests`
+- `validateOtherRequest_()` enforces its extended field set
+
+### Shared helpers
+
+- `getMatchingRule_()`
+- `getFileExtension_()`
+- `parseRequiredDimension_()`
+- `parseOptionalDimension_()`
+- `formatPrototypeFidelityLabel_()`
+
+## Submission Activity and Queue Context
+
+The current implementation includes repeat-submission awareness.
+
+Important functions:
+
+- `getTodaySubmissionCountByEmail_()`
+- `getSubmissionActivityMap_()`
+- `getSubmissionActivityByEmail_()`
+- `attachSubmissionActivity_()`
+- `getSubmissionActivity()`
+
+This data feeds:
+
+- duplicate reminders on the submit pages
+- last-24-hour indicators
+- reviewer queue risk pills
+- review drawer context
+
+## Reviewer Queue and Status Functions
+
+### Lookup and queue data
 
 - `getStudentStatuses()`
 - `getOtherRequestStatuses()`
 - `getAdminRows()`
 - `getAdminOtherRequests()`
-- `getSubmissionActivity()` and related helpers
+- `attachStudentFeedback_()`
 
-### Status updates and reviewer actions
-Reviewer workflow actions are mainly handled by:
+### Status updates
 
 - `updateSubmissionStatus()`
 - `updateOtherRequestStatus()`
 
-These functions update workflow state, write audit records, and trigger notifications.
+Both status update functions:
 
-### Notifications
-Workflow emails are mainly handled by:
+- enforce allowed statuses
+- apply role restrictions
+- acquire a workflow lock
+- update sheet fields
+- append audit entries
+- trigger notifications when the status actually changes
+
+## Email and Communication Functions
+
+### Automatic communication
 
 - `sendSubmissionConfirmation_()`
 - `sendOtherRequestConfirmation_()`
 - `sendStatusNotification_()`
 - `sendOtherRequestNotification_()`
 
-### Admin maintenance
-The admin area uses functions for:
+### Reviewer-composed communication
 
-- rule retrieval and updates
-- user retrieval and updates
-- issue template management
-- audit log retrieval
+- `generateEmailDraft()`
+- `generateTeacherUpdateDraft()`
+- `sendComposedEmail()`
+- `normalizeEmailList_()`
 
-## Persistence Model
+The manual draft tooling is a meaningful part of the current operational design and should be documented whenever reviewer workflow changes are made.
 
-The app uses Google Sheets as its structured store.
+## Admin Configuration Functions
 
-Logical tables include:
+- `getAdminRulesRows()`
+- `saveAdminRule()`
+- `getAdminSubmissionControlRows()`
+- `saveAdminSubmissionControl()`
+- `getAdminUsersRows()`
+- `saveAdminUser()`
+- `addAdminUser()`
+- `getAuditLogRows()`
 
-- `Submissions` for DT Student Project records
-- `OtherRequests` for Special Request records
-- `Rules` for fabrication and validation constraints
-- `IssueTemplates` for reviewer feedback templates
-- `Users` for role and access mappings
-- `AuditLog` for workflow activity tracking
+`saveAdminSubmissionControl()` is especially important because it governs deadline, cutoff, and reopen behaviour for DT submission scopes.
 
-The general persistence pattern is:
+## Auth and Identity Resolution
 
-1. client-side JavaScript sends a request with `google.script.run`
-2. server-side Apps Script validates or filters the request
-3. rows are appended or updated in Google Sheets
-4. Drive files are created when uploads are involved
-5. notifications and audit entries are written as part of the same workflow
+The app resolves users from multiple sources.
 
-## Notification Flow
+Relevant functions:
 
-The notification model is intentionally tied to status changes.
+- `getTeacherListEntryByEmail_()`
+- `getConfiguredUserOverride_()`
+- `getCurrentUser_()`
+- `requireAdmin_()`
+- `resolveTeacherEmail_()`
+- `isTeacherRecordMatch_()`
 
-- Submission confirmation emails are sent after successful form submission.
-- Needs Fix emails include corrective context and copied recipients where appropriate.
-- Status update functions decide whether an email should be sent and to whom.
-- Notification results are reflected in the audit trail.
+Role resolution currently blends:
 
-The email layer is operationally important because it is one of the main ways the dashboard keeps students, teachers, and technicians aligned without relying on separate manual follow-up.
+- sheet-based `Users`
+- hardcoded teacher mappings
+- hardcoded admin override emails
 
-## Queue and Admin Logic
+That means documentation and deployment notes must treat these values as operational configuration, not just demo placeholders.
 
-The Reviewer Queue is a merged operational view over DT Student Projects and Special Requests.
+## Storage and Setup Helpers
 
-Key characteristics:
+- `getSpreadsheet_()`
+- `getRootFolder_()`
+- `getSheet_()`
+- `acquireWorkflowLock_()`
+- `getRowsAsObjects_()`
+- `appendObject_()`
+- `writeCellByHeader_()`
+- `getOrCreateRootFolder_()`
+- `getOrCreateMasterSpreadsheet_()`
+- `createFolderTree_()`
+- `getUploadFolder_()`
+- `ensureSheet_()`
+- `seedRules_()`
+- `seedIssueTemplates_()`
+- `reseedIssueTemplates()`
+- `seedUsers_()`
 
-- source-aware rows across both workflows
-- filters for status, year, machine, requester, and teacher context
-- role-aware queue scoping
-- status-driven action hints
-- row-level activity context for repeated submissions
-- review drawer access for detailed workflow actions
+## Current UI Model
 
-The queue is designed to be the summary layer, while the review drawer acts as the detail layer.
+The UI is role-adaptive.
 
-## Role-Aware UI Model
+- students and guests get submit, status, machines, special-request, and help flows
+- teachers get queue access scoped to their students
+- technicians get queue-first navigation and production-focused status control
+- admins get rules, users, audit, and full dashboard access
 
-The UI adapts to the user role determined at runtime.
-
-- Students and guest-level users focus on submission, status, machine guidance, and help.
-- Teachers gain scoped queue visibility.
-- Technicians gain queue operation access.
-- Admins gain rules, users, and audit views.
-
-This role-aware rendering is handled through the boot payload and the page shell logic in `renderPage_()`.
-
-## Current Snapshot Highlights
-
-The current public snapshot includes these notable operational improvements:
-
-- repeat-submission and last-24-hour activity signals
-- stronger reviewer queue hierarchy
-- richer review drawer context
-- file-size guardrails in uploads
-- document locking around status changes
-- clearer Needs Fix messaging
-- expanded Machine Guide and help content
+The page shell, nav labels, and page availability are all generated at render time, so nav and access changes should be treated as cross-cutting edits.
 
 ## Regression-Sensitive Areas
 
-These are the parts of the system most likely to break during edits:
+The most fragile parts of the current codebase are:
 
 - large template literals in page renderers
-- inline client-side JavaScript embedded in `renderPage_()`
-- queue row rendering helpers
-- review drawer rendering logic
-- status enum usage across server and client code
-- sheet header definitions versus actual sheet columns
-- email text and recipient logic
-
-## Areas Most Likely To Break During Edits
-
-Practical examples of fragile edit points:
-
-- changing field names without updating both sheet headers and runtime keys
-- altering workflow statuses without updating filters, labels, and notifications
-- editing HTML template strings without checking interpolation and escaping
-- changing user-facing wording in one place while forgetting related pages
-- adding new private deployment values and forgetting to sanitize them before publishing
+- client JS embedded inside `renderPage_()`
+- queue-table rendering and drawer rendering
+- role-adaptive navigation branches
+- `SubmissionControls` matching and sort logic
+- teacher mapping plus submit-page dropdown consistency
+- sheet header definitions versus runtime field names
+- email recipient logic and threaded `Needs Fix` behaviour
 
 ## Recommended Editing Approach
 
-- Make small, deliberate changes.
-- Re-run syntax or editor error checks after each edit session.
-- Treat queue and drawer updates as coupled UI work.
-- Keep live deployment configuration out of the public branch.
+- make small, intentional edits
+- validate after touching template strings
+- treat status logic, emails, and queue UI as coupled work
+- update docs whenever statuses, fields, nav labels, or admin tooling change
+- review public-safety impact whenever contact mappings or config constants change
 
 ## Related Documentation
 

@@ -1,10 +1,24 @@
 # Design Fabrication Dashboard
 
-A role-based Google Apps Script dashboard for managing school laser cutting and 3D printing requests, with separate workflows for DT coursework and non-DT / special project submissions.
+A Google Apps Script fabrication workflow dashboard for managing DT coursework submissions and non-DT special requests across laser cutting and 3D printing.
 
 ## Project Summary
 
-Design Fabrication Dashboard is a school fabrication request management system built with Google Apps Script. It supports the full workflow from submission to review, queueing, production, and collection. The app is primarily designed for DT student coursework submissions, while also supporting a clearly separated approval-based workflow for other subject projects, competitions, exhibitions, clubs, and special fabrication requests. It uses Google Sheets for structured records, Google Drive for file storage, and MailApp for workflow notifications.
+Design Fabrication Dashboard is a single-file Google Apps Script web app used to run a school workshop submission pipeline end to end:
+
+- student and staff submission
+- file and dimension validation
+- reviewer queue operations
+- status tracking
+- email notifications
+- rule and user administration
+
+The current implementation separates two pathways on purpose:
+
+- **DT Submit** for normal DT coursework
+- **Special Request** for competitions, clubs, exhibitions, other subjects, and sponsored non-DT work
+
+That separation matters because DT coursework can be prioritised differently, Special Requests capture extra approval context, and reviewer decisions may follow slightly different communication patterns.
 
 ## Project Metadata
 
@@ -13,497 +27,427 @@ Design Fabrication Dashboard is a school fabrication request management system b
 | **Project Name** | Design Fabrication Dashboard |
 | **Repository Name** | design-fabrication-dashboard |
 | **Platform** | Google Apps Script Web App |
-| **Main File** | `code.gs` (single-file architecture) |
-| **Storage** | Google Sheets (6 sheets) + Google Drive (file uploads) |
-| **Notifications** | MailApp email notifications |
+| **Main File** | `code.gs` |
+| **Architecture** | Single-file GAS app with inline server logic, HTML, CSS, and client JavaScript |
+| **Storage** | Google Sheets (7 logical sheets) + Google Drive |
+| **Notifications** | MailApp automatic and reviewer-composed emails |
 | **Primary Users** | Students, teachers, technicians, admins |
-| **Core Purpose** | Manage DT coursework submissions and separate non-DT fabrication requests |
+| **Core Purpose** | Manage fabrication requests from submission through review, queueing, production, and collection |
 
-## Status
+## Current Snapshot
 
-This is an actively developed internal school workflow tool built for the VSA Design & Technology Department. It is deployed as a Google Apps Script web app and used in production for managing DT workshop fabrication requests.
+The current `code.gs` snapshot includes:
 
-This public repository is a sanitized showcase version. Placeholder values are used instead of live staff contacts, deployment URLs, spreadsheet IDs, and folder IDs. It is intended for reference, demonstration, documentation, and handover support.
+- DT coursework submission with prototype type selection (`low`, `hi`, `na`)
+- Special Request submission with sponsor / teacher approval fields
+- sheet-backed submission deadline and cutoff controls by year group or class
+- merged reviewer queue across DT and Special Request records
+- repeat-submission and last-24-hour activity signals for reviewers and submitters
+- manual email draft generation for students and teachers
+- machine guide content with workshop-specific guidance and manufacturer-verified specs
+- rules, users, submission controls, and audit views for admins
+
+This repository should be treated as a documentation-oriented working copy of the project. Before any public push, review all configured contacts and school-specific values in `code.gs`.
 
 ## Repository Contents
 
 | File | Description |
 |---|---|
-| `code.gs` | Entire application — server functions, HTML, CSS, and client JavaScript |
-| `README.md` | Project documentation (this file) |
-| `CHANGELOG.md` | Version history and release notes |
-| `GITHUB_PUBLISHING.md` | Instructions for publishing to GitHub |
-| `docs/TECHNICAL_OVERVIEW.md` | Code architecture, function map, and regression-sensitive areas |
-| `docs/HANDOVER.md` | Maintenance guide, common tasks, troubleshooting, and testing approach |
+| `code.gs` | Entire application: config, server functions, page renderers, CSS, and client JS |
+| `README.md` | Project overview, workflows, setup, and operations guide |
+| `CHANGELOG.md` | Public-facing release notes for this repository |
+| `GITHUB_PUBLISHING.md` | GitHub publication and sanitisation checklist |
+| `docs/TECHNICAL_OVERVIEW.md` | Architecture and function-group overview |
+| `docs/HANDOVER.md` | Maintenance, setup, QA, and operational notes |
 | `docs/assets/screenshots/` | Screenshot placeholders and naming guidance |
-| `docs/assets/diagrams/` | Diagram placeholders and documentation assets |
-| `.gitignore` | Git ignore rules for macOS, editors, and Apps Script tooling |
+| `docs/assets/diagrams/` | Diagram placeholders and asset notes |
 
-## Table of Contents
+## Who This Is For
 
-- [Project Summary](#project-summary)
-- [Project Metadata](#project-metadata)
-- [Status](#status)
-- [Repository Contents](#repository-contents)
-- [Who Is This For?](#who-is-this-for)
-- [Main Workflows](#main-workflows)
-- [Current Scope](#current-scope)
-- [What This Repo Is Not](#what-this-repo-is-not)
-- [Key Features](#key-features)
-- [System Architecture](#system-architecture)
-- [Data Model](#data-model)
-- [Roles & Permissions](#roles--permissions)
-- [Submission Workflows](#submission-workflows)
-- [Email Behaviour](#email-behaviour)
-- [Setup & Deployment](#setup--deployment)
-- [Maintenance Guide](#maintenance-guide)
-- [Project Structure](#project-structure)
-- [Known Limitations](#known-limitations)
-- [License](#license)
-
-## Who Is This For?
-
-| Role | Description |
+| Role | What They Use It For |
 |---|---|
-| **DT Students** | Submit laser/3D files, track status, fix issues when flagged |
-| **Non-DT Students / Clubs** | Submit Special Requests with responsible teacher / staff approval |
-| **Teachers** | Receive notifications about student submissions, help with "Needs Fix" issues |
-| **Technicians** | Review submissions, update statuses, send feedback via issue templates |
-| **Admins** | Full access to all submissions, user management, rules, audit logs |
+| **DT students** | Submit coursework jobs, track status, respond to review feedback |
+| **Non-DT students / clubs / departments** | Submit Special Requests with sponsor approval |
+| **Teachers** | Monitor student progress, receive updates, support fixes |
+| **Technicians** | Operate the queue, review jobs, update statuses, communicate issues |
+| **Admins** | Full operational access including rules, users, submission controls, and audit log |
 
 ## Main Workflows
 
-The system handles two distinct submission pathways:
+### 1. DT Coursework Submission
 
-| Pathway | Who Uses It | Purpose |
-|---|---|---|
-| **DT Student Project** | DT students (Y8–Y10) | Regular coursework — laser cutting or 3D printing homework/projects |
-| **Special Request** | Any department, club, or competition team | Non-DT fabrication needs requiring responsible teacher / staff approval |
+Used for normal DT student work.
 
-These are intentionally kept separate because DT coursework may be prioritised, non-DT requests require additional approval fields, and the review workflows differ.
+- captures student details, class, teacher, year group, machine, material, dimensions, prototype type, and files
+- validates the upload against configured rule rows in the `Rules` sheet
+- checks whether a submission window is open using the `SubmissionControls` sheet
+- writes the submission to `Submissions`
+- sends a confirmation email and records activity in `AuditLog`
 
-Both pathways follow a **7-stage status progression**: `Submitted` → `Needs Fix` → `Approved` → `In Queue` → `In Production` → `Completed` → `Rejected`.
+### 2. Special Request Submission
 
-## Current Scope
+Used for non-DT fabrication needs.
 
-The current implementation includes:
+- captures requester identity, role, department, project purpose, teacher sponsor, approver, fabrication details, dates, and files
+- writes the request to `OtherRequests`
+- sends confirmation email to the requester and notification email to the teacher in charge
+- appears in the same reviewer queue as DT submissions, but keeps source-specific fields intact
 
-- **DT coursework submission path** — year-group-based rules, dimension validation, file uploads
-- **Special Request path** — extended form (Sections A–G) with responsible teacher / staff approval required
-- **Role-aware navigation** — students see 3 tabs, teachers/technicians see 4, admins see 8
-- **Status checking** — dual-source lookup merging DT Submissions and Special Requests
-- **Review and admin workflows** — admin dashboard with filtering, review drawer, issue code selection
-- **Email notifications** — Needs Fix single-threaded CC emails, confirmation emails, status change alerts
-- **Help and beginner guidance** — multi-section help page with accordion, quick-start hero, category badges
-- **Separate data structure for non-DT requests** — dedicated OtherRequests sheet with approval fields
-- **Machine overview content** — cards with specifications for laser cutters and 3D printers
-- **Turnaround and priority disclaimers** — DT coursework may be prioritised; submission does not mean same-day production
+### 3. Reviewer Queue and Status Workflow
 
-## What This Repo Is Not
+Both pathways share the same 7-stage workflow:
 
-- **Not a generic manufacturing platform.** This is purpose-built for a school DT workshop managing laser cutting and 3D printing submissions.
-- **Not a public SaaS product.** It is an internal tool deployed within a specific school's Google Workspace.
-- **Not a fully modular multi-file GAS codebase (yet).** The entire application lives in a single `code.gs` file for simplicity of deployment. Future work could split it into multiple files if needed.
-- **Not a design tool.** Students prepare their files externally (e.g. in Adobe Illustrator, Fusion 360) and upload them via this dashboard.
-- **Not a full school MIS or student information system.**
-- **Not a full CAD/CAM pipeline.**
+`Submitted -> Needs Fix -> Approved -> In Queue -> In Production -> Completed -> Rejected`
 
-## Key Features
+Technicians are intentionally restricted to production-side statuses only:
+
+- `approved`
+- `in_queue`
+- `in_production`
+- `completed`
+
+Admins retain full workflow control.
+
+## Feature Overview
 
 ### Submission System
 
-- Dual-path submission: DT Student Project vs Special Request
-- Dynamic form rules based on year group and machine type
-- Real-time dimension validation against configured size limits
-- File upload to Google Drive with client-side size guard
-- Submission checklist with live progress bar
-- Confirmation emails on successful submission
+- DT and Special Request pathways are rendered as separate pages
+- live rule-based validation for year group, machine, materials, dimensions, and file extensions
+- preview image validation for accepted image types
+- one-working-file-per-submission guidance in both pathways
+- prototype type field for DT coursework submissions
+- duplicate / recent-activity reminders based on same-day and last-24-hour submission activity
+- submission cutoffs and deadlines configurable per year group or class
 
-### Review & Production Tracking
+### Reviewer Operations
 
-- 7-stage status workflow: `Submitted` → `Needs Fix` → `Approved` → `In Queue` → `In Production` → `Completed` → `Rejected`
-- Admin/technician review drawer with status updates, issue codes, and remarks
-- Dual-source status lookup (DT + Special Requests merged)
-- Timeline view showing status history
-- Role-based admin views (technician sees production queue, teacher sees "my students")
+- merged queue view for DT and Special Request records
+- filters by source, year, machine, status, teacher, class, and student email
+- teacher-scoped queue view with “My students only” default
+- review drawer with record context, activity history, remarks, and status actions
+- audit log entries for status changes, manual email sends, rule edits, and cutoff actions
 
-### Email Notifications
+### Email Behaviour
 
-- Automatic emails on every status change
-- **Needs Fix:** single-threaded email to student with CC to teacher + a configured technician mailbox, with Reply-To set to the sender — all parties stay on one thread for follow-up
-- Pre-built issue templates with detailed HTML fix instructions (laser, 3D print, and general categories)
-- Teacher notification emails for Completed and Rejected statuses
-- Confirmation emails for both DT and Special Request submissions
-
-### Help & Guidance
-
-- Multi-section help page with collapsible accordion
-- "New Here?" quick-start hero guide for first-time users
-- Category badges (Everyone / DT Students / Non-DT) on each section
-- Table of Contents with auto-expand on click
-- Machine overview cards with specifications
-- Beginner file preparation guides for laser and 3D
-- Interactive submission checklist
-- Quick Reference key rules
-
-### UI/UX
-
-- Student-centred design with clear guidance for non-DT newcomers
-- Welcome banner on Submit page with feature pills
-- Path selector cards with "Who is this for?" bullet lists
-- Newcomer info strip on Special Request page
-- Visual step guide on Status page empty state
-- Scroll-to-top button, mobile scroll fade indicators
-- Professional branded footer
-- Role-aware navigation (students see 3 tabs; admins see 8)
-- Toast notifications, loading states, debounced inputs
+- automatic confirmation emails for both submission pathways
+- automatic status emails on status changes
+- threaded `Needs Fix` email model with CC for teacher + technician mailbox
+- manual student review draft generation from issue templates
+- manual teacher update draft generation based on current status and remarks
+- send-anyway reviewer compose flow with `sendComposedEmail()` and audit logging
 
 ### Administration
 
-- Filter bar with status, year group, machine, and free-text search
-- "My students only" toggle for teachers
-- Dual-source admin view (DT Submissions + Special Requests)
-- Rules management page
-- User management page
-- Audit log with timestamped entries
-- Direct link to master spreadsheet
+- rules page for fabrication policies
+- submission control page for deadline / cutoff management
+- user management page
+- audit log page
+- direct open-link to the backing spreadsheet
+
+### Guidance Content
+
+- Machines page with school limits, machine context, process guides, and report-writing prompts
+- Help page with beginner guidance, common mistakes, quick-start content, and turnaround messaging
+- role-adaptive navigation and page labels
 
 ## System Architecture
 
-```
-┌─────────────────────────────────┐
-│   Google Apps Script Web App    │
-│         (code.gs)               │
-│                                 │
-│  ┌───────────┐  ┌────────────┐  │
-│  │ Server-   │  │ Client-    │  │
-│  │ side GAS  │  │ side JS    │  │
-│  │ functions │  │ + HTML/CSS │  │
-│  └─────┬─────┘  └─────┬──────┘  │
-│        │              │         │
-│  ┌─────▼──────────────▼──────┐  │
-│  │  google.script.run        │  │
-│  │  (async RPC bridge)       │  │
-│  └───────────┬───────────────┘  │
-└──────────────┼──────────────────┘
-               │
-    ┌──────────▼──────────┐
-    │   Google Sheets     │
-    │   (6 sheets)        │
-    ├─────────────────────┤
-    │   Google Drive      │
-    │   (file uploads)    │
-    ├─────────────────────┤
-    │   MailApp           │
-    │   (notifications)   │
-    └─────────────────────┘
+```text
+┌──────────────────────────────────────────────┐
+│ Google Apps Script Web App                  │
+│ code.gs                                     │
+│                                              │
+│  Config + Seed Data                         │
+│  Server Functions                           │
+│  HTML Renderers                             │
+│  Inline CSS + Client JS                     │
+└──────────────────────┬───────────────────────┘
+           │ google.script.run
+┌──────────────────────▼───────────────────────┐
+│ Google Sheets                                │
+│ - Submissions                                │
+│ - Rules                                      │
+│ - SubmissionControls                         │
+│ - IssueTemplates                             │
+│ - Users                                      │
+│ - AuditLog                                   │
+│ - OtherRequests                              │
+└───────────────┬──────────────────────────────┘
+    │
+     ┌──────────▼──────────┐    ┌────────────────┐
+     │ Google Drive        │    │ MailApp        │
+     │ file uploads        │    │ notifications  │
+     └─────────────────────┘    └────────────────┘
 ```
 
-**Single-file Google Apps Script architecture:** The entire Design Fabrication Dashboard — server functions, HTML, CSS, and client JavaScript — lives in one `code.gs` file. This is intentional for simplicity of deployment in Google Apps Script. The `doGet()` function renders the full page server-side via template literal functions.
-
-For a fuller architecture explanation, see [docs/TECHNICAL_OVERVIEW.md](docs/TECHNICAL_OVERVIEW.md).
+The application stays in one Apps Script file on purpose. That keeps deployment simple inside GAS, but it also means UI template strings, client JS, and server logic are tightly coupled and should be edited carefully.
 
 ## Data Model
 
-The app uses 6 Google Sheets as its database:
+The current system uses **7 logical sheets**.
 
 ### Submissions
 
-Stores DT student coursework submissions.
+DT coursework records.
 
-| Column | Description |
-|---|---|
-| `submission_id` | Unique ID (e.g. DT-20260309-XXXX) |
-| `created_at` | ISO timestamp |
-| `student_email` | Student's school email |
-| `student_name` | Full name |
-| `design_class_no` | Class number (e.g. "8.1") |
-| `design_teacher` | Teacher name |
-| `year_group` | Y8, Y9, Y10, etc. |
-| `machine` | laser or 3d |
-| `material` | Selected material |
-| `width`, `height`, `depth` | Design dimensions |
-| `units` | cm or mm |
-| `working_file_id/name/url` | Google Drive file reference |
-| `preview_file_id/name/url` | Preview image reference |
-| `status` | Current workflow status |
-| `issue_code` | Comma-separated issue template codes |
-| `admin_remarks` | Technician notes |
-| `submitted_by`, `updated_at`, `updated_by` | Audit fields |
+Important fields:
+
+- `submission_id`
+- `created_at`
+- `student_email`
+- `student_name`
+- `design_class_no`
+- `design_teacher`
+- `year_group`
+- `machine`
+- `material`
+- `width`, `height`, `depth`, `units`
+- `working_file_*`
+- `preview_file_*`
+- `status`
+- `issue_code`
+- `admin_remarks`
+- `submitted_by`, `updated_at`, `updated_by`
+- `prototype_fidelity`
 
 ### OtherRequests
 
-Stores non-DT / special fabrication requests.
+Special Request records.
 
-| Column | Description |
-|---|---|
-| `request_id` | Unique ID (e.g. OR-20260309-XXXX) |
-| `requester_email/name/role` | Who is requesting |
-| `department_or_subject` | Science, Art, Club, etc. |
-| `request_type` | Competition, exhibition, event, etc. |
-| `project_name/purpose` | What and why |
-| `competition_name`, `event_or_deadline` | Optional context |
-| `teacher_in_charge/email` | Responsible teacher |
-| `approved_by_email`, `approval_status` | Approval tracking |
-| `machine`, `material`, `dimensions` | Fabrication details |
-| `quantity` | Number of copies |
-| `needed_by_date`, `priority_reason` | Scheduling context |
-| `request_description` | Free-text description |
-| `status`, `issue_code`, `admin_remarks` | Review fields |
+Important fields:
+
+- requester identity and role
+- department / subject
+- request type
+- project purpose and context
+- teacher-in-charge and approver details
+- fabrication details, dimensions, quantity, dates
+- working and preview file references
+- workflow status and reviewer remarks
 
 ### Rules
 
-Configures what each year group can submit.
+Validation rules by year group and machine.
 
-| Column | Description |
-|---|---|
-| `year_group` | Y8, Y9, Y10, etc. |
-| `machine` | laser or 3d |
-| `max_width/height/depth` | Size limits |
-| `units` | cm or mm |
-| `materials` | Comma-separated list of available materials |
-| `accepted_extensions` | Allowed file types |
-| `preview_required` | TRUE/FALSE |
-| `notes` | Display notes for the form |
-| `active` | Enable/disable rule |
+Important fields:
+
+- `year_group`
+- `machine`
+- `max_width`, `max_height`, `max_depth`
+- `units`
+- `materials`
+- `accepted_extensions`
+- `preview_required`
+- `notes`
+- `active`
+
+### SubmissionControls
+
+Sheet-backed submission opening / closing rules.
+
+Important fields:
+
+- `control_id`
+- `year_group`
+- `class_no`
+- `deadline_at`
+- `is_closed`
+- `message`
+- `active`
+- `updated_at`
+- `updated_by`
+
+These rows are checked during `submitSubmission()` so DT submissions can be blocked or warned based on year or class scope.
 
 ### IssueTemplates
 
-Pre-built feedback messages for common submission problems.
-
-| Column | Description |
-|---|---|
-| `issue_code` | Unique code (e.g. LC_FILETYPE_WRONG) |
-| `issue_label` | Human-readable label |
-| `applies_to` | laser, 3d, or blank (general) |
-| `email_subject` | Email subject line |
-| `email_body_html` | Detailed HTML instructions |
-| `active` | Enable/disable |
-| `sort_order` | Display order |
+Reusable HTML issue instructions for `Needs Fix` and draft generation.
 
 ### Users
 
-Role assignments for access control.
-
-| Column | Description |
-|---|---|
-| `email` | Google account email |
-| `name` | Display name |
-| `role` | admin, teacher, technician, or blank (student/guest) |
-| `active` | Enable/disable |
+Role assignments and active flags.
 
 ### AuditLog
 
-Timestamped log of all actions.
+Timestamped activity ledger for workflow and admin actions.
 
-| Column | Description |
-|---|---|
-| `timestamp` | Timestamp string |
-| `submission_id` | Related submission or request ID |
-| `actor_email` | Who performed the action |
-| `action_type` | update_status, auto_email_sent, etc. |
-| `old_status`, `new_status` | Status transition |
-| `notes` | Additional context |
+## Roles and Navigation
 
-## Roles & Permissions
+### Permissions
 
 | Action | Student | Teacher | Technician | Admin |
 |---|---|---|---|---|
-| Submit DT Project | ✅ | ✅ | ✅ | ✅ |
-| Submit Special Request | ✅ | ✅ | ✅ | ✅ |
-| Check own status | ✅ | ✅ | ✅ | ✅ |
-| View Admin panel | ❌ | ✅ | ✅ | ✅ |
-| Update submission status | ❌ | ❌ | ✅* | ✅ |
-| Send Needs Fix emails | ❌ | ❌ | ✅ | ✅ |
-| Manage Rules | ❌ | ❌ | ❌ | ✅ |
-| Manage Users | ❌ | ❌ | ❌ | ✅ |
-| View Audit Log | ❌ | ❌ | ❌ | ✅ |
+| Submit DT work | Yes | Yes | Yes | Yes |
+| Submit Special Request | Yes | Yes | Yes | Yes |
+| Check status | Yes | Yes | Yes | Yes |
+| View merged queue | No | Yes | Yes | Yes |
+| Update statuses | No | No | Limited | Yes |
+| Send manual draft emails | No | No | Yes | Yes |
+| Edit rules | No | No | No | Yes |
+| Edit submission controls | No | No | No | Yes |
+| Edit users | No | No | No | Yes |
+| View audit log | No | No | No | Yes |
 
-\* Technicians can only set statuses: Approved, In Queue, In Production, Completed (not Needs Fix, Submitted, or Rejected).
+### Role-Adaptive Navigation
 
-**Navigation tabs visible:**
+| Role | Tabs |
+|---|---|
+| **Student / guest** | DT Submit, My Status, Machines, Special Request, Help |
+| **Teacher** | DT Submit, Student Status, My Students, Machines, Special Request, Help |
+| **Technician** | Queue, Special Request, Lookup, Submit, Machines, Help |
+| **Admin** | Dashboard, Submit, Special Request, Lookup, Rules, Users, Audit, Machines, Help |
 
-- **Student/Guest:** Submit, Status, Help
-- **Teacher/Technician:** Submit, Status, Admin, Help
-- **Admin:** Submit, Status, Admin, Help, Rules, Users, Audit
+## Workflow Diagrams
 
-## Submission Workflows
+### DT Coursework Flow
 
-### DT Student Project Flow
-
-```
-Student fills form → Upload file → Submit
-        │
-        ▼
-   [Submitted] ──── technician reviews ────┐
-        │                                   │
-        ▼                                   ▼
-   [Approved]                         [Needs Fix]
-        │                              (email sent to student,
-        ▼                               CC: teacher + technician)
-   [In Queue]                               │
-        │                         student fixes & resubmits
-        ▼                                   │
-  [In Production]                           ▼
-        │                            [Submitted] again
-        ▼
-   [Completed]
-  (email sent, collect from workshop)
-```
-
-### Special Request / Non-DT Flow
-
-```
-Requester fills detailed form (Sections A–G)
-  │  Includes: teacher sponsor, purpose, deadline
-  │
-  ▼
-[Submitted] ──── technician reviews ────┐
-  │                                      │
-  ▼                                      ▼
-[Approved]                          [Needs Fix]
-  │                                 (single-thread email,
-  ▼                                  CC: teacher + technician)
-[In Queue]
-  │
-  ▼
-[In Production]
-  │
-  ▼
-[Completed]
+```text
+Student opens DT Submit
+  |
+  v
+Check year-group rule + submission-control window
+  |
+  +--> blocked by deadline / cutoff
+  |        |
+  |        v
+  |   student sees message and cannot submit
+  |
+  v
+Validate dimensions, file types, preview rules
+  |
+  v
+Write row to Submissions + AuditLog
+  |
+  v
+Send confirmation email
+  |
+  v
+[Submitted]
+   |
+   +--> [Needs Fix] ------> student revises and submits a new row
+   |
+   +--> [Approved] -> [In Queue] -> [In Production] -> [Completed]
+   |
+   +--> [Rejected]
 ```
 
-**Key difference:** Special Requests require a responsible teacher, have additional fields (purpose, deadline, competition name, quantity), and DT coursework may be prioritised when the queue is full.
+### Special Request Flow
 
-### Combined Review Queue Flow
-
+```text
+Requester opens Special Request
+  |
+  v
+Enter requester, sponsor, approver, project, machine, files
+  |
+  v
+Write row to OtherRequests + AuditLog
+  |
+  v
+Send requester confirmation + teacher notification
+  |
+  v
+[Submitted]
+   |
+   +--> [Needs Fix]
+   |        |
+   |        v
+   |   threaded email to requester
+   |   CC teacher + technician mailbox
+   |
+   +--> [Approved] -> [In Queue] -> [In Production] -> [Completed]
+   |
+   +--> [Rejected]
 ```
-┌──────────────────┐     ┌──────────────────┐
-│  DT Student      │     │  Special Request  │
-│  Submissions     │     │  Submissions      │
-└────────┬─────────┘     └────────┬──────────┘
-         │                        │
-         └───────────┬────────────┘
-                     ▼
-         ┌───────────────────────┐
-         │   Reviewer Queue      │
-         │   (merged view)       │
-         │                       │
-         │  • Filter by source   │
-         │  • Filter by status   │
-         │  • Filter by year     │
-         │  • Filter by machine  │
-         │  • Free-text search   │
-         └───────────┬───────────┘
-                     ▼
-         ┌───────────────────────┐
-         │   Review Drawer       │
-         │                       │
-         │  • View details       │
-         │  • Update status      │
-         │  • Select issue codes │
-         │  • Add remarks        │
-         │  • Trigger emails     │
-         └───────────────────────┘
+
+### Reviewer Queue Flow
+
+```text
+Submissions sheet -----\\
+       > merged queue -> review drawer -> status update / manual email -> AuditLog
+OtherRequests sheet ---/
 ```
 
 ## Email Behaviour
 
-### Needs Fix (single-threaded)
+### Automatic Confirmation Emails
 
-When a submission is marked "Needs Fix":
+- DT submissions: sent to the student and include submission ID, machine, prototype type, and next steps
+- Special Requests: sent to the requester, plus a teacher-in-charge notification when applicable
 
-- **To:** Student / Requester
-- **CC:** Teacher + configured technician mailbox
-- **Reply-To:** The technician who marked it
-- All parties receive one email and can Reply All to follow up
+### Automatic Status Emails
 
-The email includes the full issue template instructions with step-by-step fix guides.
+- sent when the status actually changes
+- `Needs Fix` includes issue-template guidance where relevant
+- Special Request `Needs Fix` uses a single threaded email to keep follow-up in one chain
 
-### Completed / Rejected
+### Reviewer-Composed Emails
 
-- Separate emails sent to student and teacher
-- Student gets collection instructions or rejection reason
-- Teacher gets action guidance
+The current codebase supports:
 
-### Confirmation Emails
+- `generateEmailDraft()` for student review emails using selected issue templates
+- `generateTeacherUpdateDraft()` for teacher-facing workflow updates
+- `sendComposedEmail()` for edited manual sends with audit log capture
 
-- Sent immediately on successful DT submission or Special Request submission
-- Contains submission ID, summary of what was submitted, and next-step instructions
-
-### CC Configuration
-
-The technician CC email is configured at the top of `code.gs`:
-
-```javascript
-technicianCcEmail: 'dt-technician@example.edu'
-```
-
-## Setup & Deployment
+## Setup and Deployment
 
 ### Prerequisites
 
-- A Google account with access to Google Drive, Sheets, and Apps Script
-- The account must be able to send emails via Gmail
+- Google account with Apps Script, Drive, Sheets, and Mail access
+- ability to deploy a web app within the target Google Workspace
 
-### Step 1: Create the Apps Script Project
+### 1. Create the Apps Script Project
 
-1. Go to [script.google.com](https://script.google.com/)
-2. Click **New Project**
-3. Delete the default `Code.gs` content
-4. Paste the entire contents of `code.gs` from this repo
+1. Open `script.google.com`.
+2. Create a new project.
+3. Replace the default file contents with the repository `code.gs`.
 
-### Step 2: Authorise Scopes
+### 2. Authorise Required Scopes
 
-1. In the Apps Script editor, select `authorizeScopes` from the function dropdown
-2. Click **Run**
-3. Accept the Google authorization prompt (Drive, Sheets, Mail scopes)
+1. Run `authorizeScopes()` once.
+2. Accept the Mail, Drive, and Spreadsheet permissions.
 
-### Step 3: Bootstrap the System
+### 3. Bootstrap the Backing Storage
 
-1. Select `bootstrap` from the function dropdown
-2. Click **Run**
-3. This creates:
-   - A "Design Fabrication Dashboard" root folder in Google Drive
-   - Year-group upload subfolders (`workingFiles/`, `previews/`)
-   - A master Google Spreadsheet with all 6 sheets
-   - Default rules for Y8, Y9, Y10
-   - Issue templates
-   - A default admin user (the script owner)
-4. Check the Execution Log for the setup summary including folder and spreadsheet URLs
+1. Run `bootstrap()`.
+2. The script creates:
+   - a root Drive folder
+   - `submissions/Y8/laser`
+   - `submissions/Y9/laser`
+   - `submissions/Y10/laser`
+   - `submissions/Y10/3d`
+   - `previews/Y8`
+   - `previews/Y9`
+   - `previews/Y10`
+   - a master spreadsheet with all 7 sheets
+   - seeded rules
+   - seeded issue templates
+   - a default admin user
 
-### Step 4: Deploy as Web App
+### 4. Deploy as a Web App
 
-1. Click **Deploy → New deployment**
-2. Select type: **Web app**
-3. Set:
-   - Execute as: **Me** (your account)
-   - Who has access: **Anyone within your organisation** (or Anyone, depending on your needs)
-4. Click **Deploy**
-5. Copy the web app URL — this is the dashboard link to share
+1. Deploy as **Web app**.
+2. Execute as the owner account.
+3. Limit access to the intended organisation or broader audience as required.
 
-### Step 5: Configure Users
+### 5. Review School-Specific Configuration
 
-1. Open the master spreadsheet (URL shown in bootstrap log)
-2. Go to the **Users** sheet
-3. Add rows for teachers, technicians, and admins:
-   - `email`: their Google account email
-   - `name`: display name
-   - `role`: `admin`, `teacher`, or `technician`
-   - `active`: `TRUE`
+Before production use, verify or replace:
 
-### Step 6: Configure Rules (Optional)
+- `APP.technicianCcEmail`
+- `APP.teacherEmails`
+- `APP.adminEmailOverrides`
+- user-facing wording in `APP.uiText`
 
-- The Rules sheet is pre-seeded with Y8/Y9/Y10 defaults
-- Edit directly in the sheet or via the Rules admin page in the dashboard
-- Each row defines: year group, machine, size limits, materials, accepted file types
+### 6. Configure Users and Rules
 
-### Step 7: Verify
+- add or update users in the `Users` sheet or Users admin page
+- review all seeded `Rules`
+- add `SubmissionControls` rows only when deadlines or cutoffs are needed
 
-1. Open the web app URL in a browser
-2. You should see the Submit page with the DT/Special Request path selector
-3. Test the Help page — all sections should be collapsible
-4. If you are the admin, you should see all navigation tabs (up to 8)
+### 7. Verify End to End
+
+Run at least one DT submission and one Special Request through the deployed app before real rollout.
 
 ## Maintenance Guide
 
@@ -511,74 +455,61 @@ technicianCcEmail: 'dt-technician@example.edu'
 
 | Task | How |
 |---|---|
-| Add a new year group | Add row(s) to the Rules sheet with the year, machine, limits, and materials |
-| Update materials list | Edit the `materials` column in Rules (comma-separated) |
-| Add a new teacher | Add to `APP.teacherEmails` in `code.gs` AND to the Users sheet |
-| Add a user role | Add row to Users sheet: email, name, role, TRUE |
-| Reseed issue templates | Run `reseedIssueTemplates()` from the script editor (overwrites existing) |
-| Check audit log | Use the Audit tab in the dashboard (admin only) or open the AuditLog sheet |
-| Change technician CC | Edit `APP.technicianCcEmail` at the top of `code.gs` |
-| Update turnaround messaging | Edit the `APP.uiText` object in `code.gs` |
+| Change size limits or allowed file types | Edit `Rules` rows |
+| Set a class or year cutoff | Use the Rules page submission-control form or update `SubmissionControls` |
+| Reopen a blocked class | Set the control inactive or use the reopen action |
+| Change technician CC mailbox | Update `APP.technicianCcEmail` |
+| Add or change teacher mapping | Update `APP.teacherEmails` and keep submit-page dropdowns aligned |
+| Update admin override emails | Edit `APP.adminEmailOverrides` |
+| Replace issue templates | Run `reseedIssueTemplates()` if a full reset is intended |
+| Review audit history | Use Audit page or inspect the `AuditLog` sheet |
+| Adjust guidance text | Update `APP.uiText` and affected page renderers |
 
 ### After Code Changes
 
-1. Save the file in the Apps Script editor
-2. Click **Deploy → Manage deployments**
-3. Edit the existing deployment and click **Deploy** to publish changes
-4. Hard-refresh the web app in your browser (Cmd+Shift+R)
-
-### Teacher Email Mapping
-
-Teacher names → emails are hardcoded in `APP.teacherEmails`. The public repo uses placeholders. Replace them with your real school staff list before deployment:
-
-```javascript
-teacherEmails: {
-  'Teacher A': 'teacher.a@example.edu',
-  'Teacher B': 'teacher.b@example.edu',
-  // ... add new entries here
-}
-```
-
-Also update the `<select>` dropdown in `renderSubmitPage_()` if adding a new teacher to the DT form.
+1. save in Apps Script
+2. check syntax and editor errors
+3. redeploy the existing web app deployment
+4. hard-refresh the browser
+5. re-test any affected workflow
 
 ## Project Structure
 
+```text
+.
+├── code.gs
+├── README.md
+├── CHANGELOG.md
+├── GITHUB_PUBLISHING.md
+├── LICENSE
+├── docs/
+│   ├── HANDOVER.md
+│   ├── TECHNICAL_OVERVIEW.md
+│   └── assets/
+│       ├── diagrams/
+│       └── screenshots/
+└── .gitignore
 ```
-├── code.gs                          # Entire application (server + client)
-├── README.md                        # This file
-├── CHANGELOG.md                     # Version history
-├── GITHUB_PUBLISHING.md             # Public repo preparation checklist
-├── LICENSE                          # MIT License
-├── .gitignore                       # Git ignore rules
-└── docs/
-    ├── TECHNICAL_OVERVIEW.md        # Code architecture & function map
-    ├── HANDOVER.md                  # Handover guide for future developers
-    └── assets/
-        ├── screenshots/             # Screenshot placeholders
-        └── diagrams/                # Diagram placeholders
-```
-
-**Why a single file?** Google Apps Script web apps that use `HtmlService.createHtmlOutput()` with inline HTML work best as a single file. Splitting into separate `.html` files would require switching to `HtmlService.createTemplateFromFile()` and managing includes — added complexity with no real benefit for this project size. The single-file approach means you can paste the entire app into any GAS project and it works immediately.
 
 ## Known Limitations
 
-- **Single-file size:** The file is large but still well within GAS limits. Future maintainers should use search (Ctrl+F) and the function list in the script editor.
-- **No offline support:** Requires internet and Google account authentication.
-- **Google daily email quota:** MailApp has a daily sending limit (100 for free accounts, 1,500 for Workspace). High-volume periods may hit this limit.
-- **No file versioning:** Resubmissions create new entries rather than updating existing ones.
-- **Teacher list is hardcoded:** Adding/removing teachers requires a code edit (not sheet-only).
-- **No real-time updates:** Status page requires manual refresh or re-search; no WebSocket/push.
-- **Sheet-based storage:** Google Sheets is not a real database — concurrent writes from many users could theoretically cause conflicts, though this is unlikely at school scale.
-- **No automated test suite:** Testing is manual; no structured QA routines exist in this repository.
-- **Public demo assets not yet included:** Production screenshots are not committed.
+- The whole application lives in one large `code.gs` file.
+- Teacher names are still tied to a hardcoded mapping and submit-page dropdown content.
+- There is no automated test suite in this repository.
+- Google Sheets remains the operational data store, not a transactional database.
+- Resubmissions create new rows instead of versioning an existing submission.
+- Seeded upload folders and rules are currently focused on Y8-Y10 DT workflows.
+- This workspace may be a downloaded export rather than a live Git checkout, so publication to GitHub may require local repository initialisation or syncing into a clean clone first.
+
+## Related Documentation
+
+- [docs/TECHNICAL_OVERVIEW.md](docs/TECHNICAL_OVERVIEW.md)
+- [docs/HANDOVER.md](docs/HANDOVER.md)
+- [GITHUB_PUBLISHING.md](GITHUB_PUBLISHING.md)
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
 This project is released under the [MIT License](LICENSE).
 
-Developed by the VSA Design & Technology Department as a school fabrication workflow tool. This public repository is a showcase version prepared for reference, collaboration, and departmental documentation.
-
-
-
-
-can you update this readme to be like https://github.com/sunnydesigntech/design-fabrication-dashboard, that with flow chart and all well explained
+Developed for VSA Design & Technology fabrication workflow operations.

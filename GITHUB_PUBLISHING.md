@@ -1,55 +1,45 @@
 # GitHub Publishing Guide
 
-Use this guide when preparing future public versions of the VSA DT Fabrication Dashboard repository.
+Use this guide before pushing this project to GitHub.
 
-The goal is to keep the public branch presentation-ready, sanitized for public reference, and aligned with the VSA Design Technology Department's intended external-facing documentation quality.
+The goal is simple: publish an accurate, well-documented repository without leaking school-specific operational data.
 
-## Public Branch Intent
+## Publishing Intent
 
-The public repository should represent:
+The GitHub repository should present this project as:
 
-- a public showcase repository
-- a school fabrication workflow dashboard built on Google Apps Script
-- departmental documentation suitable for handover and public reference
+- a Google Apps Script fabrication workflow dashboard
+- a school workshop operations tool
+- a repository with documentation that matches the current code snapshot
 
-It should not function as a raw export of the live internal deployment.
+It should not become a raw dump of live deployment details.
 
-## What Must Be Checked Before Every Public Push
+## Mandatory Pre-Publish Checks
 
-Confirm the repository does not contain:
+Review the repository for:
 
 - real staff email addresses
-- personal contact information
-- deployment URLs
-- internal spreadsheet IDs
+- personal contact details
+- spreadsheet IDs
 - Google Drive folder IDs
-- access tokens, credentials, or secrets
+- deployment URLs
+- credentials or tokens
 - screenshots containing private student or staff data
-- internal-only notes or operational details that should stay private
+- internal-only notes or comments
 
-## Values That Must Stay Placeholder-Safe
+## Values That Need Explicit Review
 
-Review these areas before publishing:
+Check these parts of `code.gs` every time:
 
 - `APP.technicianCcEmail`
 - `APP.teacherEmails`
-- email placeholders shown in forms and help text
-- organisation branding text in the footer or help content
-- any newly added config constants that reference real people or live systems
-
-## Screenshot Review Checklist
-
-If screenshots are added to the repo, verify that they:
-
-- use the sanitized public branch UI
-- do not show real student names, classes, or email addresses
-- do not show live submission IDs that could expose internal records
-- do not reveal spreadsheet URLs, Drive URLs, or admin-only links
-- match the current terminology used in the README and docs
+- `APP.adminEmailOverrides`
+- any hardcoded example emails in page content
+- footer or help text that may reference internal branding or live behaviour
 
 ## Documentation Refresh Checklist
 
-Before publishing, confirm that these files remain aligned:
+Before pushing, confirm these files are still aligned with the codebase:
 
 - `README.md`
 - `CHANGELOG.md`
@@ -57,41 +47,52 @@ Before publishing, confirm that these files remain aligned:
 - `docs/HANDOVER.md`
 - `GITHUB_PUBLISHING.md`
 
-Specifically check:
+Specifically re-check:
 
-- project naming consistency
-- DT Student Project vs Special Request terminology
-- documentation links
-- feature descriptions still matching the codebase
-- public-safe language throughout
+- sheet count and data model descriptions
+- role and navigation descriptions
+- DT Submit versus Special Request terminology
+- admin tooling descriptions
+- public-safety wording
 
-## License and Attribution Check
+## Screenshots and Assets Checklist
 
-Before pushing, confirm:
+If screenshots or diagrams are added:
 
-- `LICENSE` is present and intentional
-- README ownership wording still reflects VSA Design Technology Department authorship appropriately
-- no third-party copyrighted assets were added without permission
+- use a sanitised environment
+- do not show real names, classes, or emails unless intentionally public
+- avoid showing sheet URLs, Drive URLs, or admin-only data
+- keep screenshots consistent with the current terminology in the docs
 
-## Suggested Git Workflow
+## If This Workspace Is Not A Git Checkout
 
-1. keep live deployment values in a private branch or private fork
-2. prepare a public-safe branch for review
-3. replace any real contacts with placeholders before commit
-4. refresh documentation if functionality or terminology changed
-5. review screenshots and assets for privacy
-6. push only after the public-safe checklist is complete
+This folder may be a ZIP export or downloaded snapshot.
 
-## Final GitHub Pre-Publish Checklist
+If there is no `.git` directory, use one of these paths before publishing:
 
-- repo title and README opening section still present the project clearly
-- public badges and links render correctly
-- documentation links are not broken
-- no merge markers or draft placeholder text remain
-- no private strings are visible in tracked files
-- screenshots and diagrams, if present, are public-safe
-- changelog reflects the latest public showcase update
+1. initialise a local git repository in this folder, add the correct remote, and commit intentionally, or
+2. copy these updated files into a clean clone of the target GitHub repository and publish from there
+
+Do not guess the remote or branch history.
+
+## Suggested Publish Workflow
+
+1. review and sanitise school-specific config
+2. refresh docs if code or wording changed
+3. inspect assets for privacy issues
+4. verify the workspace is connected to the correct git remote
+5. commit only the intended files
+6. push only after the repository is public-safe
+
+## Final GitHub Checklist
+
+- README opening section still explains the project clearly
+- all markdown links resolve
+- no stray draft text or merge markers remain
+- changelog includes the current update
+- screenshots and diagrams are safe to publish
+- the branch does not contain private operational strings
 
 ## Suggested GitHub About Text
 
-VSA DT Fabrication Dashboard is a Google Apps Script workshop management tool that demonstrates a school fabrication workflow system for DT Student Projects, Special Requests, reviewer queue operations, and status communication.
+Design Fabrication Dashboard is a Google Apps Script workshop management tool for DT coursework submissions, Special Requests, reviewer queue operations, and fabrication status communication.
