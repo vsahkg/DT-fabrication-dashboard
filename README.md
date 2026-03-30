@@ -512,4 +512,4 @@ Run at least one DT submission and one Special Request through the deployed app 
 
 This project is released under the [MIT License](LICENSE).
 
-Developed for VSA Design & Technology fabrication workflow operations.
+Developed for Design & Technology fabrication workflow operations.

@@ -27,7 +27,7 @@ const APP = {
   })(),
 
   /* CC for Needs Fix emails — all parties on one thread for follow-up */
-  technicianCcEmail: 'cmok@vsa.edu.hk',
+  technicianCcEmail: 'technician@example.edu',
 
   sheets: {
     submissions: {
@@ -462,31 +462,31 @@ const APP = {
   },
 
   teacherEmails: {
-    'Ms Cheung':    'kycheung@vsa.edu.hk',
-    'Mr Chiu':      'achiu@vsa.edu.hk',
-    'Mr Graham':    'cgraham@vsa.edu.hk',
-    'Mr Jenkin':    'gjenkin@vsa.edu.hk',
-    'Mr Wong':      'kcwong@vsa.edu.hk',
-    'Mr Lee':       'nlee@vsa.edu.hk',
-    'Mr Reid':      'sreid@vsa.edu.hk',
-    'Mr Sunny':     'cswong@vsa.edu.hk',
-    'Mr Curtis':    'cmok@vsa.edu.hk',
-    'Miss Ivy':     'iyiu@vsa.edu.hk',
-    'Miss Ranger':  'cranger@vsa.edu.hk'
+    'Teacher A':    'teacher.a@example.edu',
+    'Teacher B':    'teacher.b@example.edu',
+    'Teacher C':    'teacher.c@example.edu',
+    'Teacher D':    'teacher.d@example.edu',
+    'Teacher E':    'teacher.e@example.edu',
+    'Teacher F':    'teacher.f@example.edu',
+    'Teacher G':    'teacher.g@example.edu',
+    'Teacher H':    'teacher.h@example.edu',
+    'Technician':   'technician@example.edu',
+    'Teacher I':    'teacher.i@example.edu',
+    'Teacher J':    'teacher.j@example.edu'
   },
 
   adminEmailOverrides: [
-    'cswong@vsa.edu.hk',
-    'cmok@vsa.edu.hk',
-    'iyiu@vsa.edu.hk',
-    'achiu@vsa.edu.hk',
-    'gjenkin@vsa.edu.hk',
-    'kcwong@vsa.edu.hk',
-    'nlee@vsa.edu.hk',
-    'cranger@vsa.edu.hk',
-    'cgraham@vsa.edu.hk',
-    'sreid@vsa.edu.hk',
-    'kycheung@vsa.edu.hk'
+    'teacher.h@example.edu',
+    'technician@example.edu',
+    'teacher.i@example.edu',
+    'teacher.b@example.edu',
+    'teacher.d@example.edu',
+    'teacher.e@example.edu',
+    'teacher.f@example.edu',
+    'teacher.j@example.edu',
+    'teacher.c@example.edu',
+    'teacher.g@example.edu',
+    'teacher.a@example.edu'
   ]
 };
 
@@ -1579,7 +1579,7 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(req.teacher_in_charge || 'Teacher in charge') +
-      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Workshop Technician' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1857,7 +1857,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(teacherName || 'Teacher') +
-      (APP.technicianCcEmail ? ', Mr Curtis (DT Technician)' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Workshop Technician' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -3491,7 +3491,7 @@ function renderPage_(page, boot) {
   </div>
 
   <footer class="site-footer">
-    <strong>Design Fabrication Dashboard</strong> &mdash; VSA Design &amp; Technology Department<br>
+    <strong>Design Fabrication Dashboard</strong> &mdash; Design &amp; Technology Department<br>
     Laser Cutting &bull; 3D Printing &bull; Prototyping &bull; Creative Making<br>
     Need machine details? Visit the <a href="javascript:void(0)" onclick="switchPage('machines')" style="color:var(--blue);text-decoration:underline;">Machines Guide</a> or the <a href="javascript:void(0)" onclick="switchPage('help')" style="color:var(--blue);text-decoration:underline;">Help &amp; Guidelines</a> page.
   </footer>
@@ -5118,7 +5118,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentID@student.vsa.edu.hk" required>
+              <input type="email" name="student_email" placeholder="studentid@student.example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -5136,17 +5136,17 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
-                <option value="Ms Cheung">Ms Cheung</option>
-                <option value="Mr Chiu">Mr Chiu</option>
-                <option value="Mr Curtis">Mr Curtis</option>
-                <option value="Mr Graham">Mr Graham</option>
-                <option value="Mr Jenkin">Mr Jenkin</option>
-                <option value="Mr Lee">Mr Lee</option>
-                <option value="Mr Reid">Mr Reid</option>
-                <option value="Mr Sunny">Mr Sunny</option>
-                <option value="Mr Wong">Mr Wong</option>
-                <option value="Miss Ivy">Miss Ivy</option>
-                <option value="Miss Ranger">Miss Ranger</option>
+                <option value="Teacher A">Teacher A</option>
+                <option value="Teacher B">Teacher B</option>
+                <option value="Technician">Technician</option>
+                <option value="Teacher C">Teacher C</option>
+                <option value="Teacher D">Teacher D</option>
+                <option value="Teacher F">Teacher F</option>
+                <option value="Teacher G">Teacher G</option>
+                <option value="Teacher H">Teacher H</option>
+                <option value="Teacher E">Teacher E</option>
+                <option value="Teacher I">Teacher I</option>
+                <option value="Teacher J">Teacher J</option>
               </select>
             </div>
             <div class="field">
@@ -5364,7 +5364,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@vsa.edu.hk" required>
+              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -5478,11 +5478,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Responsible Teacher Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@vsa.edu.hk" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@example.edu" required>
             </div>
             <div class="field">
               <label>Approver Email <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@vsa.edu.hk" required>
+              <input type="email" name="approved_by_email" placeholder="approver@example.edu" required>
               <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
@@ -6520,7 +6520,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@vsa.edu.hk)</li>
+          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -6834,7 +6834,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.vsa.edu.hk"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentid@student.example.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>
