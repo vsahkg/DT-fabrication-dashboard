@@ -27,7 +27,7 @@ All notable documentation-facing changes to this repository are recorded here.
 
 ### Documentation and repository presentation
 
-- Rewrote the README for public GitHub readers with clearer VSA DT positioning, workflow framing, and documentation map links.
+- Rewrote the README for public GitHub readers with clearer DT positioning, workflow framing, and documentation map links.
 - Strengthened the documentation set across technical overview, handover guidance, changelog structure, and GitHub publishing guidance.
 - Added placeholder asset structure guidance for future screenshots and diagrams.
 
