@@ -13,6 +13,8 @@ All notable documentation-facing changes to this repository are recorded here.
 - Added smoother Admin queue filtering by keeping quick search, sort, and focus-lane changes client-side after the main row set is loaded.
 - Fixed the explicit Admin Refresh buttons so they bypass the local row cache and fetch the latest spreadsheet data.
 - Changed dashboard year dropdowns to come from active Rules rows, so newly configured years such as Y6 and Y7 appear without code edits.
+- Redefined queue pressure for the reduced-capacity period: Busy begins at 20 active queue items and Heavy begins above 30.
+- Added a student-facing laser capacity notice explaining that one laser cutter is offline and only one laser cutter is currently running.
 - Added richer Status Lookup cards with current step, student next action, next checkpoint, last update, submitted file/evidence links, and machine-specific checklists.
 - Tightened role boundaries so teacher and technician users stay in the operations queue while system-admin-only pages remain admin-only.
 
