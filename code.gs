@@ -862,8 +862,6 @@ function getErrorMessage_(err) {
   return String((err && err.message) || err || 'Unknown error');
 }
 
-
-
 /* ============================================================
    10_WebAndSubmissionApi.js
    ============================================================ */
@@ -1637,8 +1635,6 @@ function getSpreadsheetUrl() {
   requireSystemAdmin_();
   return getSpreadsheet_().getUrl();
 }
-
-
 
 /* ============================================================
    20_WorkflowEmailValidation.js
@@ -2573,8 +2569,6 @@ function getMatchingRule_(yearGroup, machine) {
   );
 }
 
-
-
 /* ============================================================
    30_DataAdminSetup.js
    ============================================================ */
@@ -3036,8 +3030,6 @@ function getAdminIssueRows() {
   requireSystemAdmin_();
   return getRowsAsObjects_(APP.sheets.issueTemplates.name);
 }
-
-
 
 /* ============================================================
    80_UiShell.js
@@ -6118,7 +6110,12 @@ function renderPage_(page, boot) {
       setMsg('adminMsg', (fromCache ? 'Filtered locally. ' : '') + rows.length + ' visible / ' + rawRows.length + ' loaded. Showing ' + initial + ' now.', 'muted');
     }
 
-    function loadAdminRows() {
+    function refreshAdminRows_() {
+      invalidateAdminRowsCache_();
+      loadAdminRows(true);
+    }
+
+    function loadAdminRows(forceRefresh) {
       var source = (document.getElementById('filterSource')||{}).value||'';
       var filters = {
         year_group: (document.getElementById('filterYear')||{}).value||'',
@@ -6133,12 +6130,12 @@ function renderPage_(page, boot) {
         lane: _activeQueueLane || ''
       };
       var dataKey = adminDataKey_(source, filters);
-      if (_adminRawKey === dataKey) {
+      if (!forceRefresh && _adminRawKey === dataKey) {
         _adminRequestSeq++;
         renderAdminRows_(_adminRawRows, filters, true);
         return;
       }
-      setMsg('adminMsg','Loading\\u2026','muted');
+      setMsg('adminMsg', forceRefresh ? 'Refreshing from spreadsheet\\u2026' : 'Loading\\u2026','muted');
       var loadingTable = document.getElementById('adminTable');
       if (loadingTable) loadingTable.innerHTML = '<div class="queue-skeleton" aria-label="Loading queue"></div>';
       var requestSeq = ++_adminRequestSeq;
@@ -6408,7 +6405,7 @@ function renderPage_(page, boot) {
         '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle" tabindex="-1">' +
           '<div class="modal-head"><h3 id="emailModalTitle">&#9993; Email Draft</h3><button class="modal-close" onclick="closeEmailModal_()" aria-label="Close email draft">&times;</button></div>' +
           '<div class="email-meta">' +
-            '<div class="field"><label>To</label><input id="emailTo" type="email" value="' + esc(d.to || '') + '" placeholder="user@example.edu"></div>' +
+            '<div class="field"><label>To</label><input id="emailTo" type="email" value="' + esc(d.to || '') + '" placeholder="recipient@example.edu"></div>' +
             '<div class="field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '"></div>' +
           '</div>' + warn +
           '<div class="email-preview"><div class="email-preview-head"><h4>Email Body</h4><div class="email-preview-note">You can edit this draft before copying or opening it in your mail app. Mail links use plain text; Copy Rich HTML keeps formatting where the browser allows it.</div></div><div class="email-body" id="emailBody" contenteditable="true" role="textbox" aria-label="Editable email body">' + (d.body_html||'') + '</div></div>' +
@@ -6799,8 +6796,6 @@ function renderPage_(page, boot) {
 `;
 }
 
-
-
 /* ============================================================
    90_UiPages.js
    ============================================================ */
@@ -6897,7 +6892,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentid@student.example.edu" required>
+              <input type="email" name="student_email" placeholder="studentID@student.example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -7218,7 +7213,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="user@example.edu" required>
+              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -7332,11 +7327,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Responsible Teacher Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="user@example.edu" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@example.edu" required>
             </div>
             <div class="field">
               <label>Approver Email <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="user@example.edu" required>
+              <input type="email" name="approved_by_email" placeholder="approver@example.edu" required>
               <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
@@ -7632,7 +7627,7 @@ function renderAdminPage_(user) {
     <div class="admin-hero-actions">
       <button class="btn btn-ghost btn-sm" onclick="previewStudentView()">&#128065; Student View</button>
       ${openSheetButton}
-      <button class="btn btn-primary btn-sm" onclick="loadAdminRows()">&#8635; Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="refreshAdminRows_()">&#8635; Refresh</button>
     </div>
   </div>
 
@@ -7714,7 +7709,7 @@ function renderAdminPage_(user) {
       <div class="filter-meta">
         <label class="teacher-toggle"><input type="checkbox" id="filterMineOnly"> My students only</label>
         <button class="btn btn-ghost btn-sm" onclick="clearAdminFilters_()">&#10060; Clear</button>
-        <button class="btn btn-primary btn-sm" onclick="loadAdminRows()">&#8635; Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="refreshAdminRows_()">&#8635; Refresh</button>
       </div>
     </div>
     <div id="adminTable"></div>
@@ -8471,7 +8466,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. user@example.edu)</li>
+          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -8785,7 +8780,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentid@student.example.edu"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.example.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>
@@ -8821,4 +8816,3 @@ function escapeHtml_(str) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-
