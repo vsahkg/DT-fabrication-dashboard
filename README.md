@@ -44,6 +44,7 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - merged reviewer queue across DT and Special Request records
 - default Admin queue ordering by latest spreadsheet row, so newly appended submissions appear first
 - full-row status colouring for faster queue scanning, including green completed rows and distinct active / needs-fix / rejected states
+- rule-based year dropdowns across Admin filters, Special Request student details, and submission cutoff controls
 - client-side quick search, focus-lane, and sort re-rendering after the main queue data loads, reducing repeated Apps Script roundtrips
 - explicit Admin Refresh actions that bypass the local cache and reload the backing spreadsheet
 - richer student Status Lookup cards with current step, next action, next checkpoint, submitted files, and machine-specific checklists
@@ -129,6 +130,7 @@ Admins retain full workflow control.
 
 - merged queue view for DT and Special Request records
 - filters by source, year, machine, status, teacher, class, and student email
+- year filters are generated from the active `Rules` sheet instead of fixed to a hard-coded range
 - default sort by latest spreadsheet row so manual spreadsheet additions are visible at the top of the queue
 - optional priority and timestamp sorts for review-focused workflows
 - full-row status colours for completed, rejected, needs-fix, submitted, approved, queued, and in-production work
