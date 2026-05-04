@@ -1,4 +1,16 @@
 /**
+ * Public-safe snapshot generated from the split Apps Script source.
+ *
+ * Sanitisation notes:
+ * - live Apps Script deployment IDs and spreadsheet/Drive IDs are intentionally omitted
+ * - staff and student emails are replaced with example.edu placeholders
+ * - configure school-specific contacts via this file or script properties before deployment
+ */
+/* ============================================================
+   00_ConfigAndReadiness.js
+   ============================================================ */
+
+/**
  * Run this function ONCE from the Apps Script editor (Run > authorizeScopes)
  * to grant the script permission to send emails via MailApp.
  * After running, accept the Google authorization prompt.
@@ -14,6 +26,18 @@ function authorizeScopes() {
   SpreadsheetApp.getActiveSpreadsheet();
   Logger.log('Spreadsheet authorization OK.');
 }
+
+const DEPLOYMENT_INFO = {
+  appName: 'Design Fabrication Dashboard',
+  version: 'public-github-sanitized',
+  channel: 'github-reference',
+  updatedAt: '2026-05-04',
+  scriptId: '',
+  targetDeploymentId: '',
+  targetUrl: '',
+  access: 'CONFIGURE_IN_APPS_SCRIPT',
+  executeAs: 'USER_DEPLOYING'
+};
 
 const APP = {
   name: 'Design Fabrication Dashboard',
@@ -648,6 +672,202 @@ function setup() {
   return bootstrap();
 }
 
+function preflight() {
+  const report = getDeploymentReadiness_(true, { includeStorageIds: true });
+  Logger.log(JSON.stringify(report, null, 2));
+  return report;
+}
+
+function getDeploymentReadiness() {
+  requireAdmin_();
+  return getDeploymentReadiness_(true, { includeStorageIds: false });
+}
+
+function getClientBuildInfo_() {
+  return {
+    appName: DEPLOYMENT_INFO.appName,
+    version: DEPLOYMENT_INFO.version,
+    channel: DEPLOYMENT_INFO.channel,
+    updatedAt: DEPLOYMENT_INFO.updatedAt,
+    targetDeploymentId: DEPLOYMENT_INFO.targetDeploymentId,
+    targetUrl: DEPLOYMENT_INFO.targetUrl,
+    access: DEPLOYMENT_INFO.access
+  };
+}
+
+function getDeploymentReadiness_(deep, options) {
+  options = options || {};
+  const props = APP.props.getProperties();
+  const report = {
+    appName: APP.name,
+    version: DEPLOYMENT_INFO.version,
+    channel: DEPLOYMENT_INFO.channel,
+    checkedAt: formatAppTimestamp_(new Date()),
+    timeZone: getAppTimeZone_(),
+    scriptId: DEPLOYMENT_INFO.scriptId,
+    targetDeploymentId: DEPLOYMENT_INFO.targetDeploymentId,
+    targetUrl: DEPLOYMENT_INFO.targetUrl,
+    access: DEPLOYMENT_INFO.access,
+    executeAs: DEPLOYMENT_INFO.executeAs,
+    webAppUrl: '',
+    ready: false,
+    status: 'checking',
+    summary: '',
+    checks: [],
+    warnings: []
+  };
+
+  const requiredProps = ['APP_NAME', 'ROOT_FOLDER_ID', 'MASTER_SPREADSHEET_ID'];
+  const missingProps = requiredProps.filter(function(name) {
+    return !String(props[name] || '').trim();
+  });
+  addReadinessCheck_(
+    report,
+    'Script properties',
+    missingProps.length === 0,
+    missingProps.length ? ('Missing: ' + missingProps.join(', ')) : 'Required app, Drive, and spreadsheet properties are set.'
+  );
+
+  if (props.APP_NAME && props.APP_NAME !== APP.name) {
+    report.warnings.push('APP_NAME is set to "' + props.APP_NAME + '"; UI falls back safely but the deployment title should normally match "' + APP.name + '".');
+  }
+
+  try {
+    const serviceUrl = ScriptApp.getService().getUrl() || '';
+    report.webAppUrl = serviceUrl;
+    addReadinessCheck_(
+      report,
+      'Web app deployment',
+      !!serviceUrl,
+      serviceUrl || 'No web app URL returned. Deploy the script as a web app before sharing.'
+    );
+    if (serviceUrl && serviceUrl.indexOf(DEPLOYMENT_INFO.targetDeploymentId) === -1) {
+      report.warnings.push('Script service URL does not match the configured test deployment ID. This can happen when viewing a dev endpoint, but check deployments before sharing.');
+    }
+  } catch (err) {
+    addReadinessCheck_(report, 'Web app deployment', false, getErrorMessage_(err));
+  }
+
+  addReadinessCheck_(
+    report,
+    'Access mode',
+    DEPLOYMENT_INFO.access === 'DOMAIN',
+    'Configured for domain users only. Anonymous visitors will be asked to sign in.'
+  );
+
+  if (!deep) {
+    return finalizeReadinessReport_(report);
+  }
+
+  if (props.ROOT_FOLDER_ID) {
+    try {
+      const folder = DriveApp.getFolderById(props.ROOT_FOLDER_ID);
+      if (options.includeStorageIds) report.rootFolderId = props.ROOT_FOLDER_ID;
+      addReadinessCheck_(report, 'Drive storage', !!folder, folder ? ('Root folder: ' + folder.getName()) : 'Root folder not found.');
+    } catch (err) {
+      addReadinessCheck_(report, 'Drive storage', false, getErrorMessage_(err));
+    }
+  } else {
+    addReadinessCheck_(report, 'Drive storage', false, 'ROOT_FOLDER_ID is missing.');
+  }
+
+  if (props.MASTER_SPREADSHEET_ID) {
+    try {
+      const ss = SpreadsheetApp.openById(props.MASTER_SPREADSHEET_ID);
+      if (options.includeStorageIds) report.masterSpreadsheetId = props.MASTER_SPREADSHEET_ID;
+      addReadinessCheck_(report, 'Master spreadsheet', !!ss, ss ? ('Spreadsheet: ' + ss.getName()) : 'Spreadsheet not found.');
+      checkSheetSchemasForReadiness_(report, ss);
+      checkSeedDataForReadiness_(report, ss);
+    } catch (err) {
+      addReadinessCheck_(report, 'Master spreadsheet', false, getErrorMessage_(err));
+    }
+  } else {
+    addReadinessCheck_(report, 'Master spreadsheet', false, 'MASTER_SPREADSHEET_ID is missing.');
+  }
+
+  return finalizeReadinessReport_(report);
+}
+
+function addReadinessCheck_(report, name, ok, detail) {
+  report.checks.push({
+    name: name,
+    ok: !!ok,
+    detail: String(detail || '')
+  });
+}
+
+function checkSheetSchemasForReadiness_(report, ss) {
+  const problems = [];
+  Object.keys(APP.sheets).forEach(function(key) {
+    const cfg = APP.sheets[key];
+    const sheet = ss.getSheetByName(cfg.name);
+    if (!sheet) {
+      problems.push(cfg.name + ' sheet missing');
+      return;
+    }
+    const lastCol = Math.max(sheet.getLastColumn(), cfg.headers.length);
+    const headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+    const headerSet = {};
+    headers.forEach(function(h) {
+      if (h) headerSet[String(h)] = true;
+    });
+    const missing = cfg.headers.filter(function(h) {
+      return !headerSet[h];
+    });
+    if (missing.length) {
+      problems.push(cfg.name + ' missing headers: ' + missing.join(', '));
+    }
+  });
+
+  addReadinessCheck_(
+    report,
+    'Sheets and headers',
+    problems.length === 0,
+    problems.length ? problems.slice(0, 4).join(' | ') : 'All configured sheets and required headers are present.'
+  );
+  if (problems.length > 4) {
+    report.warnings.push((problems.length - 4) + ' additional sheet/header issue(s) omitted from the short readiness display.');
+  }
+}
+
+function checkSeedDataForReadiness_(report, ss) {
+  const rulesSheet = ss.getSheetByName(APP.sheets.rules.name);
+  const issuesSheet = ss.getSheetByName(APP.sheets.issueTemplates.name);
+  const usersSheet = ss.getSheetByName(APP.sheets.users.name);
+  const activeRules = countReadinessRows_(rulesSheet);
+  const issueTemplates = countReadinessRows_(issuesSheet);
+  const users = countReadinessRows_(usersSheet);
+
+  addReadinessCheck_(report, 'Rules seed data', activeRules >= APP.sampleRules.length, activeRules + ' rule row(s) available.');
+  addReadinessCheck_(report, 'Issue templates', issueTemplates >= APP.sampleIssues.length, issueTemplates + ' issue template row(s) available.');
+  addReadinessCheck_(report, 'Role records', users > 0, users + ' user/role row(s) available.');
+}
+
+function countReadinessRows_(sheet) {
+  if (!sheet) return 0;
+  return Math.max(0, sheet.getLastRow() - 1);
+}
+
+function finalizeReadinessReport_(report) {
+  const failed = report.checks.filter(function(check) { return !check.ok; });
+  report.ready = failed.length === 0;
+  report.status = failed.length ? 'action_needed' : (report.warnings.length ? 'ready_with_warnings' : 'ready');
+  report.summary = failed.length
+    ? (failed.length + ' readiness check(s) need attention.')
+    : (report.warnings.length ? 'Ready with warning(s).' : 'Ready for test deployment.');
+  return report;
+}
+
+function getErrorMessage_(err) {
+  return String((err && err.message) || err || 'Unknown error');
+}
+
+
+
+/* ============================================================
+   10_WebAndSubmissionApi.js
+   ============================================================ */
+
 /* =========================
    WEB APP
    ========================= */
@@ -663,13 +883,19 @@ function doGet(e) {
     if (u && u.includes('script.google.com') && (u.includes('/exec') || u.includes('/dev'))) webAppUrl = u;
   } catch(e) {}
   const user = getCurrentUser_();
-  const adminPages = ['admin', 'rules', 'users', 'audit'];
-  /* Server-side redirect: force students/guests to 'submit' if they try admin pages */
-  const resolvedPage = (!user.isAdmin && adminPages.includes(safePage)) ? 'submit' : safePage;
+  const opsPages = ['admin'];
+  const systemAdminPages = ['rules', 'users', 'audit'];
+  /* Server-side routing: students get the student app; teacher/technician stay in the operations queue. */
+  let resolvedPage = safePage;
+  if (opsPages.includes(safePage) && !user.isAdmin) resolvedPage = 'submit';
+  if (systemAdminPages.includes(safePage) && user.role !== 'admin') {
+    resolvedPage = user.isAdmin ? 'admin' : 'submit';
+  }
 
   const boot = {
     page: resolvedPage,
     baseUrl: webAppUrl,
+    build: getClientBuildInfo_(),
     appTimeZone: getAppTimeZone_(),
     rules: getRulesForClient(),
     submissionControls: getSubmissionControlsForClient(),
@@ -697,6 +923,80 @@ function doGet(e) {
 
 function getRulesForClient() {
   return getRowsAsObjects_(APP.sheets.rules.name).filter(r => String(r.active).toLowerCase() !== 'false');
+}
+
+function getQueueHealthSnapshot() {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'queue_health_snapshot_v2';
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch (cacheReadErr) {}
+
+  var dtRows = getRowsAsObjects_(APP.sheets.submissions.name).map(function(row) {
+    row._source = 'dt';
+    return row;
+  });
+  var otherRows = getRowsAsObjects_(APP.sheets.otherRequests.name).map(function(row) {
+    row._source = 'other';
+    return row;
+  });
+  var rows = dtRows.concat(otherRows);
+  var counts = {
+    total_records: rows.length,
+    active_queue: 0,
+    waiting_review: 0,
+    approved_ready: 0,
+    in_queue: 0,
+    in_production: 0,
+    waiting_student: 0,
+    completed: 0,
+    rejected: 0,
+    laser_active: 0,
+    print3d_active: 0,
+    dt_active: 0,
+    special_active: 0
+  };
+  var activeStatuses = {
+    submitted: true,
+    approved: true,
+    in_queue: true,
+    in_production: true
+  };
+  var oldestActive = null;
+
+  rows.forEach(function(row) {
+    var status = String(row.status || '').trim();
+    var machine = String(row.machine || '').trim().toLowerCase();
+    var active = !!activeStatuses[status];
+    if (active) {
+      counts.active_queue++;
+      if (machine === 'laser') counts.laser_active++;
+      if (machine === '3d') counts.print3d_active++;
+      if (row._source === 'other') counts.special_active++;
+      else counts.dt_active++;
+      if (!oldestActive || getSortableTime_(row.created_at) < getSortableTime_(oldestActive.created_at)) {
+        oldestActive = row;
+      }
+    }
+    if (status === 'submitted') counts.waiting_review++;
+    if (status === 'approved') counts.approved_ready++;
+    if (status === 'in_queue') counts.in_queue++;
+    if (status === 'in_production') counts.in_production++;
+    if (status === 'needs_fix') counts.waiting_student++;
+    if (status === 'completed') counts.completed++;
+    if (status === 'rejected') counts.rejected++;
+  });
+
+  var snapshot = {
+    ok: true,
+    updated_at: formatHongKongTimestamp_(new Date()),
+    counts: counts,
+    oldest_active_created_at: oldestActive ? oldestActive.created_at : '',
+    note: 'Active queue includes Submitted, Approved, In Queue, and In Production. Needs Fix waits on student revision and is tracked separately.'
+  };
+  try { cache.put(cacheKey, JSON.stringify(snapshot), 20); } catch (cacheWriteErr) {}
+  return snapshot;
 }
 
 function getSubmissionControlsSheet_() {
@@ -1068,7 +1368,7 @@ function getAdminOtherRequests(filters) {
     });
   }
   rows.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
-  return attachSubmissionActivity_(rows, 'requester_email');
+  return rows;
 }
 
 function updateOtherRequestStatus(requestId, status, remarks) {
@@ -1191,23 +1491,47 @@ function generateEmailDraft(submissionId, issueCodes, remarks) {
   const selectedTemplates = allTemplates.filter(t => codes.includes(t.issue_code));
 
   const machineName = submission.machine === '3d' ? '3D Print' : 'Laser Cut';
+  const statusLabel = getStatusLabel_(submission.status);
   const subjects = selectedTemplates.map(t => t.email_subject).filter(Boolean);
   const subject = subjects.length
-    ? subjects.join(' / ') + ' — ' + submission.student_name
-    : 'Submission Review — ' + submission.student_name;
+    ? subjects.join(' / ') + ' - ' + submission.student_name
+    : 'Design Technology Submission Update - ' + submission.student_name;
 
   const issueHtml = selectedTemplates.map(t =>
     '<li><strong>' + escapeHtml_(t.issue_label) + '</strong><br>' + (t.email_body_html || '') + '</li>'
   ).join('');
 
+  const nextStep = selectedTemplates.length
+    ? 'Please revise your file and submit the corrected version through the Dashboard. Your job will not move forward until the revised file is submitted.'
+    : (submission.status === APP.status.APPROVED
+      ? 'Your file has passed review and will move toward production scheduling.'
+      : submission.status === APP.status.IN_QUEUE
+        ? 'No action is needed right now. Your job is waiting for a production slot.'
+        : submission.status === APP.status.IN_PRODUCTION
+          ? 'No action is needed right now. Your job is currently in production.'
+          : submission.status === APP.status.COMPLETED
+            ? 'Please collect the finished work from the workshop when instructed.'
+            : 'Please read the technician remarks and follow up with your teacher if you are unsure.');
+
+  const fileLinks = [
+    submission.working_file_url ? '<li><a href="' + escapeHtml_(submission.working_file_url) + '">Original working file</a></li>' : '',
+    submission.preview_file_url ? '<li><a href="' + escapeHtml_(submission.preview_file_url) + '">Original preview image</a></li>' : ''
+  ].filter(Boolean).join('');
+
   const body =
     '<p>Dear ' + escapeHtml_(submission.student_name) + ',</p>' +
-    '<p>We reviewed your ' + escapeHtml_(machineName) + ' submission ' +
-    '(<strong>' + escapeHtml_(submission.year_group) + '</strong>, Class ' +
-    escapeHtml_(submission.design_class_no) + ') and found the following issue(s):</p>' +
-    (issueHtml ? '<ul>' + issueHtml + '</ul>' : '') +
-    (remarks ? '<p><strong>Additional remarks:</strong> ' + escapeHtml_(remarks) + '</p>' : '') +
-    '<p>Please revise and resubmit your file. As a reminder:</p>' +
+    '<p>We reviewed your <strong>' + escapeHtml_(machineName) + '</strong> submission.</p>' +
+    '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
+    '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Submission ID</strong></td><td style="padding:6px 12px;border:1px solid #ddd;font-family:monospace;">' + escapeHtml_(submission.submission_id || '') + '</td></tr>' +
+    '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Current Status</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(statusLabel) + '</td></tr>' +
+    '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Year / Class</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(submission.year_group || '') + ' / Class ' + escapeHtml_(submission.design_class_no || '') + '</td></tr>' +
+    '<tr><td style="padding:6px 12px;border:1px solid #ddd;background:#f8f9fa;"><strong>Material</strong></td><td style="padding:6px 12px;border:1px solid #ddd;">' + escapeHtml_(submission.material || '') + '</td></tr>' +
+    '</table>' +
+    (issueHtml ? '<p><strong>Issue(s) found:</strong></p><ul>' + issueHtml + '</ul>' : '<p><strong>Update:</strong> Please read the technician note below.</p>') +
+    (remarks ? '<p><strong>Technician remarks:</strong><br>' + escapeHtml_(remarks).replace(/\n/g, '<br>') + '</p>' : '') +
+    (fileLinks ? '<p><strong>Original uploaded file(s):</strong></p><ul>' + fileLinks + '</ul>' : '') +
+    '<p><strong>Next step:</strong> ' + escapeHtml_(nextStep) + '</p>' +
+    '<p>Before resubmitting, check:</p>' +
     '<ul>' +
     '<li>Upload the correct working file format</li>' +
     '<li>Ensure your design is within the allowed dimensions</li>' +
@@ -1216,15 +1540,27 @@ function generateEmailDraft(submissionId, issueCodes, remarks) {
     '<p>If you have any questions, please speak with your teacher.</p>' +
     '<p>Best regards,<br>Design Technology Technician Team</p>';
 
+  const bodyText =
+    'Dear ' + (submission.student_name || 'Student') + ',\n\n' +
+    'We reviewed your ' + machineName + ' submission.\n\n' +
+    'Submission ID: ' + (submission.submission_id || '') + '\n' +
+    'Current Status: ' + statusLabel + '\n' +
+    'Year / Class: ' + (submission.year_group || '') + ' / Class ' + (submission.design_class_no || '') + '\n' +
+    'Material: ' + (submission.material || '') + '\n\n' +
+    (selectedTemplates.length ? ('Issue(s):\n' + selectedTemplates.map(function(t) { return '- ' + (t.issue_label || t.issue_code || 'Issue selected'); }).join('\n') + '\n\n') : '') +
+    (remarks ? 'Technician remarks:\n' + remarks + '\n\n' : '') +
+    'Next step: ' + nextStep + '\n\n' +
+    'Before resubmitting, check the working file format, dimensions, and preview image if required.\n\n' +
+    'Best regards,\nDesign Technology Technician Team';
+
   return {
     to: submission.student_email || '',
-    cc: '',
     subject: subject,
     body_html: body,
-    draft_type: 'student_review',
-    draft_title: 'Student Email Draft',
-    helper_note: 'Edit the message below before sending. Keep the requested action and next steps explicit so the student knows exactly what to fix.',
-    submission_id: submission.submission_id || submissionId
+    body_text: bodyText,
+    missing_to: !submission.student_email,
+    student_name: submission.student_name || '',
+    submission_id: submission.submission_id || ''
   };
 }
 
@@ -1273,89 +1609,40 @@ function generateTeacherUpdateDraft(submissionId, statusOverride, issueCodeOverr
   });
 
   const subject = 'Design Technology Update - ' + (submission.student_name || 'Student') + ' - ' + statusLabel;
+  const bodyText =
+    'Dear ' + (teacherName || 'Teacher') + ',\n\n' +
+    'This is a fabrication workflow update for your student submission.\n\n' +
+    'Student: ' + (submission.student_name || '') + '\n' +
+    'Class: ' + (submission.design_class_no || '') + '\n' +
+    'Year: ' + (submission.year_group || '') + '\n' +
+    'Machine: ' + machineName + '\n' +
+    'Submission ID: ' + (submission.submission_id || '') + '\n' +
+    'Current Status: ' + statusLabel + '\n\n' +
+    (issueCode ? 'Issue Code: ' + issueCode + '\n\n' : '') +
+    (remarks ? 'Technician/Admin Remarks:\n' + remarks + '\n\n' : '') +
+    'Suggested Teacher Follow-up: ' + actionLine + '\n\n' +
+    'Regards,\nDesign Technology Technician Team';
 
   return {
     to: teacherEmail || '',
-    cc: '',
     subject: subject,
     body_html: body,
+    body_text: bodyText,
     missing_to: !teacherEmail,
-    teacher_name: teacherName,
-    draft_type: 'teacher_update',
-    draft_title: 'Teacher Update Draft',
-    helper_note: 'Use this to brief the teacher clearly on current status, any problem found, and the follow-up you need from them.',
-    submission_id: submission.submission_id || submissionId
+    teacher_name: teacherName
   };
-}
-
-function sendComposedEmail(payload) {
-  const actor = requireAdmin_();
-  payload = payload || {};
-
-  const to = normalizeEmailList_(payload.to);
-  const cc = normalizeEmailList_(payload.cc, true);
-  const subject = String(payload.subject || '').trim();
-  const bodyHtml = String(payload.body_html || '').trim();
-  const submissionId = String(payload.submission_id || '').trim();
-  const draftType = String(payload.draft_type || 'custom_email').trim();
-
-  if (!to) throw new Error('Recipient email is required.');
-  if (!subject) throw new Error('Email subject is required.');
-  if (!bodyHtml) throw new Error('Email body is required.');
-
-  const emailOpts = {
-    to: to,
-    subject: subject,
-    htmlBody: bodyHtml,
-    name: APP.name
-  };
-  if (cc) emailOpts.cc = cc;
-  if (actor.email) emailOpts.replyTo = actor.email;
-
-  MailApp.sendEmail(emailOpts);
-
-  appendObject_(APP.sheets.auditLog.name, {
-    timestamp: getAuditTimestamp_(),
-    submission_id: submissionId,
-    actor_email: actor.email || '',
-    action_type: 'manual_email_sent',
-    old_status: '',
-    new_status: '',
-    notes: [draftType, 'to:' + to, cc ? 'cc:' + cc : '', subject].filter(Boolean).join(' | ')
-  });
-
-  return {
-    ok: true,
-    to: to,
-    cc: cc,
-    subject: subject
-  };
-}
-
-function normalizeEmailList_(value, allowEmpty) {
-  const raw = String(value || '').trim();
-  if (!raw) return allowEmpty ? '' : '';
-
-  const parts = raw.split(/[;,\n]+/)
-    .map(function(part) { return String(part || '').trim(); })
-    .filter(Boolean);
-
-  if (!parts.length) return allowEmpty ? '' : '';
-
-  const unique = [];
-  parts.forEach(function(email) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('Invalid email address: ' + email);
-    }
-    if (unique.indexOf(email) === -1) unique.push(email);
-  });
-  return unique.join(',');
 }
 
 function getSpreadsheetUrl() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getSpreadsheet_().getUrl();
 }
+
+
+
+/* ============================================================
+   20_WorkflowEmailValidation.js
+   ============================================================ */
 
 function getAdminRows(filters) {
   const user = requireAdmin_();
@@ -1386,7 +1673,7 @@ function getAdminRows(filters) {
   }
 
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  return attachSubmissionActivity_(rows, 'student_email');
+  return rows;
 }
 
 function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
@@ -1579,7 +1866,7 @@ function sendOtherRequestNotification_(requestId, newStatus, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(req.teacher_in_charge || 'Teacher in charge') +
-      (APP.technicianCcEmail ? ', Workshop Technician' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Technician Team' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1857,7 +2144,7 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
       '<p>Best regards,<br>Design Technology Technician Team</p>',
       '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">' +
       '<p style="color:#666;font-size:12px;"><strong>CC\'d on this email:</strong> ' + escapeHtml_(teacherName || 'Teacher') +
-      (APP.technicianCcEmail ? ', Workshop Technician' : '') + '<br>' +
+      (APP.technicianCcEmail ? ', Technician Team' : '') + '<br>' +
       'All parties can <strong>Reply All</strong> to this email to follow up on this issue.</p>' +
       '<p>Best regards,<br>Design Technology Technician Team</p>'
     );
@@ -1893,7 +2180,6 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
   });
   return emailsSent;
 }
-
 
 /* =========================
    VALIDATION
@@ -2287,6 +2573,12 @@ function getMatchingRule_(yearGroup, machine) {
   );
 }
 
+
+
+/* ============================================================
+   30_DataAdminSetup.js
+   ============================================================ */
+
 /* =========================
    STORAGE / REPOSITORY
    ========================= */
@@ -2342,9 +2634,10 @@ function getRowsAsObjects_(sheetName) {
   if (values.length < 2) return [];
 
   const headers = values[0];
-  return values.slice(1).map(row => {
+  return values.slice(1).map((row, index) => {
     const obj = {};
     headers.forEach((h, i) => obj[h] = row[i] || '');
+    obj._row_number = index + 2;
     return obj;
   });
 }
@@ -2438,6 +2731,12 @@ function getCurrentUser_() {
 function requireAdmin_() {
   const user = getCurrentUser_();
   if (!user.isAdmin) throw new Error('Admin access required.');
+  return user;
+}
+
+function requireSystemAdmin_() {
+  const user = requireAdmin_();
+  if (user.role !== 'admin') throw new Error('System admin access required.');
   return user;
 }
 
@@ -2575,12 +2874,12 @@ function seedUsers_(sheet) {
    ========================= */
 
 function getAdminRulesRows() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getRowsAsObjects_(APP.sheets.rules.name);
 }
 
 function getAdminSubmissionControlRows() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getSubmissionControlRows_().sort(compareSubmissionControls_);
 }
 
@@ -2676,7 +2975,7 @@ function saveAdminRule(rowIndex, data) {
 }
 
 function getAdminUsersRows() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getRowsAsObjects_(APP.sheets.users.name);
 }
 
@@ -2722,7 +3021,7 @@ function addAdminUser(data) {
 }
 
 function getAuditLogRows(limit) {
-  const user = requireAdmin_();
+  requireSystemAdmin_();
   var rows = getRowsAsObjects_(APP.sheets.auditLog.name);
   rows.sort(function(a, b) { return getSortableTime_(b.timestamp) - getSortableTime_(a.timestamp); });
   rows = rows.map(function(row) {
@@ -2734,9 +3033,15 @@ function getAuditLogRows(limit) {
 }
 
 function getAdminIssueRows() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getRowsAsObjects_(APP.sheets.issueTemplates.name);
 }
+
+
+
+/* ============================================================
+   80_UiShell.js
+   ============================================================ */
 
 /* =========================
    UI RENDERING — v2 (role-aware, spec-compliant)
@@ -2746,6 +3051,7 @@ function renderPage_(page, boot) {
   var u = boot.currentUser;
   var role = u.role || 'guest';
   var isAdmin = u.isAdmin;
+  var isSystemAdmin = role === 'admin';
   var userChip = u.email
     ? '<div class="user-chip"><span class="user-avatar">' + escapeHtml_((u.name || u.email).charAt(0).toUpperCase()) + '</span><span class="user-info"><span class="user-name">' + escapeHtml_(u.name || u.email.split('@')[0]) + '</span><span class="user-role role-' + escapeHtml_(role) + '">' + escapeHtml_(role) + '</span></span></div>'
     : '<div class="user-chip"><span class="user-name muted-chip">Not signed in</span></div>';
@@ -2789,10 +3095,10 @@ function renderPage_(page, boot) {
       '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
   }
 
-  /* Admin-only pages rendered empty for non-admins */
-  var rulesPageHtml = isAdmin ? renderRulesPage_() : '';
-  var usersPageHtml = isAdmin ? renderUsersPage_() : '';
-  var auditPageHtml = isAdmin ? renderAuditPage_() : '';
+  /* System-admin pages rendered empty for teacher/technician/student roles. */
+  var rulesPageHtml = isSystemAdmin ? renderRulesPage_() : '';
+  var usersPageHtml = isSystemAdmin ? renderUsersPage_() : '';
+  var auditPageHtml = isSystemAdmin ? renderAuditPage_() : '';
 
   return `
 <!doctype html>
@@ -2821,6 +3127,7 @@ function renderPage_(page, boot) {
       --lavender: #8b8fc7;
       --slate: #475569;
       --slate-lt: #94a3b8;
+      --muted: #94a3b8;
       --bg: #f1f5f9;
       --card: #ffffff;
       --card-border: #e2e8f0;
@@ -2952,6 +3259,48 @@ function renderPage_(page, boot) {
     .guide-list li[data-done="1"] .guide-check { background: var(--mint); color: #fff; border-color: var(--mint); }
     .guide-progress { margin-top: 12px; }
     .hint { font-size: 12px; color: var(--slate-lt); margin-top: 6px; }
+
+    /* ---------- DRAFT AUTOSAVE ---------- */
+    .draft-bar { background: #f8fafc; border: 1px solid #dbe3ef; border-radius: 10px; padding: 12px 14px; margin: 12px 0 16px; display: grid; gap: 10px; }
+    .draft-bar--restore { background: #fffbeb; border-color: #fde68a; }
+    .draft-bar--saved { background: #f0fdf4; border-color: #bbf7d0; }
+    .draft-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .draft-copy { font-size: 12px; line-height: 1.5; color: var(--slate); min-width: 220px; flex: 1 1 280px; }
+    .draft-copy strong { color: var(--navy); font-weight: 800; }
+    .draft-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .draft-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+    .draft-progress-track { height: 6px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+    .draft-progress-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--green)); transition: width .25s ease; }
+    .draft-progress-text { color: var(--slate-lt); font-size: 11px; font-weight: 700; white-space: nowrap; }
+
+    /* ---------- SUBMIT CONVENIENCE PANEL ---------- */
+    .submit-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+    .submit-main-column { min-width: 0; }
+    .submit-helper-rail { position: sticky; top: 124px; background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); display: grid; gap: 14px; }
+    .submit-helper-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .submit-helper-title { font-size: 15px; font-weight: 800; color: var(--navy); line-height: 1.25; }
+    .submit-helper-copy { font-size: 12px; color: var(--slate); line-height: 1.55; margin-top: 4px; }
+    .submit-rail-pill { flex: 0 0 auto; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .38px; background: #f1f5f9; color: var(--slate); border: 1px solid var(--card-border); white-space: nowrap; }
+    .submit-rail-pill.is-ready { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+    .submit-rail-pill.is-blocked { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .submit-rail-progress { display: grid; gap: 6px; }
+    .submit-rail-progress-track { height: 7px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+    .submit-rail-progress-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--mint)); transition: width .25s ease; }
+    .submit-rail-progress-text { font-size: 11px; font-weight: 800; color: var(--slate); }
+    .submit-rail-next { border-radius: 10px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e40af; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+    .submit-rail-next strong { display: block; color: #1e3a8a; margin-bottom: 2px; }
+    .submit-rail-next span { display: block; }
+    .submit-rail-list { display: grid; gap: 8px; }
+    .submit-rail-item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: start; border-radius: 10px; border: 1px solid var(--card-border); background: #f8fafc; padding: 10px; }
+    .submit-rail-item.is-done { background: #f0fdf4; border-color: #bbf7d0; }
+    .submit-rail-item.is-warning { background: #fffbeb; border-color: #fde68a; }
+    .submit-rail-icon { width: 22px; height: 22px; border-radius: 999px; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; color: var(--slate-lt); font-size: 11px; font-weight: 800; background: #fff; }
+    .submit-rail-item.is-done .submit-rail-icon { background: var(--mint); border-color: var(--mint); color: #fff; }
+    .submit-rail-item.is-warning .submit-rail-icon { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .submit-rail-item-title { display: block; font-size: 12px; font-weight: 800; color: var(--navy); line-height: 1.3; }
+    .submit-rail-item-note { display: block; font-size: 11px; color: var(--slate); line-height: 1.45; margin-top: 2px; }
+    .submit-rail-actions { display: grid; gap: 8px; }
+    .submit-rail-actions .btn { width: 100%; }
 
     /* ---------- FILE ZONES ---------- */
     .file-zone { border: 2px dashed var(--card-border); border-radius: var(--radius-sm); padding: 20px; text-align: center; cursor: pointer; transition: var(--transition); position: relative; }
@@ -3103,6 +3452,7 @@ function renderPage_(page, boot) {
     .success-warning-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
     .success-actions { display: flex; gap: 10px; justify-content: center; padding: 0 24px 28px; }
     @media (max-width: 480px) {
+      .admin-insight-grid { grid-template-columns: 1fr; }
       .success-hero { padding: 24px 16px 18px; }
       .success-id-block { padding: 0 16px; }
       .success-body { padding: 0 16px 20px; }
@@ -3119,6 +3469,62 @@ function renderPage_(page, boot) {
     .sub-card-field label { font-size: 11px; color: var(--slate-lt); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
     .sub-card-field .val { font-weight: 500; margin-top: 2px; }
     .sub-card-msg { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5; }
+    .status-queue-panel { background: #f8fafc; border: 1px solid #dbe3ef; border-radius: 12px; padding: 14px; margin: 14px 0 18px; }
+    .status-queue-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .status-queue-title { font-size: 13px; font-weight: 800; color: var(--navy); }
+    .status-queue-note { font-size: 12px; color: var(--slate); line-height: 1.55; max-width: 760px; }
+    .status-queue-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; }
+    .status-queue-metric { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 11px; }
+    .status-queue-metric .num { font-size: 20px; font-weight: 800; color: var(--navy); line-height: 1; }
+    .status-queue-metric .lbl { font-size: 10px; font-weight: 800; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .35px; margin-top: 5px; }
+    .status-workload-card { margin-top: 10px; background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
+    .status-workload-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .status-workload-kicker { font-size: 10px; font-weight: 800; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .35px; }
+    .status-workload-title { margin-top: 2px; font-size: 13px; font-weight: 800; color: var(--navy); }
+    .status-workload-state { flex: 0 0 auto; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; background: #dbeafe; color: #1d4ed8; }
+    .status-workload-state--calm { background: #dcfce7; color: #166534; }
+    .status-workload-state--active { background: #dbeafe; color: #1d4ed8; }
+    .status-workload-state--busy { background: #fef3c7; color: #92400e; }
+    .status-workload-state--heavy { background: #fee2e2; color: #991b1b; }
+    .status-workload-bar { height: 12px; border-radius: 999px; background: #e5e7eb; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(15,23,42,.05); }
+    .status-workload-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3b82f6, #0f766e); transition: width .25s ease; }
+    .status-workload-fill--busy { background: linear-gradient(90deg, #f59e0b, #ea580c); }
+    .status-workload-fill--heavy { background: linear-gradient(90deg, #f97316, #dc2626); }
+    .status-workload-scale { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--slate-lt); font-size: 10px; font-weight: 700; }
+    .status-workload-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 11px; }
+    .status-workload-lane { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px; min-width: 0; }
+    .status-workload-lane-label { font-size: 11px; font-weight: 800; color: var(--navy); line-height: 1.25; }
+    .status-workload-lane-note { margin-top: 3px; font-size: 10px; color: var(--slate-lt); line-height: 1.25; }
+    .status-workload-lane-bar { height: 7px; margin-top: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+    .status-workload-lane-fill { height: 100%; border-radius: inherit; background: #3b82f6; }
+    .status-workload-lane-fill--review { background: #3b82f6; }
+    .status-workload-lane-fill--ready { background: #8b5cf6; }
+    .status-workload-lane-fill--production { background: #f97316; }
+    .status-workload-lane-fill--revision { background: #eab308; }
+    .status-workload-machine { margin-top: 11px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+    .status-machine-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--slate); font-size: 11px; font-weight: 800; }
+    .status-machine-mix { display: flex; height: 9px; margin-top: 7px; border-radius: 999px; overflow: hidden; background: #e5e7eb; }
+    .status-machine-laser { background: #2563eb; }
+    .status-machine-print { background: #0f766e; }
+    .status-machine-legend { display: flex; gap: 12px; margin-top: 6px; color: var(--slate-lt); font-size: 10px; font-weight: 700; flex-wrap: wrap; }
+    .status-machine-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 5px; vertical-align: -1px; background: #2563eb; }
+    .status-machine-dot--print { background: #0f766e; }
+    .status-workload-foot { margin-top: 9px; color: var(--slate-lt); font-size: 11px; line-height: 1.4; }
+    .status-stage { margin-top: 12px; background: #f8fafc; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--slate); line-height: 1.5; }
+    .status-stage strong { color: var(--navy); }
+    .status-next-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+    .status-next-card { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 11px; min-width: 0; }
+    .status-next-label { font-size: 10px; font-weight: 800; letter-spacing: .35px; text-transform: uppercase; color: var(--slate-lt); }
+    .status-next-value { margin-top: 3px; font-size: 13px; font-weight: 800; color: var(--navy); line-height: 1.3; }
+    .status-next-note { margin-top: 3px; font-size: 11px; line-height: 1.35; color: var(--slate); }
+    .status-action-panel { margin-top: 12px; border: 1px solid #dbeafe; background: #eff6ff; border-radius: 10px; padding: 11px 12px; }
+    .status-action-panel--revise { border-color: #fde68a; background: #fffbeb; }
+    .status-action-title { font-size: 12px; font-weight: 800; color: var(--navy); display: flex; align-items: center; gap: 6px; }
+    .status-action-list { margin: 8px 0 0 17px; color: var(--slate); font-size: 12px; line-height: 1.55; }
+    .status-action-list li + li { margin-top: 2px; }
+    .status-file-title { margin-top: 12px; font-size: 12px; font-weight: 800; color: var(--navy); }
+    .status-file-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .status-file-note { font-size: 11px; color: var(--slate-lt); line-height: 1.45; flex: 1 1 220px; }
     .msg-submitted { background: #eff6ff; color: #1e40af; }
     .msg-needs_fix { background: #fffbeb; color: #92400e; }
     .msg-approved { background: #f0fdf4; color: #166534; }
@@ -3146,20 +3552,68 @@ function renderPage_(page, boot) {
     .summary-card .num { font-size: 22px; font-weight: 800; }
     .summary-card .lbl { font-size: 11px; color: var(--slate-lt); font-weight: 600; text-transform: uppercase; }
 
+    /* ---------- ADMIN WORKBOARD ---------- */
+    .admin-hero { background: #111827; color: #fff; border-radius: var(--radius); padding: 24px; margin-top: 20px; box-shadow: var(--shadow-lg); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: start; overflow: hidden; position: relative; }
+    .admin-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--rose), var(--amber), var(--mint), var(--blue)); }
+    .admin-hero-kicker { font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #93c5fd; margin-bottom: 5px; }
+    .admin-hero-title { font-size: 24px; font-weight: 800; line-height: 1.15; margin: 0 0 8px; }
+    .admin-hero-sub { color: #cbd5e1; font-size: 13px; line-height: 1.6; max-width: 760px; }
+    .admin-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .admin-hero .btn-ghost { color: #fff; border-color: rgba(255,255,255,.24); background: rgba(255,255,255,.06); }
+    .admin-hero .btn-ghost:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.34); }
+    .admin-role-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px; margin-top: 10px; }
+    .admin-role-step { background: #fff; border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; align-items: flex-start; gap: 9px; min-width: 0; box-shadow: var(--shadow); }
+    .admin-role-step-num { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; background: var(--navy); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+    .admin-role-step-title { font-size: 12px; font-weight: 800; color: var(--navy); line-height: 1.25; }
+    .admin-role-step-copy { margin-top: 2px; font-size: 11px; color: var(--slate); line-height: 1.35; }
+    .admin-workboard { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; margin-top: 16px; align-items: stretch; }
+    .admin-workboard-main, .admin-health-panel { min-width: 0; }
+    .admin-section-label { font-size: 11px; font-weight: 800; letter-spacing: .45px; text-transform: uppercase; color: var(--slate-lt); margin-bottom: 8px; }
+    .admin-insight-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .admin-insight { background: #fff; border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 13px 14px; min-height: 92px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
+    .admin-insight-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .admin-insight-label { font-size: 10px; font-weight: 800; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .4px; }
+    .admin-insight-icon { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg); color: var(--navy); font-size: 14px; }
+    .admin-insight-value { font-size: 25px; line-height: 1; font-weight: 800; color: var(--navy); }
+    .admin-insight-note { font-size: 11px; line-height: 1.35; color: var(--slate); min-height: 15px; }
+    .admin-insight--attention { border-color: #fed7aa; background: #fff7ed; }
+    .admin-insight--attention .admin-insight-icon { background: #ffedd5; color: #c2410c; }
+    .admin-insight--ok { border-color: #bbf7d0; background: #f0fdf4; }
+    .admin-insight--ok .admin-insight-icon { background: #dcfce7; color: #15803d; }
+    .admin-health-panel { background: #fff; border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .admin-health-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .admin-health-title { font-size: 13px; font-weight: 800; color: var(--navy); }
+    .admin-health-pill { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; border-radius: 999px; padding: 4px 8px; background: #f1f5f9; color: var(--slate); white-space: nowrap; }
+    .admin-health-meter { height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+    .admin-health-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--mint), var(--amber), var(--rose)); transition: width .35s ease; }
+    .admin-health-copy { font-size: 12px; color: var(--slate); line-height: 1.55; }
+    .admin-health-list { display: grid; gap: 7px; }
+    .admin-health-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--slate); border-top: 1px solid var(--card-border); padding-top: 7px; }
+    .admin-health-row strong { color: var(--navy); }
+
     /* ---------- STATS BAR ---------- */
     .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-top: 16px; overflow: visible; }
     .stat-card { background: var(--bg); border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; cursor: pointer; transition: var(--transition); border: 2px solid transparent; min-width: 0; }
     .stat-card:hover { border-color: var(--blue); }
+    .stat-card.active { background: #fff; border-color: var(--maroon); box-shadow: 0 0 0 3px rgba(155,44,63,.08); }
     .stat-num { font-size: 20px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
     .stat-label { font-size: 10px; color: var(--slate-lt); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
 
     /* ---------- FILTER BAR ---------- */
     .filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 16px; padding: 14px; background: var(--bg); border-radius: var(--radius-sm); }
     .filter-bar .field { flex: 1 1 140px; min-width: 120px; }
+    .filter-bar .field.filter-wide { flex: 2 1 240px; }
     .filter-bar .field label { font-size: 11px; }
     .filter-bar input, .filter-bar select { font-size: 12px; padding: 7px 10px; }
     .filter-meta { flex: 0 0 100%; display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--card-border); margin-top: 4px; }
     .teacher-toggle { font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; margin-right: auto; }
+    .queue-lane-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .lane-btn { border: 1px solid var(--card-border); background: #fff; color: var(--navy); border-radius: var(--radius-sm); padding: 8px 11px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; transition: var(--transition); display: inline-flex; align-items: center; gap: 6px; }
+    .lane-btn:hover { border-color: var(--blue); color: #1d4ed8; box-shadow: 0 0 0 3px rgba(59,130,246,.08); }
+    .lane-btn.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    .queue-toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; margin-top: 16px; flex-wrap: wrap; }
+    .queue-toolbar-title { font-size: 14px; font-weight: 800; color: var(--navy); }
+    .queue-toolbar-sub { font-size: 12px; color: var(--slate-lt); line-height: 1.4; margin-top: 2px; }
 
     /* ---------- TABLE ---------- */
     .tbl-wrap { overflow-x: auto; margin-top: 14px; }
@@ -3193,10 +3647,26 @@ function renderPage_(page, boot) {
     .queue-row:hover td { box-shadow: 0 8px 18px rgba(15,23,42,.045); border-top-color: #cbd5e1; border-bottom-color: #cbd5e1; }
     .queue-row--active td:first-child { box-shadow: inset 3px 0 0 var(--navy-lt); }
     .queue-row--other td:first-child { box-shadow: inset 3px 0 0 #d97706; }
-    .queue-row--attention td { background: #fffdf7; }
-    .queue-row--done td { background: #f8fafc; border-color: #e2e8f0; }
-    .queue-row--done .queue-name, .queue-row--done .queue-status-note, .queue-row--done .queue-next-owner, .queue-row--done .queue-context-main { color: var(--slate); }
-    .queue-row--done .queue-meta, .queue-row--done .queue-meta-aux, .queue-row--done .queue-context-sub, .queue-row--done .queue-risk-note, .queue-row--done .queue-status-aux { color: #94a3b8; }
+    .queue-row--submitted td { background: #f8fbff; border-color: #bfdbfe; }
+    .queue-row--submitted td:first-child { box-shadow: inset 4px 0 0 #3b82f6; }
+    .queue-row--needs-fix td, .queue-row--attention.queue-row--needs-fix td { background: #fffbeb; border-color: #fcd34d; }
+    .queue-row--needs-fix td:first-child { box-shadow: inset 4px 0 0 #f59e0b; }
+    .queue-row--approved td { background: #f5f3ff; border-color: #ddd6fe; }
+    .queue-row--approved td:first-child { box-shadow: inset 4px 0 0 #8b5cf6; }
+    .queue-row--in-queue td { background: #faf5ff; border-color: #e9d5ff; }
+    .queue-row--in-queue td:first-child { box-shadow: inset 4px 0 0 #7c3aed; }
+    .queue-row--in-production td { background: #fff7ed; border-color: #fed7aa; }
+    .queue-row--in-production td:first-child { box-shadow: inset 4px 0 0 #f97316; }
+    .queue-row--completed td { background: #ecfdf5; border-color: #86efac; }
+    .queue-row--completed td:first-child { box-shadow: inset 4px 0 0 #16a34a; }
+    .queue-row--completed .queue-mini-progress span { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .queue-row--completed .queue-name, .queue-row--completed .queue-next-owner, .queue-row--completed .queue-context-main { color: #14532d; }
+    .queue-row--completed .queue-status-note, .queue-row--completed .queue-meta, .queue-row--completed .queue-meta-aux, .queue-row--completed .queue-context-sub, .queue-row--completed .queue-risk-note, .queue-row--completed .queue-status-aux { color: #166534; }
+    .queue-row--rejected td { background: #fff1f2; border-color: #fecdd3; }
+    .queue-row--rejected td:first-child { box-shadow: inset 4px 0 0 #e11d48; }
+    .queue-row--rejected .queue-name, .queue-row--rejected .queue-status-note, .queue-row--rejected .queue-next-owner, .queue-row--rejected .queue-context-main { color: #7f1d1d; }
+    .queue-row--rejected .queue-meta, .queue-row--rejected .queue-meta-aux, .queue-row--rejected .queue-context-sub, .queue-row--rejected .queue-risk-note, .queue-row--rejected .queue-status-aux { color: #9f1239; }
+    .queue-row--attention:not(.queue-row--needs-fix):not(.queue-row--completed):not(.queue-row--rejected) td { background: #fffdf7; }
     .queue-cell-requester { min-width: 238px; }
     .queue-cell-context { min-width: 190px; }
     .queue-cell-status { min-width: 212px; }
@@ -3211,6 +3681,8 @@ function renderPage_(page, boot) {
     .queue-context-sub { font-size: 10px; color: var(--slate-lt); line-height: 1.28; }
     .queue-status-block { display: flex; flex-direction: column; gap: 4px; }
     .queue-status-block .pill { align-self: flex-start; }
+    .queue-mini-progress { width: 100%; max-width: 146px; height: 4px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin-top: 1px; }
+    .queue-mini-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--mint)); }
     .queue-next-owner { font-size: 11px; font-weight: 800; color: var(--navy); text-transform: uppercase; letter-spacing: .32px; }
     .queue-status-note { font-size: 11px; color: var(--slate); line-height: 1.28; }
     .queue-status-aux { font-size: 10px; color: var(--slate-lt); line-height: 1.28; }
@@ -3227,8 +3699,13 @@ function renderPage_(page, boot) {
     .queue-review-btn { width: 88px; min-width: 88px; justify-content: center; font-weight: 700; box-shadow: 0 5px 12px rgba(127,29,29,.09); }
     .queue-review-btn--strong { box-shadow: 0 7px 16px rgba(127,29,29,.13); }
     .queue-review-btn--quiet { box-shadow: none; opacity: .88; }
-    .queue-row--done .queue-review-btn { color: var(--slate); border-color: #cbd5e1; }
+    .queue-row--completed .queue-review-btn { color: #166534; border-color: #86efac; background: #f0fdf4; }
+    .queue-row--rejected .queue-review-btn { color: #9f1239; border-color: #fecdd3; background: #fff1f2; }
     .queue-empty { margin-top: 12px; }
+    .queue-load-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 2px; padding: 12px 14px; background: #f8fafc; border: 1px solid var(--card-border); border-radius: 10px; }
+    .queue-load-more-text { font-size: 12px; color: var(--slate); line-height: 1.4; }
+    .queue-skeleton { min-height: 120px; border-radius: 12px; background: linear-gradient(90deg, #f8fafc 0%, #eef2f7 45%, #f8fafc 90%); background-size: 200% 100%; animation: skeletonPulse 1.2s ease-in-out infinite; margin-top: 14px; border: 1px solid var(--card-border); }
+    @keyframes skeletonPulse { 0% { background-position: 0 0; } 100% { background-position: -200% 0; } }
 
     @media (max-width: 1340px) {
       .queue-cell-requester { min-width: 224px; }
@@ -3270,33 +3747,16 @@ function renderPage_(page, boot) {
     .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--card-border); }
     .modal-head h3 { font-size: 16px; font-weight: 700; }
     .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--slate); padding: 4px; }
-    .email-meta { padding: 14px 20px; background: var(--bg); font-size: 13px; }
-    .email-meta p { margin-bottom: 4px; }
+    .email-meta { padding: 14px 20px; background: var(--bg); font-size: 13px; display: grid; gap: 10px; }
+    .email-meta .field { margin: 0; }
+    .email-meta input { font-size: 13px; }
     .email-preview { padding: 16px 20px; }
-    .email-preview h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-    .email-body { font-size: 13px; line-height: 1.6; }
-    .compose-modal { width: 820px; max-width: 95vw; }
-    .compose-layout { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
-    .compose-help { background: #f8fafc; border: 1px solid #dbeafe; color: #1e3a8a; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
-    .compose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .compose-field { display: flex; flex-direction: column; gap: 6px; }
-    .compose-field label { font-size: 11px; font-weight: 700; letter-spacing: .2px; text-transform: uppercase; color: var(--slate); }
-    .compose-field input { width: 100%; }
-    .compose-field--full { grid-column: 1 / -1; }
-    .compose-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border: 1px solid var(--card-border); border-bottom: none; border-radius: 10px 10px 0 0; background: var(--bg); }
-    .compose-toolbar-label { font-size: 11px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: .2px; margin-right: 2px; }
-    .compose-toolbar button { min-width: 34px; }
-    .compose-editor-wrap { border: 1px solid var(--card-border); border-radius: 0 0 10px 10px; overflow: hidden; }
-    .compose-editor { min-height: 280px; padding: 14px; font-size: 13px; line-height: 1.6; background: #fff; outline: none; }
-    .compose-editor:empty:before { content: attr(data-placeholder); color: #94a3b8; }
-    .compose-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid var(--card-border); background: #fff; }
-    .compose-status { font-size: 12px; color: var(--slate); min-height: 18px; }
-    .compose-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    @media (max-width: 760px) {
-      .compose-grid { grid-template-columns: 1fr; }
-      .compose-modal { width: 96vw; }
-      .compose-footer { align-items: stretch; }
-    }
+    .email-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .email-preview h4 { font-size: 13px; font-weight: 700; margin: 0; }
+    .email-preview-note { font-size: 11px; color: var(--slate-lt); line-height: 1.4; max-width: 360px; }
+    .email-body { font-size: 13px; line-height: 1.6; border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; min-height: 180px; background: #fff; }
+    .email-body:focus { outline: 3px solid rgba(59,130,246,.18); outline-offset: 2px; border-color: #93c5fd; }
+    .email-action-bar { padding: 14px 20px; border-top: 1px solid var(--card-border); display: flex; gap: 8px; flex-wrap: wrap; }
 
     /* ---------- TOAST ---------- */
     .toast-container { position: fixed; top: 70px; right: 16px; z-index: 400; display: flex; flex-direction: column; gap: 8px; }
@@ -3411,28 +3871,178 @@ function renderPage_(page, boot) {
 
     /* ---------- WELCOME BANNER ---------- */
     .welcome-banner { background: linear-gradient(135deg, #f0f4ff 0%, #fefce8 100%); border: 1px solid #e0e7ff; border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; }
+    .welcome-banner h3 { font-size: 16px; font-weight: 800; margin: 0 0 4px; color: var(--navy); }
+    .welcome-banner p { font-size: 13px; color: var(--slate); margin: 0; line-height: 1.6; }
     .welcome-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     .welcome-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 16px; background: #fff; border: 1px solid var(--card-border); color: var(--slate); }
 
     /* ---------- NEWCOMER INFO-STRIP ---------- */
     .newcomer-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+    .newcomer-card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
     .newcomer-card .nc-icon { font-size: 28px; margin-bottom: 6px; line-height: 1; }
+    .newcomer-card h4 { font-size: 13px; font-weight: 700; margin: 0 0 4px; color: var(--navy); }
+    .newcomer-card p { font-size: 12px; color: var(--slate-lt); margin: 0; line-height: 1.5; }
+
+    /* ---------- BEFORE YOU START BLOCK ---------- */
+    .bys-block { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: var(--radius); padding: 20px 24px; margin: 16px 0 20px; }
+    .bys-title { font-size: 15px; font-weight: 800; color: #92400e; margin: 0 0 12px; }
+    .bys-who { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--slate); line-height: 1.6; margin-bottom: 14px; padding: 10px 14px; background: rgba(255,255,255,.6); border-radius: var(--radius-sm); border: 1px solid rgba(251,191,36,.2); }
+    .bys-who-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .bys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 14px; }
     .bys-item { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--slate); line-height: 1.5; }
     .bys-check { color: #16a34a; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
     .bys-notices { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
     .bys-notice { font-size: 11px; color: #92400e; line-height: 1.5; }
     .bys-footer { font-size: 12px; color: var(--slate-lt); line-height: 1.5; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    /* ---------- FOOTER ---------- */
+    .site-footer { max-width: 1200px; margin: 40px auto 0; padding: 20px 16px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--slate-lt); line-height: 1.6; }
     .site-footer strong { color: var(--slate); font-weight: 700; }
+
+    /* ---------- INLINE HELP TIP ---------- */
     .field-tip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 1px solid var(--card-border); font-size: 10px; font-weight: 700; color: var(--slate-lt); cursor: help; margin-left: 4px; vertical-align: middle; text-decoration: none; }
     .field-tip:hover { background: var(--blue); color: #fff; border-color: var(--blue); text-decoration: none; }
 
+    /* ---------- UI POLISH LAYER ---------- */
+    html { scroll-behavior: smooth; }
+    body { min-width: 0; overflow-x: hidden; background: #eef2f7; }
+    body.modal-open { overflow: hidden; }
+    .content { padding-top: 6px; }
+    .header { background: #111827; box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 8px 24px rgba(15,23,42,.14); }
+    .header-inner { height: 60px; }
+    .logo { letter-spacing: 0; }
+    .logo-icon { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; }
+    .user-chip { max-width: 280px; min-width: 0; }
+    .user-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab-bar-wrap { position: sticky; top: 60px; z-index: 95; box-shadow: 0 6px 18px rgba(15,23,42,.08); }
+    .tab-bar { scrollbar-width: thin; }
+    .tab-btn { border-radius: 8px 8px 0 0; outline: none; }
+    .tab-btn:focus-visible, .btn:focus-visible, .lane-btn:focus-visible, .file-zone:focus-visible, .field-tip:focus-visible { outline: 3px solid rgba(59,130,246,.24); outline-offset: 2px; }
+    .card { border-color: #dbe3ef; box-shadow: 0 10px 28px rgba(15,23,42,.055); border-radius: 10px; }
+    .section-title { letter-spacing: 0; }
+    .section-sub { color: var(--slate); }
+    .btn { min-height: 38px; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-primary { box-shadow: 0 8px 16px rgba(155,44,63,.14); }
+    .btn-primary:hover { box-shadow: 0 10px 20px rgba(155,44,63,.18); }
+    .btn-ghost { background: #fff; }
+    input:not([type=checkbox]):not([type=radio]), select, textarea { background: #fff; min-height: 38px; }
+    select { cursor: pointer; }
+
+    .home-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) 340px; gap: 18px; align-items: stretch; background: #111827; color: #fff; border-radius: 12px; padding: 24px; margin: 20px 0 16px; box-shadow: var(--shadow-lg); overflow: hidden; position: relative; }
+    .home-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--rose), var(--amber), var(--mint), var(--blue)); }
+    .home-hero-kicker { font-size: 11px; font-weight: 800; color: #93c5fd; letter-spacing: .6px; text-transform: uppercase; margin-bottom: 6px; }
+    .home-hero h1 { font-size: 28px; line-height: 1.12; margin: 0 0 8px; letter-spacing: 0; }
+    .home-hero p { color: #cbd5e1; font-size: 13px; line-height: 1.65; max-width: 720px; margin: 0; }
+    .home-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .home-hero .btn-ghost { color: #fff; background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.22); }
+    .home-hero .btn-ghost:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.34); }
+    .home-panel { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .home-panel-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .45px; color: #bfdbfe; }
+    .home-panel-row { display: flex; gap: 10px; align-items: flex-start; color: #e5e7eb; font-size: 12px; line-height: 1.45; }
+    .home-panel-icon { width: 24px; height: 24px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .workflow-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .workflow-step { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 13px 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 0; box-shadow: var(--shadow); }
+    .workflow-num { width: 24px; height: 24px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+    .workflow-step strong { display: block; font-size: 12px; color: var(--navy); line-height: 1.25; }
+    .workflow-step span:last-child { font-size: 11px; color: var(--slate); line-height: 1.4; }
+    .page-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; background: #111827; color: #fff; border-radius: 12px; padding: 24px; margin: 20px 0 16px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; }
+    .page-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--rose), var(--amber), var(--mint), var(--blue)); }
+    .page-hero-kicker { font-size: 11px; font-weight: 800; color: #bfdbfe; letter-spacing: .6px; text-transform: uppercase; margin-bottom: 6px; }
+    .page-hero h1 { font-size: 26px; line-height: 1.15; margin: 0 0 8px; letter-spacing: 0; }
+    .page-hero p { color: #cbd5e1; font-size: 13px; line-height: 1.65; max-width: 760px; margin: 0; }
+    .page-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; min-width: 260px; }
+    .page-hero .btn-ghost { color: #fff; background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.22); }
+    .page-hero .btn-ghost:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.34); }
+    .status-search-panel { background: #fbfdff; border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin: 14px 0 12px; }
+    .status-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: stretch; }
+    .status-search-hint { display: flex; align-items: flex-start; gap: 8px; color: var(--slate); font-size: 12px; line-height: 1.5; margin-top: 10px; }
+    .status-help-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 720px; margin: 18px auto 0; }
+    .status-help-card { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 14px; text-align: center; min-width: 0; }
+    .status-help-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; }
+    .status-help-title { font-size: 12px; font-weight: 800; color: var(--navy); line-height: 1.3; }
+    .status-help-copy { font-size: 11px; color: var(--slate-lt); line-height: 1.4; margin-top: 3px; }
+    .status-empty-state { text-align: center; padding: 30px 16px; color: var(--muted); }
+    .status-empty-icon { font-size: 36px; line-height: 1; margin-bottom: 12px; }
+    .status-empty-title { margin: 0 0 6px; font-weight: 700; color: var(--slate); }
+    .status-empty-copy { margin: 0; font-size: 13px; line-height: 1.55; color: var(--slate-lt); }
+    .request-note-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .request-note { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 13px 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 0; box-shadow: var(--shadow); }
+    .request-note-icon { width: 26px; height: 26px; border-radius: 9px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .request-note strong { display: block; font-size: 12px; color: var(--navy); line-height: 1.25; }
+    .request-note span:last-child { font-size: 11px; color: var(--slate); line-height: 1.4; }
+    #submitForm, #otherForm, #statusQuery, .form-section, .card, .help-section, .help-quick-ref, #machines-laser, #machines-3d, #machines-limits, #machines-workflow, #machines-report { scroll-margin-top: 124px; }
+
+    .form-section { border: 1px solid var(--card-border); border-radius: 10px; padding: 16px; background: #fbfdff; }
+    .form-section-title { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; }
+    .form-section-title::before { content: ''; width: 4px; height: 18px; border-radius: 999px; background: var(--maroon); display: inline-block; }
+    .guide-card, .rule-box, .disclaimer-box, .disclaimer-compact { border-radius: 10px; }
+    .file-zone { background: #fff; min-height: 148px; display: flex; flex-direction: column; justify-content: center; }
+    .file-zone-icon { width: 44px; height: 44px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; margin: 0 auto 8px; }
+    .file-zone:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.055); }
+    .file-zone--filled { border-color: #86efac; background: #f0fdf4; }
+    .file-zone--filled .file-zone-icon { background: #dcfce7; color: #166534; }
+    .file-chosen { word-break: break-word; }
+    .admin-hero { border-radius: 12px; }
+    .stat-card[role=button] { cursor: pointer; }
+    .stat-card[role=button]:focus-visible { outline: 3px solid rgba(59,130,246,.24); outline-offset: 2px; }
+    .filter-bar { border: 1px solid var(--card-border); }
+    .queue-lane-bar { padding-bottom: 2px; }
+    .queue-table tbody td { transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+    .drawer { max-width: min(92vw, 520px); }
+    .drawer-close, .modal-close { min-width: 38px; min-height: 38px; border-radius: 8px; }
+    .drawer-close:hover, .modal-close:hover { background: rgba(255,255,255,.12); }
+    .modal-close:hover { background: var(--bg); }
+    .overlay { padding: 16px; }
+    .modal-head { position: sticky; top: 0; background: var(--card); z-index: 2; }
+    .modal:focus { outline: none; }
+    .help-section-title:focus-visible { outline: 3px solid rgba(59,130,246,.24); outline-offset: 4px; border-radius: 8px; }
+
     @media (max-width: 640px) {
-      .header-inner { height: 48px; }
-      .logo { font-size: 14px; }
+      .header-inner { height: 48px; gap: 8px; min-width: 0; }
+      .tab-bar-wrap { top: 48px; }
+      .shell { padding-left: 10px; padding-right: 10px; }
+      .logo { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .user-chip { flex-shrink: 0; min-width: 0; }
+      .user-info { display: none; }
+      .user-avatar { width: 28px; height: 28px; }
       .tab-btn { padding: 8px 12px; font-size: 12px; }
       .tab-btn--special { text-shadow: none; }
       .card { padding: 16px; }
+      .home-hero { grid-template-columns: 1fr; padding: 20px 16px; margin-top: 14px; }
+      .home-hero h1 { font-size: 23px; }
+      .home-hero-actions .btn { flex: 1 1 100%; }
+      .page-hero { grid-template-columns: 1fr; padding: 20px 16px; margin-top: 14px; }
+      .page-hero h1 { font-size: 22px; }
+      .page-hero-actions { justify-content: stretch; min-width: 0; }
+      .page-hero-actions .btn { flex: 1 1 100%; }
+      .workflow-strip { grid-template-columns: 1fr; }
+      .request-note-strip { grid-template-columns: 1fr; }
+      .status-search-row { grid-template-columns: 1fr; }
+      .status-help-grid { grid-template-columns: 1fr; }
+      .draft-row, .draft-actions { align-items: stretch; }
+      .draft-actions .btn { flex: 1 1 100%; }
+      .draft-progress { grid-template-columns: 1fr; }
+      .draft-progress-text { white-space: normal; }
+      .submit-workspace { grid-template-columns: 1fr; }
+      .submit-helper-rail { position: static; }
+      .submit-helper-head { flex-direction: column; }
+      .submit-rail-actions { grid-template-columns: 1fr; }
+      .form-section { padding: 14px; }
+      .file-zone { min-height: 128px; }
+      .admin-hero { grid-template-columns: 1fr; padding: 20px 16px; }
+      .admin-hero-title { font-size: 20px; }
+      .admin-hero-actions { justify-content: stretch; }
+      .admin-hero-actions .btn { flex: 1 1 100%; }
+      .admin-workboard { grid-template-columns: 1fr; }
+      .admin-insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .admin-insight { min-height: 86px; padding: 12px; }
+      .queue-toolbar { align-items: stretch; }
+      .queue-lane-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+      .lane-btn { flex: 0 0 auto; }
       .drawer { width: 100vw; }
+      .overlay { align-items: flex-end; padding: 10px; }
+      .modal { width: 100%; max-width: 100%; max-height: 92vh; border-radius: 12px 12px 0 0; }
       .qs-hero { padding: 20px 16px; }
       .qs-steps { grid-template-columns: 1fr; }
       .qs-audience { flex-direction: column; }
@@ -3453,7 +4063,8 @@ function renderPage_(page, boot) {
       .queue-row { display: grid; gap: 8px; }
       .queue-row td::before { content: attr(data-label); display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .45px; color: var(--slate-lt); margin-bottom: 6px; }
       .queue-row--active td:first-child, .queue-row--other td:first-child { box-shadow: none; }
-      .queue-cell-action { width: auto; }
+      .queue-cell-action { width: auto; display: flex !important; align-items: center; justify-content: space-between; gap: 12px; text-align: left; }
+      .queue-cell-action::before { margin-bottom: 0; }
       .queue-meta-block { gap: 8px; }
       .queue-review-btn { min-height: 40px; }
       .drawer-body { padding: 16px; }
@@ -3461,6 +4072,15 @@ function renderPage_(page, boot) {
       .drawer-actions .btn { flex: 1 1 100%; }
       .review-summary-grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 980px) {
+      .admin-hero { grid-template-columns: 1fr; }
+      .admin-hero-actions { justify-content: flex-start; }
+      .admin-workboard { grid-template-columns: 1fr; }
+      .admin-insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .submit-workspace { grid-template-columns: 1fr; }
+      .submit-helper-rail { position: static; }
+    }
+    @media (max-width: 480px) { .admin-insight-grid { grid-template-columns: 1fr; } }
     @media (max-width: 860px) { .machine-page-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -3474,7 +4094,7 @@ function renderPage_(page, boot) {
       ` + userChip + `
     </div>
   </header>
-  <nav class="tab-bar-wrap" id="tabBarWrap"><div class="tab-bar">` + navItems + `</div></nav>
+  <nav class="tab-bar-wrap" id="tabBarWrap" aria-label="Main navigation"><div class="tab-bar">` + navItems + `</div></nav>
 
   <div class="shell">
     <div class="content">
@@ -3484,30 +4104,30 @@ function renderPage_(page, boot) {
       ` + (isAdmin ? `<div id="page-admin"  style="display:${page === 'admin'  ? 'block' : 'none'}">${renderAdminPage_(boot.currentUser)}</div>` : `<div id="page-admin" style="display:none"><div class="card"><div class="section-title">&#128274; Access Restricted</div><p>You do not have permission to view this page.</p></div></div>`) + `
       <div id="page-machines" style="display:${page === 'machines' ? 'block' : 'none'}">${renderMachinesPage_()}</div>
       <div id="page-help"   style="display:${page === 'help'   ? 'block' : 'none'}">${renderHelpPage_()}</div>
-      ` + (isAdmin ? `<div id="page-rules"  style="display:${page === 'rules'  ? 'block' : 'none'}">` + rulesPageHtml + `</div>
+      ` + (isSystemAdmin ? `<div id="page-rules"  style="display:${page === 'rules'  ? 'block' : 'none'}">` + rulesPageHtml + `</div>
       <div id="page-users"  style="display:${page === 'users'  ? 'block' : 'none'}">` + usersPageHtml + `</div>
       <div id="page-audit"  style="display:${page === 'audit'  ? 'block' : 'none'}">` + auditPageHtml + `</div>` : '') + `
     </div>
   </div>
 
   <footer class="site-footer">
-    <strong>Design Fabrication Dashboard</strong> &mdash; Design &amp; Technology Department<br>
+    <strong>Design Fabrication Dashboard</strong> &mdash; VSA Design &amp; Technology Department<br>
     Laser Cutting &bull; 3D Printing &bull; Prototyping &bull; Creative Making<br>
     Need machine details? Visit the <a href="javascript:void(0)" onclick="switchPage('machines')" style="color:var(--blue);text-decoration:underline;">Machines Guide</a> or the <a href="javascript:void(0)" onclick="switchPage('help')" style="color:var(--blue);text-decoration:underline;">Help &amp; Guidelines</a> page.
   </footer>
 
   ` + (isAdmin ? `<div class="drawer-overlay" id="reviewDrawer">
-    <div class="drawer">
-      <div class="drawer-head"><h3 id="drawerTitle">Review Submission</h3><button class="drawer-close" onclick="closeDrawer()">&times;</button></div>
+    <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-head"><h3 id="drawerTitle">Review Submission</h3><button class="drawer-close" onclick="closeDrawer()" aria-label="Close review panel">&times;</button></div>
       <div class="drawer-body" id="drawerBody"></div>
       <div class="drawer-actions" id="drawerActions"></div>
     </div>
   </div>` : '') + `
 
   <script>
-    var CLIENT_BUILD = '2026-03-04-v2-role-aware';
-    console.log('Design Fabrication Dashboard build:', CLIENT_BUILD);
     var BOOT = ${JSON.stringify(boot)};
+    var CLIENT_BUILD = (BOOT.build && BOOT.build.version) || '2026-04-25-test-dev-ready';
+    console.log('Design Fabrication Dashboard build:', CLIENT_BUILD);
     var MACHINE_LABELS = { laser: 'Laser Cut', '3d': '3D Print' };
     var STATUS_ORDER = ['submitted','approved','in_queue','in_production','completed'];
     var STATUS_LABELS = {
@@ -3702,7 +4322,15 @@ function renderPage_(page, boot) {
       return diffDays + 'd ago';
     }
     function queueRowStateClass(status) {
-      return (status === 'completed' || status === 'rejected') ? 'queue-row--done' : 'queue-row--active';
+      var s = String(status || '');
+      if (s === 'completed') return 'queue-row--completed';
+      if (s === 'rejected') return 'queue-row--rejected';
+      if (s === 'needs_fix') return 'queue-row--active queue-row--needs-fix';
+      if (s === 'submitted') return 'queue-row--active queue-row--submitted';
+      if (s === 'approved') return 'queue-row--active queue-row--approved';
+      if (s === 'in_queue') return 'queue-row--active queue-row--in-queue';
+      if (s === 'in_production') return 'queue-row--active queue-row--in-production';
+      return 'queue-row--active';
     }
     function queueSourceClass(source) {
       return source === 'other' ? 'queue-row--other' : 'queue-row--dt';
@@ -3744,16 +4372,258 @@ function renderPage_(page, boot) {
       return 'btn btn-primary btn-sm queue-review-btn';
     }
 
+    var _activeQueueLane = '';
+    function setText_(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+    function setInsightTone_(id, tone) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('admin-insight--attention', 'admin-insight--ok');
+      if (tone) el.classList.add(tone);
+    }
+    function isActiveStatus_(status) {
+      return ['completed','rejected'].indexOf(String(status || '')) === -1;
+    }
+    function isReviewStatus_(status) {
+      return ['submitted','needs_fix'].indexOf(String(status || '')) !== -1;
+    }
+    function isQueueWorkloadStatus_(status) {
+      return ['submitted','approved','in_queue','in_production'].indexOf(String(status || '')) !== -1;
+    }
+    function isProductionStatus_(status) {
+      return ['approved','in_queue','in_production'].indexOf(String(status || '')) !== -1;
+    }
+    function countRows_(rows, predicate) {
+      var count = 0;
+      (rows || []).forEach(function(row) { if (predicate(row)) count++; });
+      return count;
+    }
+    function statusPriority_(status) {
+      var order = { submitted: 0, needs_fix: 1, approved: 2, in_queue: 3, in_production: 4, completed: 5, rejected: 6 };
+      return Object.prototype.hasOwnProperty.call(order, status) ? order[status] : 9;
+    }
+    function rowTime_(row, field) {
+      var dt = new Date((row || {})[field] || '');
+      return isNaN(dt.getTime()) ? 0 : dt.getTime();
+    }
+    function rowSheetOrder_(row) {
+      return Number((row || {})._row_number || 0);
+    }
+    function compareLatestRows_(a, b) {
+      var sa = rowSheetOrder_(a);
+      var sb = rowSheetOrder_(b);
+      if (sa !== sb) return sb - sa;
+      return rowTime_(b, 'created_at') - rowTime_(a, 'created_at');
+    }
+    function compareNewestTime_(a, b) {
+      var ta = rowTime_(a, 'created_at');
+      var tb = rowTime_(b, 'created_at');
+      if (ta !== tb) return tb - ta;
+      return rowSheetOrder_(b) - rowSheetOrder_(a);
+    }
+    function requesterName_(row) {
+      return String(row.requester_name || row.student_name || row.project_name || row.student_email || '').toLowerCase();
+    }
+    function rowSearchText_(row) {
+      var values = [
+        row.submission_id, row.request_id, row.student_name, row.student_email, row.requester_name, row.requester_email,
+        row.design_teacher, row.teacher_in_charge, row.department_or_subject, row.design_class_no, row['class'],
+        row.year_group, row.machine, MACHINE_LABELS[row.machine], row.material, row.project_name, row.project_purpose,
+        row.request_type, row.status, STATUS_LABELS[row.status], row.admin_remarks, row.issue_label
+      ];
+      return values.map(function(v) { return String(v || '').toLowerCase(); }).join(' ');
+    }
+    function rowMatchesQuick_(row, query) {
+      var text = rowSearchText_(row);
+      return String(query || '').toLowerCase().split(/\s+/).filter(Boolean).every(function(token) {
+        return text.indexOf(token) !== -1;
+      });
+    }
+    function rowMatchesLane_(row, lane) {
+      if (!lane) return true;
+      if (lane === 'review') return isReviewStatus_(row.status);
+      if (lane === 'production') return isProductionStatus_(row.status);
+      if (lane === 'done') return !isActiveStatus_(row.status);
+      if (lane === 'special') return row._source === 'other';
+      if (lane === 'laser') return row.machine === 'laser';
+      if (lane === '3d') return row.machine === '3d';
+      return true;
+    }
+    function sortQueueRows_(rows, mode) {
+      var list = (rows || []).slice();
+      mode = mode || 'newest';
+      list.sort(function(a, b) {
+        if (mode === 'name') return requesterName_(a).localeCompare(requesterName_(b));
+        if (mode === 'oldest') return (rowTime_(a, 'created_at') - rowTime_(b, 'created_at')) || (rowSheetOrder_(a) - rowSheetOrder_(b));
+        if (mode === 'updated') return rowTime_(b, 'updated_at') - rowTime_(a, 'updated_at');
+        if (mode === 'newest') return compareLatestRows_(a, b);
+        if (mode === 'time_newest') return compareNewestTime_(a, b);
+        var pa = statusPriority_(a.status), pb = statusPriority_(b.status);
+        if (pa !== pb) return pa - pb;
+        return compareLatestRows_(a, b);
+      });
+      return list;
+    }
+    function formatOldestAge_(row) {
+      if (!row) return '\u2014';
+      var created = rowTime_(row, 'created_at');
+      if (!created) return '\u2014';
+      return queueTimeMeta(row.created_at) || '\u2014';
+    }
+    function refreshAdminInsights_(rows, totalLoaded) {
+      rows = rows || [];
+      var active = countRows_(rows, function(r) { return isActiveStatus_(r.status); });
+      var review = countRows_(rows, function(r) { return r.status === 'submitted'; });
+      var production = countRows_(rows, function(r) { return isProductionStatus_(r.status); });
+      var queueWorkload = countRows_(rows, function(r) { return isQueueWorkloadStatus_(r.status); });
+      var waitingStudent = countRows_(rows, function(r) { return r.status === 'needs_fix'; });
+      var special = countRows_(rows, function(r) { return r._source === 'other'; });
+      var laser = countRows_(rows, function(r) { return r.machine === 'laser'; });
+      var print3d = countRows_(rows, function(r) { return r.machine === '3d'; });
+      var repeat = countRows_(rows, function(r) {
+        var a = r._activity || {};
+        var total = Number((a.counts || {}).total || 0);
+        return total >= 2 || Number(a.last24_count || 0) >= 2;
+      });
+      var activeRows = rows.filter(function(r) { return isActiveStatus_(r.status); }).sort(function(a, b) {
+        return rowTime_(a, 'created_at') - rowTime_(b, 'created_at');
+      });
+      var oldest = activeRows[0] || null;
+
+      setText_('insightActive', String(active));
+      setText_('insightReview', String(review));
+      setText_('insightProduction', String(production));
+      setText_('insightOldest', formatOldestAge_(oldest));
+      setText_('insightSpecial', String(special));
+      setText_('insightLaser', String(laser));
+      setText_('insight3d', String(print3d));
+      setText_('insightRepeat', String(repeat));
+      setText_('insightActiveNote', totalLoaded && totalLoaded !== rows.length ? rows.length + ' visible from ' + totalLoaded + ' loaded' : 'Visible active workload');
+      setText_('insightReviewNote', review ? 'Start here before production' : 'No immediate review blockers');
+      setText_('insightProductionNote', production ? 'Ready for machine scheduling' : 'No approved production work visible');
+      setText_('insightOldestNote', oldest ? ((oldest.student_name || oldest.requester_name || oldest.project_name || 'Active job') + ' - ' + (STATUS_LABELS[oldest.status] || oldest.status)) : 'No active items visible');
+      setText_('insightSpecialNote', special ? 'Check sponsor and deadline context' : 'No visible special requests');
+      setText_('insightLaserNote', laser ? 'Sheet fabrication workload' : 'No visible laser jobs');
+      setText_('insight3dNote', print3d ? 'Print queue workload' : 'No visible 3D print jobs');
+      setText_('insightRepeatNote', repeat ? 'Review for duplicates or resubmits' : 'No repeat activity visible');
+
+      setInsightTone_('insightCardReview', review ? 'admin-insight--attention' : 'admin-insight--ok');
+      setInsightTone_('insightCardRepeat', repeat ? 'admin-insight--attention' : 'admin-insight--ok');
+      setInsightTone_('insightCardOldest', active ? '' : 'admin-insight--ok');
+
+      var pressure = queueWorkload + review + repeat + Math.ceil(waitingStudent / 2);
+      var fill = Math.min(100, pressure * 9);
+      var pill = pressure >= 8 ? 'High' : (pressure >= 4 ? 'Busy' : 'Calm');
+      var text = pressure >= 8
+        ? 'Queue is carrying noticeable pressure. Submitted and approved jobs both count as active queue workload; needs-fix items are tracked separately.'
+        : pressure >= 4
+          ? 'Queue is active. Use focus lanes to separate first review, production-ready work, and waiting-on-student items.'
+          : 'Queue pressure is low in the current view. Submitted and approved jobs are still counted as queue workload.';
+      setText_('adminHealthPill', pill);
+      setText_('adminHealthText', text);
+      setText_('healthReview', String(queueWorkload));
+      setText_('healthProduction', String(production));
+      setText_('healthStudentWait', String(waitingStudent));
+      setText_('healthRepeat', String(repeat));
+      var healthFill = document.getElementById('adminHealthFill');
+      if (healthFill) healthFill.style.width = fill + '%';
+    }
+    function updateQueueSummary_(rows, totalLoaded, filters) {
+      var parts = [];
+      parts.push(rows.length + ' visible');
+      if (totalLoaded !== rows.length) parts.push(totalLoaded + ' loaded before client filters');
+      if (_activeQueueLane) parts.push('lane: ' + _activeQueueLane);
+      if (filters.status) parts.push('status: ' + (STATUS_LABELS[filters.status] || filters.status));
+      if (filters.quick) parts.push('search: "' + filters.quick + '"');
+      setText_('queueSummaryLine', parts.join(' | '));
+    }
+    function updateStatActive_() {
+      var status = (document.getElementById('filterStatus') || {}).value || '';
+      document.querySelectorAll('.stat-card[data-status]').forEach(function(card) {
+        card.classList.toggle('active', String(card.getAttribute('data-status') || '') === status);
+      });
+    }
+    function updateLaneActive_() {
+      document.querySelectorAll('.lane-btn[data-lane]').forEach(function(btn) {
+        btn.classList.toggle('active', String(btn.getAttribute('data-lane') || '') === _activeQueueLane);
+      });
+    }
+    function setQueueLane(lane) {
+      _activeQueueLane = lane || '';
+      var source = document.getElementById('filterSource');
+      var machine = document.getElementById('filterMachine');
+      var status = document.getElementById('filterStatus');
+      if (source) source.value = _activeQueueLane === 'special' ? 'other' : '';
+      if (machine) machine.value = _activeQueueLane === 'laser' ? 'laser' : (_activeQueueLane === '3d' ? '3d' : '');
+      if (status) status.value = '';
+      updateLaneActive_();
+      updateStatActive_();
+      loadAdminRows();
+    }
+    function clearAdminFilters_() {
+      _activeQueueLane = '';
+      document.querySelectorAll('.filter-bar select').forEach(function(el) { el.value = ''; });
+      document.querySelectorAll('.filter-bar input[type=text]').forEach(function(el) { el.value = ''; });
+      var sort = document.getElementById('filterSort');
+      if (sort) sort.value = 'newest';
+      var mine = document.getElementById('filterMineOnly');
+      if (mine) mine.checked = BOOT.currentUser.role === 'teacher';
+      updateLaneActive_();
+      updateStatActive_();
+      loadAdminRows();
+    }
+
     /* ---------- NAV ---------- */
     var _pages = ['submit','other','status','admin','machines','help','rules','users','audit'];
     var _adminPages = ['admin','rules','users','audit'];
+    var _systemAdminPages = ['rules','users','audit'];
     var _init = {};
+    function refreshOverlayLock_() {
+      var emailOverlay = document.getElementById('emailOverlay');
+      var drawerOverlay = document.getElementById('reviewDrawer');
+      var drawerOpen = drawerOverlay && drawerOverlay.classList.contains('show');
+      document.body.classList.toggle('modal-open', !!emailOverlay || !!drawerOpen);
+    }
+    function closeTransientPanels_() {
+      var emailOverlay = document.getElementById('emailOverlay');
+      if (emailOverlay) emailOverlay.remove();
+      var drawerOverlay = document.getElementById('reviewDrawer');
+      if (drawerOverlay) drawerOverlay.classList.remove('show');
+      refreshOverlayLock_();
+    }
+    function focusActiveNav_(p) {
+      var nav = document.getElementById('nav-' + p);
+      if (nav && nav.scrollIntoView) {
+        try { nav.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch(e) {}
+      }
+    }
+    function enhanceClickableCards_() {
+      document.querySelectorAll('.stat-card[onclick]').forEach(function(card) {
+        if (card.dataset.keyboardBound === '1') return;
+        card.dataset.keyboardBound = '1';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            card.click();
+          }
+        });
+      });
+    }
     function switchPage(p) {
+      if (_systemAdminPages.indexOf(p) !== -1 && BOOT.currentUser.role !== 'admin') {
+        showToast('Only system admins can use that page.','error');
+        p = BOOT.currentUser.isAdmin ? 'admin' : 'submit';
+      }
       /* Role guard: block students/guests from admin-only pages */
       if (!BOOT.currentUser.isAdmin && _adminPages.indexOf(p) !== -1) {
         showToast('You do not have permission to view that page.','error');
         return;
       }
+      closeTransientPanels_();
       _pages.forEach(function(n) {
         var el = document.getElementById('page-' + n);
         var nav = document.getElementById('nav-' + n);
@@ -3762,6 +4632,9 @@ function renderPage_(page, boot) {
       });
       if (!_init[p]) { _init[p] = true; initPage(p); }
       try { if (history && history.replaceState) history.replaceState({}, '', '?page=' + p); } catch(e) {}
+      focusActiveNav_(p);
+      if (window.scrollY > 12) window.scrollTo({ top: 0, behavior: 'smooth' });
+      enhanceClickableCards_();
     }
     function initPage(p) {
       if (p === 'submit') initSubmitPage();
@@ -3780,8 +4653,89 @@ function renderPage_(page, boot) {
       });
       _init[BOOT.page] = true;
       initPage(BOOT.page);
+      focusActiveNav_(BOOT.page);
+      enhanceClickableCards_();
     }
 
+    /* ---------- TOAST ---------- */
+    function showToast(msg, type) {
+      var c = document.getElementById('toastContainer');
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'success');
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(function() { t.remove(); }, 3500);
+    }
+
+    function scrollToId_(id) {
+      var el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ---------- HELPERS ---------- */
+    function setMsg(id, text, cls) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.className = 'inline-msg tc-' + (cls||'muted');
+      el.textContent = text || '';
+    }
+    function copySuccessId_(box) {
+      var text = box.querySelector('.id-box-text').textContent;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('Submission ID copied!', 'success');
+        });
+      }
+    }
+    function resetSubmitForm_() {
+      document.getElementById('submitSuccess').style.display = 'none';
+      document.getElementById('submitFormWrap').style.display = 'block';
+      clearDraftAutosave_('submit');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function esc(str) {
+      return String(str||'')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    /* ---------- DEBOUNCE ---------- */
+    var _debounceTimers = {};
+    function debounce_(key, fn, delay) {
+      if (_debounceTimers[key]) clearTimeout(_debounceTimers[key]);
+      _debounceTimers[key] = setTimeout(fn, delay || 400);
+    }
+
+    /* ---------- MACHINE REMINDER HELPER ---------- */
+    function renderMachineReminder_(machine, isOther) {
+      var extra = '';
+      if (isOther) {
+        extra = '<li style="margin-top:4px;"><strong>Non-DT / special requests</strong> must be suitable for the selected machine and meet workshop approval rules. <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27)" style="font-weight:700;text-decoration:underline;">Check the Machines Guide</a> before submitting.</li>';
+      }
+      if (machine === 'laser') {
+        return '<div class="machine-reminder machine-reminder--laser">' +
+          '<strong>\\ud83d\\udd25 Laser Cutting Reminder</strong>' +
+          '<ul>' +
+          '<li>Your working file must be an <strong>editable vector file</strong> (not a screenshot, PNG, or JPG).</li>' +
+          '<li>Image-based files cannot be used as the main cutting file &mdash; the laser follows vector paths only.</li>' +
+          '<li>Unsure about file preparation? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-laser\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the Spirit LS Pro &amp; Mercury III specs on the Machines page</a>.</li>' +
+          extra +
+          '</ul></div>';
+      }
+      if (machine === '3d') {
+        return '<div class="machine-reminder machine-reminder--3d">' +
+          '<strong>\\u2699\\ufe0f 3D Printing Reminder</strong>' +
+          '<ul>' +
+          '<li>Your STL must be a <strong>printable 3D model</strong>, not just a visual shape &mdash; check wall thickness and overhangs.</li>' +
+          '<li>Include a <strong>dimension screenshot</strong> showing width, height, and depth of your model.</li>' +
+          '<li>Unsure about printability? <a href="javascript:void(0)" onclick="switchPage(\\x27machines\\x27);setTimeout(function(){var el=document.getElementById(\\x27machines-3d\\x27);if(el)el.scrollIntoView({behavior:\\x27smooth\\x27,block:\\x27start\\x27})},200)">Review the K2 Plus &amp; Guider IIs specs on the Machines page</a>.</li>' +
+          extra +
+          '</ul></div>';
+      }
+      return '';
+    }
+
+    /* ---------- SUBMISSION ACTIVITY HELPER ---------- */
     function loadSubmissionActivity(email, msgId) {
       var el = document.getElementById(msgId);
       if (!el) return;
@@ -3805,11 +4759,194 @@ function renderPage_(page, boot) {
         .withFailureHandler(function() { el.style.display = 'none'; toggleRepeatReminder_(msgId, false); })
         .getSubmissionActivity(e);
     }
-
     function toggleRepeatReminder_(msgId, show) {
       var rId = msgId === 'dtSubmitActivity' ? 'dtRepeatReminder' : (msgId === 'otherSubmitActivity' ? 'otherRepeatReminder' : null);
       var rem = rId ? document.getElementById(rId) : null;
       if (rem) rem.style.display = show ? 'block' : 'none';
+    }
+
+    /* ---------- DRAFT AUTOSAVE ---------- */
+    var _draftAutosave = {};
+    function draftStore_() {
+      try { return window.localStorage; } catch(e) { return null; }
+    }
+    function draftKey_(name) {
+      var user = String((BOOT.currentUser && BOOT.currentUser.email) || 'guest').toLowerCase();
+      return 'dfd:v3:' + user + ':' + name;
+    }
+    function draftControlKey_(el) {
+      return el && (el.name || (el.id ? '#' + el.id : ''));
+    }
+    function draftControls_(form) {
+      return Array.prototype.slice.call(form.querySelectorAll('input,select,textarea')).filter(function(el) {
+        if (!draftControlKey_(el)) return false;
+        if ((el.type || '').toLowerCase() === 'file') return false;
+        return true;
+      });
+    }
+    function isFormControlVisible_(el) {
+      var node = el;
+      while (node && node !== document.body) {
+        var style = window.getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        node = node.parentElement;
+      }
+      return true;
+    }
+    function readDraftData_(form) {
+      var data = {};
+      draftControls_(form).forEach(function(el) {
+        var key = draftControlKey_(el);
+        var type = (el.type || '').toLowerCase();
+        if (type === 'radio') {
+          if (el.checked) data[key] = el.value;
+          else if (!(key in data)) data[key] = '';
+        } else if (type === 'checkbox') {
+          data[key] = !!el.checked;
+        } else {
+          data[key] = el.value || '';
+        }
+      });
+      return data;
+    }
+    function draftHasMeaning_(data) {
+      return Object.keys(data || {}).some(function(key) {
+        var val = data[key];
+        if (val === true) return true;
+        return String(val || '').trim() !== '';
+      });
+    }
+    function applyDraftData_(form, data) {
+      function applyOnce() {
+        draftControls_(form).forEach(function(el) {
+          var key = draftControlKey_(el);
+          if (!(key in data)) return;
+          var type = (el.type || '').toLowerCase();
+          if (type === 'radio') el.checked = String(el.value) === String(data[key]);
+          else if (type === 'checkbox') el.checked = !!data[key];
+          else el.value = data[key];
+        });
+        form.querySelectorAll('input,select,textarea').forEach(function(el) {
+          try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+          try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e) {}
+        });
+      }
+      applyOnce();
+      setTimeout(applyOnce, 0);
+    }
+    function draftTimeLabel_(ts) {
+      try {
+        var d = new Date(ts);
+        if (isNaN(d.getTime())) return 'earlier';
+        return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch(e) { return 'earlier'; }
+    }
+    function ensureDraftBar_(form, name, label) {
+      var id = name + 'DraftBar';
+      var bar = document.getElementById(id);
+      if (bar) return bar;
+      bar = document.createElement('div');
+      bar.id = id;
+      bar.className = 'draft-bar';
+      bar.setAttribute('aria-live', 'polite');
+      bar.innerHTML =
+        '<div class="draft-row">' +
+          '<div class="draft-copy"><strong>' + esc(label || 'Draft autosave') + '</strong><br><span class="draft-status-text"></span></div>' +
+          '<div class="draft-actions"></div>' +
+        '</div>' +
+        '<div class="draft-progress">' +
+          '<div class="draft-progress-track"><div class="draft-progress-fill"></div></div>' +
+          '<div class="draft-progress-text">0 required fields complete</div>' +
+        '</div>';
+      form.parentNode.insertBefore(bar, form);
+      return bar;
+    }
+    function setDraftBar_(bar, state, text, actionsHtml) {
+      bar.classList.remove('draft-bar--restore', 'draft-bar--saved');
+      if (state) bar.classList.add('draft-bar--' + state);
+      var status = bar.querySelector('.draft-status-text');
+      var actions = bar.querySelector('.draft-actions');
+      if (status) status.textContent = text || '';
+      if (actions) actions.innerHTML = actionsHtml || '';
+    }
+    function updateDraftProgress_(form, bar) {
+      var required = draftControls_(form).filter(function(el) {
+        return (el.required || el.dataset.progressRequired === '1') && isFormControlVisible_(el);
+      });
+      var done = required.filter(function(el) {
+        var type = (el.type || '').toLowerCase();
+        if (type === 'checkbox' || type === 'radio') return !!el.checked;
+        return String(el.value || '').trim() !== '';
+      }).length;
+      var total = required.length;
+      var pct = total ? Math.round((done / total) * 100) : 100;
+      var fill = bar.querySelector('.draft-progress-fill');
+      var text = bar.querySelector('.draft-progress-text');
+      if (fill) fill.style.width = pct + '%';
+      if (text) text.textContent = total ? (done + '/' + total + ' required fields complete') : 'No required fields visible';
+    }
+    function setupDraftAutosave_(form, name, opts) {
+      opts = opts || {};
+      var store = draftStore_();
+      if (!store || !form || _draftAutosave[name]) return;
+      _draftAutosave[name] = true;
+      var key = draftKey_(name);
+      var bar = ensureDraftBar_(form, name, opts.label || 'Draft autosave');
+      function showReady_() {
+        setDraftBar_(bar, '', 'Autosave is on for form text, choices, and checkboxes. Files are never saved by the browser, so reattach uploads before submitting.', '');
+        updateDraftProgress_(form, bar);
+      }
+      function saveNow_() {
+        var data = readDraftData_(form);
+        if (!draftHasMeaning_(data)) {
+          store.removeItem(key);
+          showReady_();
+          return;
+        }
+        var savedAt = new Date().toISOString();
+        store.setItem(key, JSON.stringify({ savedAt: savedAt, data: data }));
+        setDraftBar_(bar, 'saved', 'Draft saved ' + draftTimeLabel_(savedAt) + '. Upload files again before submitting.', '<button type="button" class="btn btn-ghost btn-sm draft-discard-btn">Discard Draft</button>');
+        updateDraftProgress_(form, bar);
+        var discard = bar.querySelector('.draft-discard-btn');
+        if (discard) discard.onclick = function() { store.removeItem(key); showReady_(); };
+      }
+      function saveSoon_() {
+        setDraftBar_(bar, '', 'Saving draft...', '');
+        debounce_('draft_' + name, saveNow_, 500);
+        updateDraftProgress_(form, bar);
+      }
+      try {
+        var raw = store.getItem(key);
+        var saved = raw ? JSON.parse(raw) : null;
+        if (saved && saved.data && draftHasMeaning_(saved.data)) {
+          setDraftBar_(bar, 'restore', 'Saved draft found from ' + draftTimeLabel_(saved.savedAt) + '. Restoring will fill text and choices only; files must be reattached.', '<button type="button" class="btn btn-primary btn-sm draft-restore-btn">Restore Draft</button><button type="button" class="btn btn-ghost btn-sm draft-discard-btn">Discard</button>');
+          var restore = bar.querySelector('.draft-restore-btn');
+          var discard = bar.querySelector('.draft-discard-btn');
+          if (restore) restore.onclick = function() {
+            applyDraftData_(form, saved.data);
+            setDraftBar_(bar, 'saved', 'Draft restored. Reattach files, then review before submitting.', '<button type="button" class="btn btn-ghost btn-sm draft-discard-btn">Discard Draft</button>');
+            var d = bar.querySelector('.draft-discard-btn');
+            if (d) d.onclick = function() { store.removeItem(key); showReady_(); };
+            updateDraftProgress_(form, bar);
+          };
+          if (discard) discard.onclick = function() { store.removeItem(key); showReady_(); };
+        } else {
+          showReady_();
+        }
+      } catch(e) {
+        showReady_();
+      }
+      form.querySelectorAll('input,select,textarea').forEach(function(el) {
+        el.addEventListener('input', saveSoon_);
+        el.addEventListener('change', saveSoon_);
+      });
+      updateDraftProgress_(form, bar);
+    }
+    function clearDraftAutosave_(name) {
+      var store = draftStore_();
+      if (store) store.removeItem(draftKey_(name));
+      var bar = document.getElementById(name + 'DraftBar');
+      if (bar) setDraftBar_(bar, '', 'Draft cleared. Autosave will continue as you type.', '');
     }
 
     /* ================================================
@@ -3842,6 +4979,7 @@ function renderPage_(page, boot) {
       /* Pre-fill student email if logged in */
       var emailInput = form.querySelector('[name="student_email"]');
       if (emailInput && BOOT.currentUser.email && !emailInput.value) emailInput.value = BOOT.currentUser.email;
+      setupDraftAutosave_(form, 'submit', { label: 'DT submission draft' });
 
       /* Wire activity lookup on email */
       if (emailInput) {
@@ -3867,6 +5005,104 @@ function renderPage_(page, boot) {
         return decision;
       }
 
+      function setSubmitRailItem_(itemId, iconId, done, note, warning) {
+        var item = document.getElementById(itemId);
+        var icon = document.getElementById(iconId);
+        if (!item) return;
+        item.classList.remove('is-done', 'is-warning');
+        if (done) item.classList.add('is-done');
+        else if (warning) item.classList.add('is-warning');
+        if (icon) icon.textContent = done ? '\u2713' : (warning ? '!' : '\u25cb');
+        var noteEl = document.getElementById(itemId.replace('Item', 'Note'));
+        if (noteEl && note) noteEl.textContent = note;
+      }
+
+      function updateSubmitConvenienceRail_(state) {
+        state = state || {};
+        var fill = document.getElementById('submitRailProgressFill');
+        var text = document.getElementById('submitRailProgressText');
+        var pill = document.getElementById('submitRailReadyPill');
+        var next = document.getElementById('submitRailNextAction');
+        var pct = Number(state.pct || 0);
+        if (fill) fill.style.width = pct + '%';
+        if (text) text.textContent = (state.done || 0) + '/5 sections ready';
+        if (pill) {
+          pill.className = 'submit-rail-pill' + (state.blocked ? ' is-blocked' : (pct === 100 ? ' is-ready' : ''));
+          pill.textContent = state.blocked ? 'Closed' : (pct === 100 ? 'Ready' : 'In progress');
+        }
+        if (next) {
+          var label = 'Next step';
+          var body = 'Start with your student details.';
+          if (state.blocked) {
+            label = 'Submissions closed';
+            body = state.blockedMessage || 'This class or year group is not accepting submissions right now.';
+          } else if (!state.s1) {
+            body = 'Complete student details exactly as school records.';
+          } else if (!state.s2) {
+            body = 'Select year group, machine, and material so the correct rule loads.';
+          } else if (!state.s3) {
+            body = state.is3d ? 'Enter width, height, and depth for the 3D print.' : 'Enter width and height for the laser job.';
+          } else if (!state.s4) {
+            body = state.previewReq ? 'Attach the working file and required preview image.' : 'Attach one editable working file.';
+          } else {
+            label = 'Ready to submit';
+            body = 'Double-check the selected files, then submit to technician review.';
+          }
+          next.innerHTML = '<strong>' + esc(label) + '</strong><span>' + esc(body) + '</span>';
+        }
+
+        setSubmitRailItem_(
+          'submitRailDraftItem',
+          'submitRailDraftIcon',
+          !!state.draftReady,
+          state.draftReady
+            ? 'Autosave is active for text and choices. Reattach files before submitting.'
+            : 'Autosave starts when you type. Files are never saved by the browser.',
+          false
+        );
+        setSubmitRailItem_(
+          'submitRailRulesItem',
+          'submitRailRulesIcon',
+          !!state.s2,
+          state.s2
+            ? 'Rules loaded: materials, units, dimensions, and preview requirement are visible.'
+            : 'Choose year group and machine to load materials, units, dimensions, and preview rules.',
+          false
+        );
+        setSubmitRailItem_(
+          'submitRailFilesItem',
+          'submitRailFilesIcon',
+          !!state.s4,
+          state.s4
+            ? 'Required file checks are complete for this selected rule.'
+            : (state.previewReq ? 'Attach one working file and one preview image.' : 'Attach one editable working file.'),
+          state.s2 && !state.s4
+        );
+        setSubmitRailItem_('submitRailQueueItem', 'submitRailQueueIcon', true, 'Submitting sends the file to human technician review first. It is not same-day production.', false);
+        setSubmitRailItem_('submitRailCtaItem', 'submitRailCtaIcon', true, 'Use the buttons below for real actions: resume the form, check status, or open the machine guide.', false);
+      }
+
+      function setSubmitRailSubmitted_(submissionId) {
+        var pill = document.getElementById('submitRailReadyPill');
+        var next = document.getElementById('submitRailNextAction');
+        var fill = document.getElementById('submitRailProgressFill');
+        var text = document.getElementById('submitRailProgressText');
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = 'Submitted to technician review';
+        if (pill) {
+          pill.className = 'submit-rail-pill is-ready';
+          pill.textContent = 'Submitted';
+        }
+        if (next) {
+          next.innerHTML = '<strong>Submission received</strong><span>' + esc('Track status using ID ' + (submissionId || 'shown on the receipt') + '.') + '</span>';
+        }
+        setSubmitRailItem_('submitRailDraftItem', 'submitRailDraftIcon', true, 'Draft cleared after successful submission.', false);
+        setSubmitRailItem_('submitRailRulesItem', 'submitRailRulesIcon', true, 'The selected rule was used for this submission.', false);
+        setSubmitRailItem_('submitRailFilesItem', 'submitRailFilesIcon', true, 'The submitted file set was received by the dashboard.', false);
+        setSubmitRailItem_('submitRailQueueItem', 'submitRailQueueIcon', true, 'The file is now waiting for human technician review.', false);
+        setSubmitRailItem_('submitRailCtaItem', 'submitRailCtaIcon', true, 'Use Track Status or Submit Another from the receipt.', false);
+      }
+
       function updateGuide() {
         var rule = BOOT.rules.find(function(r) { return r.year_group === yearSel.value && r.machine === machineSel.value; });
         var previewReq = !!(rule && String(rule.preview_required).toLowerCase() === 'true');
@@ -3884,6 +5120,22 @@ function renderPage_(page, boot) {
         var pct = Math.round((done/5)*100);
         if (guideBar) guideBar.style.width = pct + '%';
         if (guideHint) guideHint.textContent = pct === 100 ? 'Ready to submit! Please double-check filenames.' : done + '/5 sections complete. Finish all items before submitting.';
+        var decision = getSubmissionControlDecisionClient_(yearSel.value, classNoInput ? classNoInput.value : '');
+        var draftBar = document.getElementById('submitDraftBar');
+        var draftReady = !!(draftBar || draftHasMeaning_(readDraftData_(form)));
+        updateSubmitConvenienceRail_({
+          s1: s1,
+          s2: s2,
+          s3: s3,
+          s4: s4,
+          done: done,
+          pct: pct,
+          is3d: is3d,
+          previewReq: previewReq,
+          draftReady: draftReady,
+          blocked: !!(decision && decision.blocked),
+          blockedMessage: decision && decision.message
+        });
       }
 
       function applyRules() {
@@ -3897,6 +5149,10 @@ function renderPage_(page, boot) {
           materialSel.disabled = true;
           ruleBox.innerHTML = '';
           unitsInput.value = '';
+          var reqMark = document.getElementById('previewReqMark');
+          var previewHint = document.getElementById('previewFileHint');
+          if (reqMark) reqMark.style.display = 'none';
+          if (previewHint) previewHint.textContent = 'PNG, JPG, or JPEG accepted. Required only when the selected rule asks for it.';
           applySubmissionAvailability_();
           updateGuide(); return;
         }
@@ -3905,6 +5161,10 @@ function renderPage_(page, boot) {
         materialSel.innerHTML = mats.length ? mats.map(function(m){ return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('') : '<option value="">No configured material</option>';
         unitsInput.value = rule.units || '';
         var previewReq = String(rule.preview_required).toLowerCase() === 'true';
+        var previewReqMark = document.getElementById('previewReqMark');
+        var previewFileHint = document.getElementById('previewFileHint');
+        if (previewReqMark) previewReqMark.style.display = previewReq ? 'inline' : 'none';
+        if (previewFileHint) previewFileHint.textContent = previewReq ? 'PNG, JPG, or JPEG preview required for this selected rule.' : 'PNG, JPG, or JPEG accepted. Optional for this selected rule.';
         var dims = [rule.max_width, rule.max_height, rule.max_depth].filter(function(v){ return String(v)!=='0' && v!==''; });
         var ext = String(rule.accepted_extensions||'').split(',').map(function(s){ return s.trim().toUpperCase(); }).filter(Boolean);
         var chips = [];
@@ -3943,6 +5203,25 @@ function renderPage_(page, boot) {
           setMsg('submitMsg', availability.message || 'Submissions are currently closed for this class or year group.', 'error');
           return;
         }
+        var activeRule = BOOT.rules.find(function(r) { return r.year_group === yearSel.value && r.machine === machineSel.value; });
+        var previewRequired = !!(activeRule && String(activeRule.preview_required).toLowerCase() === 'true');
+        if (machineSel.value === '3d' && !(Number(depthInput.value || 0) > 0)) {
+          setMsg('submitMsg', 'Depth is required for 3D printing. Enter width, height, and depth before submitting.', 'error');
+          if (depthInput) depthInput.focus();
+          return;
+        }
+        if (!workingInput || !workingInput.files || !workingInput.files.length) {
+          setMsg('submitMsg', 'Please attach the editable working file before submitting.', 'error');
+          var workingZone = document.getElementById('zone_workingFile');
+          if (workingZone) workingZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        if (previewRequired && (!previewInput || !previewInput.files || !previewInput.files.length)) {
+          setMsg('submitMsg', 'A preview image is required for this year and machine. Attach the preview before submitting.', 'error');
+          var previewZone = document.getElementById('zone_previewFile');
+          if (previewZone) previewZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         btn.dataset.busy = '1';
         btn.disabled = true;
         btn.innerHTML = '\\u23f3 Uploading\\u2026';
@@ -3974,7 +5253,10 @@ function renderPage_(page, boot) {
               form.reset();
               materialSel.disabled = true; ruleBox.innerHTML = ''; unitsInput.value = '';
               document.querySelectorAll('.file-chosen').forEach(function(el){ el.textContent = ''; });
+              document.querySelectorAll('.file-zone').forEach(function(el){ el.classList.remove('file-zone--filled'); });
+              clearDraftAutosave_('submit');
               updateGuide();
+              setSubmitRailSubmitted_(res.submission_id);
               btn.dataset.busy = '';
               applySubmissionAvailability_();
               showToast('Submission received!', 'success');
@@ -4009,6 +5291,23 @@ function renderPage_(page, boot) {
       var inp = document.getElementById(inputId);
       var chosen = document.getElementById('chosen_' + inputId);
       if (!zone || !inp || !chosen) return;
+
+      function fileSizeLabel_(size) {
+        if (!size && size !== 0) return '';
+        if (size < 1024 * 1024) return Math.max(1, Math.round(size / 1024)) + ' KB';
+        return (size / 1024 / 1024).toFixed(size > 10 * 1024 * 1024 ? 0 : 1) + ' MB';
+      }
+
+      function updateChosen_(file) {
+        if (!file) {
+          chosen.textContent = '';
+          zone.classList.remove('file-zone--filled');
+          return;
+        }
+        chosen.textContent = '\u2713 ' + file.name + (file.size ? ' (' + fileSizeLabel_(file.size) + ')' : '');
+        zone.classList.add('file-zone--filled');
+      }
+
       zone.addEventListener('click', function(e){ if (e.target === inp) return; inp.click(); });
       zone.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inp.click(); } });
       zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
@@ -4017,11 +5316,11 @@ function renderPage_(page, boot) {
         e.preventDefault(); zone.classList.remove('drag-over');
         if (e.dataTransfer.files.length) {
           var dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]); inp.files = dt.files;
-          chosen.textContent = '\\u2705 ' + e.dataTransfer.files[0].name;
+          updateChosen_(e.dataTransfer.files[0]);
           if (cb) cb();
         }
       });
-      inp.addEventListener('change', function(){ chosen.textContent = inp.files.length ? '\\u2705 ' + inp.files[0].name : ''; if (cb) cb(); });
+      inp.addEventListener('change', function(){ updateChosen_(inp.files && inp.files.length ? inp.files[0] : null); if (cb) cb(); });
     }
 
     /* ================================================
@@ -4044,6 +5343,13 @@ function renderPage_(page, boot) {
       var deptSel = document.getElementById('otherDepartment');
       var deptOtherField = document.getElementById('otherDeptOtherField');
       var purposeSel = document.getElementById('otherPurpose');
+      var otherWorkingInput = document.getElementById('otherWorkingFile');
+      var otherDepthInput = form.querySelector('[name="depth"]');
+      var chkApproval = document.getElementById('otherConfirmApproval');
+      var chkTimeline = document.getElementById('otherConfirmTimeline');
+      if (chkApproval) chkApproval.dataset.progressRequired = '1';
+      if (chkTimeline) chkTimeline.dataset.progressRequired = '1';
+      setupDraftAutosave_(form, 'other', { label: 'Special request draft' });
 
       /* Populate role dropdown from BOOT */
       if (roleSel && BOOT.uiText.otherRequestRoles) {
@@ -4142,10 +5448,31 @@ function renderPage_(page, boot) {
       form.addEventListener('submit', async function(ev) {
         ev.preventDefault();
         /* Validate confirmation checkboxes */
-        var chkApproval = document.getElementById('otherConfirmApproval');
-        var chkTimeline = document.getElementById('otherConfirmTimeline');
         if (chkApproval && !chkApproval.checked) { setMsg('otherSubmitMsg', 'Please confirm that teacher/supervisor approval has been obtained.', 'error'); return; }
         if (chkTimeline && !chkTimeline.checked) { setMsg('otherSubmitMsg', 'Please confirm that you understand the review and production timeline.', 'error'); return; }
+        if (teacherSel && teacherSel.value === '__other__') {
+          var teacherCustom = (document.getElementById('otherTeacherCustom') || {}).value || '';
+          if (!teacherCustom.trim()) { setMsg('otherSubmitMsg', 'Please enter the responsible teacher name.', 'error'); return; }
+        }
+        if (deptSel && deptSel.value === 'Other') {
+          var deptCustom = (document.getElementById('otherDeptOtherInput') || {}).value || '';
+          if (!deptCustom.trim()) { setMsg('otherSubmitMsg', 'Please specify the department or subject.', 'error'); return; }
+        }
+        if (((typeSel && typeSel.value === 'competition') || (purposeSel && purposeSel.value === 'competition'))) {
+          var competitionName = (form.querySelector('[name="competition_name"]') || {}).value || '';
+          if (!competitionName.trim()) { setMsg('otherSubmitMsg', 'Please enter the competition name for this request.', 'error'); return; }
+        }
+        if (machineSel && machineSel.value === '3d' && !(Number((otherDepthInput && otherDepthInput.value) || 0) > 0)) {
+          setMsg('otherSubmitMsg', 'Depth is required for 3D printing. Enter width, height, and depth before submitting.', 'error');
+          if (otherDepthInput) otherDepthInput.focus();
+          return;
+        }
+        if (!otherWorkingInput || !otherWorkingInput.files || !otherWorkingInput.files.length) {
+          setMsg('otherSubmitMsg', 'Please attach the editable working file before submitting this request.', 'error');
+          var otherWorkingZone = document.getElementById('zone_otherWorkingFile');
+          if (otherWorkingZone) otherWorkingZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         var btn = document.getElementById('otherSubmitBtn');
         btn.disabled = true;
         btn.innerHTML = '\\u23f3 Uploading\\u2026';
@@ -4187,6 +5514,8 @@ function renderPage_(page, boot) {
               form.reset();
               materialSel.innerHTML = '<option value="">\\u2014 Select machine first \\u2014</option>';
               document.querySelectorAll('#page-other .file-chosen').forEach(function(el){ el.textContent = ''; });
+              document.querySelectorAll('#page-other .file-zone').forEach(function(el){ el.classList.remove('file-zone--filled'); });
+              clearDraftAutosave_('other');
               btn.disabled = false; btn.innerHTML = 'Submit Request';
               showToast('Request submitted!', 'success');
             })
@@ -4201,7 +5530,9 @@ function renderPage_(page, boot) {
       document.getElementById('otherFormWrap').style.display = 'block';
       var form = document.getElementById('otherForm');
       if (form) form.reset();
+      clearDraftAutosave_('other');
       document.querySelectorAll('#page-other .file-chosen').forEach(function(el) { el.textContent = ''; });
+      document.querySelectorAll('#page-other .file-zone').forEach(function(el) { el.classList.remove('file-zone--filled'); });
       /* Reset conditional fields */
       var hide = ['otherYearGroupField','otherClassField','otherDeptOtherField','otherCompetitionField'];
       hide.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -4238,23 +5569,240 @@ function renderPage_(page, boot) {
       }).join('') + '</div>';
     }
 
-    function renderStatusSummary_(rows) {
-      var c = { submitted:0, needs_fix:0, in_progress:0, completed:0 };
-      rows.forEach(function(r) {
-        var s = String(r.status||'');
-        if (s==='submitted') c.submitted++;
-        if (s==='needs_fix') c.needs_fix++;
-        if (s==='completed') c.completed++;
-        if (['approved','in_queue','in_production'].indexOf(s)!==-1) c.in_progress++;
+    function summarizeStatusRows_(rows) {
+      var c = { total:0, queue:0, review:0, approved_ready:0, in_queue:0, in_production:0, needs_fix:0, completed:0, rejected:0 };
+      (rows || []).forEach(function(r) {
+        var s = String(r.status || '');
+        c.total++;
+        if (['submitted','approved','in_queue','in_production'].indexOf(s) !== -1) c.queue++;
+        if (s === 'submitted') c.review++;
+        if (s === 'approved') c.approved_ready++;
+        if (s === 'in_queue') c.in_queue++;
+        if (s === 'in_production') c.in_production++;
+        if (s === 'needs_fix') c.needs_fix++;
+        if (s === 'completed') c.completed++;
+        if (s === 'rejected') c.rejected++;
       });
-      return '<div class="status-summary"><div class="summary-card"><div class="num">' + rows.length + '</div><div class="lbl">Total</div></div><div class="summary-card"><div class="num">' + c.submitted + '</div><div class="lbl">Awaiting</div></div><div class="summary-card"><div class="num">' + c.in_progress + '</div><div class="lbl">In Process</div></div><div class="summary-card"><div class="num">' + c.needs_fix + '</div><div class="lbl">Needs Fix</div></div><div class="summary-card"><div class="num">' + c.completed + '</div><div class="lbl">Done</div></div></div>';
+      return c;
+    }
+
+    function statusQueueMeaning_(status) {
+      var s = String(status || '');
+      if (s === 'submitted') return 'This counts as active queue workload. It is waiting for first human review before production scheduling.';
+      if (s === 'approved') return 'This counts as active queue workload. It passed review and is waiting to be placed into a machine slot.';
+      if (s === 'in_queue') return 'This is in the production queue and waiting for an available machine slot.';
+      if (s === 'in_production') return 'This is active queue workload and is currently being fabricated or prepared on the machine.';
+      if (s === 'needs_fix') return 'This is waiting on student revision. It will not move forward in the production queue until a corrected file is submitted.';
+      if (s === 'completed') return 'This is complete and no longer part of active queue workload.';
+      if (s === 'rejected') return 'This is not active in the queue. Read the remarks and speak with your teacher if needed.';
+      return 'Check the latest status and remarks for next steps.';
+    }
+
+    function statusStageLabel_(status) {
+      var s = String(status || '');
+      if (s === 'submitted') return 'Waiting for human review';
+      if (s === 'needs_fix') return 'Paused for revision';
+      if (s === 'approved') return 'Approved for scheduling';
+      if (s === 'in_queue') return 'Waiting for machine slot';
+      if (s === 'in_production') return 'Being fabricated';
+      if (s === 'completed') return 'Ready to collect';
+      if (s === 'rejected') return 'Follow-up needed';
+      return 'Status being checked';
+    }
+
+    function statusStudentAction_(r) {
+      var s = String((r && r.status) || '');
+      if (s === 'submitted') return 'Wait for technician review. Do not submit duplicates unless the original file is wrong.';
+      if (s === 'needs_fix') return 'Open your submitted file, fix the feedback, then submit a revised file.';
+      if (s === 'approved') return 'No action needed. Keep checking here for queue movement.';
+      if (s === 'in_queue') return 'No action needed. The job is waiting for a machine slot.';
+      if (s === 'in_production') return 'No action needed. The workshop is making or preparing the job.';
+      if (s === 'completed') return 'Collect your work when your teacher or technician says it is ready.';
+      if (s === 'rejected') return 'Speak with your teacher before submitting a replacement.';
+      return 'Read the latest remarks and ask your teacher if anything is unclear.';
+    }
+
+    function statusNextCheckpoint_(r) {
+      var s = String((r && r.status) || '');
+      if (s === 'submitted') return 'Technician review decides whether the file needs revision or can enter scheduling.';
+      if (s === 'needs_fix') return 'After you resubmit, the corrected file goes back for human review.';
+      if (s === 'approved') return 'A technician places it into the machine queue when capacity is available.';
+      if (s === 'in_queue') return 'The next update should be In Production when the machine slot starts.';
+      if (s === 'in_production') return 'The next update should be Completed after fabrication and checks.';
+      if (s === 'completed') return 'Check the final piece and tell your teacher if there is a problem.';
+      if (s === 'rejected') return 'Your teacher or technician can explain whether a new request is appropriate.';
+      return 'The workflow will update as the request is reviewed.';
+    }
+
+    function statusMachineChecklist_(r) {
+      var machine = String((r && r.machine) || '').toLowerCase();
+      var status = String((r && r.status) || '');
+      if (status === 'completed') {
+        return ['Bring your student ID if collection requires it.', 'Check the finished part before leaving the workshop.', 'Tell your teacher if the result does not match the approved design.'];
+      }
+      if (status === 'rejected') {
+        return ['Read the remarks carefully.', 'Discuss the design goal with your teacher.', 'Submit a new file only when you know what needs to change.'];
+      }
+      if (machine === '3d') {
+        if (status === 'needs_fix') return ['Check that the STL is manifold and closed.', 'Confirm scale and units before exporting.', 'Look for thin walls, unsupported overhangs, and floating parts.'];
+        return ['Keep the STL and original CAD file available.', 'Avoid duplicate submissions while waiting.', 'Use the Machines guide if you need to check material or print limits.'];
+      }
+      if (status === 'needs_fix') return ['Check scale and units in the working file.', 'Use correct line colours for cut, score, and engrave.', 'Remove double lines and convert text to paths if needed.'];
+      return ['Keep the working file and preview available.', 'Avoid duplicate submissions while waiting.', 'Use the Machines guide if you need to check material, thickness, or bed size.'];
+    }
+
+    function renderStatusNextPanel_(r) {
+      var updated = formatDisplayTs(r.updated_at || r.created_at);
+      var source = r._source === 'other' ? 'Special request' : 'DT project';
+      return '<div class="status-next-grid">' +
+        '<div class="status-next-card"><div class="status-next-label">Current step</div><div class="status-next-value">' + esc(statusStageLabel_(r.status)) + '</div><div class="status-next-note">' + esc(source) + ' in the workshop workflow.</div></div>' +
+        '<div class="status-next-card"><div class="status-next-label">Your next action</div><div class="status-next-value">' + esc(statusStudentAction_(r)) + '</div></div>' +
+        '<div class="status-next-card"><div class="status-next-label">Next checkpoint</div><div class="status-next-value">' + esc(statusNextCheckpoint_(r)) + '</div></div>' +
+        '<div class="status-next-card"><div class="status-next-label">Last update</div><div class="status-next-value">' + esc(updated) + '</div><div class="status-next-note">Use this to check whether you are looking at the latest record.</div></div>' +
+      '</div>';
+    }
+
+    function renderStatusActionPanel_(r) {
+      var list = statusMachineChecklist_(r).map(function(item) { return '<li>' + esc(item) + '</li>'; }).join('');
+      var revise = String((r && r.status) || '') === 'needs_fix';
+      var title = revise ? 'Revision checklist' : 'Useful checks while you wait';
+      return '<div class="status-action-panel ' + (revise ? 'status-action-panel--revise' : '') + '">' +
+        '<div class="status-action-title">' + (revise ? '&#9888;' : '&#128161;') + ' ' + title + '</div>' +
+        '<ul class="status-action-list">' + list + '</ul>' +
+      '</div>';
+    }
+
+    function renderStatusFileActions_(r) {
+      var links = [];
+      if (r.working_file_url) links.push('<a class="btn btn-ghost btn-sm" href="' + esc(r.working_file_url) + '" target="_blank" rel="noopener">&#128196; Open Working File</a>');
+      if (r.preview_file_url) links.push('<a class="btn btn-ghost btn-sm" href="' + esc(r.preview_file_url) + '" target="_blank" rel="noopener">&#128444; Open Preview</a>');
+      if (r.status === 'needs_fix') {
+        links.push('<button type="button" class="btn btn-primary btn-sm" onclick="switchPage(&#39;' + (r._source === 'other' ? 'other' : 'submit') + '&#39;)">&#8635; Submit Revised File</button>');
+      }
+      if (!links.length) return '<div class="status-file-actions"><span class="status-file-note">File links are not available for this record. This can happen for older imported rows or if the upload was not stored with a link.</span></div>';
+      return '<div class="status-file-actions">' + links.join('') + '<span class="status-file-note">Drive may ask you to sign in with your school account. These links reopen the files stored with the original submission.</span></div>';
+    }
+
+    function renderStatusQueuePanel_(rows) {
+      var c = summarizeStatusRows_(rows);
+      return '<div class="status-queue-panel" id="statusQueuePanel">' +
+        '<div class="status-queue-head"><div><div class="status-queue-title">&#128200; Queue context for this lookup</div><div class="status-queue-note">Submitted, Approved, In Queue, and In Production all count as active queue workload. Needs Fix is separated because the next action is student revision.</div></div><span class="pill pill-submitted" id="statusQueueHealthPill">LOADING</span></div>' +
+        '<div class="status-queue-grid">' +
+          '<div class="status-queue-metric"><div class="num">' + c.queue + '</div><div class="lbl">Your Active Queue Items</div></div>' +
+          '<div class="status-queue-metric"><div class="num">' + c.review + '</div><div class="lbl">Waiting Review</div></div>' +
+          '<div class="status-queue-metric"><div class="num">' + (c.approved_ready + c.in_queue) + '</div><div class="lbl">Production Wait</div></div>' +
+          '<div class="status-queue-metric"><div class="num">' + c.needs_fix + '</div><div class="lbl">Needs Your Revision</div></div>' +
+        '</div>' +
+        '<div class="status-workload-card" id="statusQueueGlobal" aria-live="polite">Loading workload view...</div>' +
+      '</div>';
+    }
+
+    function statusLoadState_(load) {
+      if (load >= 70) return { key: 'heavy', label: 'Very busy', fill: 'status-workload-fill--heavy' };
+      if (load >= 35) return { key: 'busy', label: 'Busy', fill: 'status-workload-fill--busy' };
+      if (load >= 12) return { key: 'active', label: 'Active', fill: '' };
+      return { key: 'calm', label: 'Calm', fill: '' };
+    }
+
+    function statusPct_(value, total) {
+      value = Math.max(0, Number(value || 0));
+      total = Math.max(0, Number(total || 0));
+      if (!total || !value) return 0;
+      return Math.max(7, Math.min(100, Math.round((value / total) * 100)));
+    }
+
+    function statusLaneHtml_(label, note, value, total, cls) {
+      var pct = statusPct_(value, total);
+      return '<div class="status-workload-lane">' +
+        '<div class="status-workload-lane-label">' + esc(label) + '</div>' +
+        '<div class="status-workload-lane-note">' + esc(note) + '</div>' +
+        '<div class="status-workload-lane-bar" aria-hidden="true"><div class="status-workload-lane-fill ' + cls + '" style="width:' + pct + '%;"></div></div>' +
+      '</div>';
+    }
+
+    function updateStatusQueuePanel_(snapshot) {
+      var target = document.getElementById('statusQueueGlobal');
+      var pill = document.getElementById('statusQueueHealthPill');
+      if (!target || !snapshot || !snapshot.counts) return;
+      var c = snapshot.counts;
+      var load = Number(c.active_queue || 0);
+      var state = statusLoadState_(load);
+      var waitingReview = Number(c.waiting_review || 0);
+      var readyWait = Number(c.approved_ready || 0) + Number(c.in_queue || 0);
+      var inProduction = Number(c.in_production || 0);
+      var waitingStudent = Number(c.waiting_student || 0);
+      var laneTotal = Math.max(1, waitingReview + readyWait + inProduction + waitingStudent);
+      var laserActive = Number(c.laser_active || 0);
+      var printActive = Number(c.print3d_active || 0);
+      var machineTotal = laserActive + printActive;
+      var laserPct = machineTotal ? Math.round((laserActive / machineTotal) * 100) : 0;
+      var printPct = machineTotal ? 100 - laserPct : 0;
+      if (laserActive && laserPct < 8) laserPct = 8;
+      if (printActive && printPct < 8) printPct = 8;
+      var loadPct = load ? Math.max(8, Math.min(100, Math.round((load / 100) * 100))) : 0;
+      if (pill) {
+        pill.textContent = state.label.toUpperCase();
+        pill.className = 'pill pill-submitted';
+      }
+      target.setAttribute('aria-label', 'Whole-workshop workload is ' + state.label.toLowerCase() + '. This is workload context, not a turnaround promise.');
+      target.innerHTML = '<div class="status-workload-head">' +
+          '<div><div class="status-workload-kicker">Whole-workshop workload</div><div class="status-workload-title">Current queue pressure for planning</div></div>' +
+          '<span class="status-workload-state status-workload-state--' + state.key + '">' + esc(state.label) + '</span>' +
+        '</div>' +
+        '<div class="status-workload-bar" aria-hidden="true"><div class="status-workload-fill ' + state.fill + '" style="width:' + loadPct + '%;"></div></div>' +
+        '<div class="status-workload-scale" aria-hidden="true"><span>Light</span><span>Steady</span><span>Busy</span><span>Heavy</span></div>' +
+        '<div class="status-workload-lanes" aria-hidden="true">' +
+          statusLaneHtml_('First review', 'Waiting for human review', waitingReview, laneTotal, 'status-workload-lane-fill--review') +
+          statusLaneHtml_('Ready / queued', 'Approved or waiting for a slot', readyWait, laneTotal, 'status-workload-lane-fill--ready') +
+          statusLaneHtml_('In production', 'Being fabricated or prepared', inProduction, laneTotal, 'status-workload-lane-fill--production') +
+          statusLaneHtml_('Revision pause', 'Waiting for student updates', waitingStudent, laneTotal, 'status-workload-lane-fill--revision') +
+        '</div>' +
+        '<div class="status-workload-machine" aria-hidden="true">' +
+          '<div class="status-machine-head"><span>Machine mix</span><span>Laser and 3D workload</span></div>' +
+          '<div class="status-machine-mix"><div class="status-machine-laser" style="flex-basis:' + laserPct + '%;"></div><div class="status-machine-print" style="flex-basis:' + printPct + '%;"></div></div>' +
+          '<div class="status-machine-legend"><span><i class="status-machine-dot"></i>Laser</span><span><i class="status-machine-dot status-machine-dot--print"></i>3D printing</span></div>' +
+        '</div>' +
+        '<div class="status-workload-foot">Updated recently. This is workload context only, not an exact promise of turnaround.</div>';
+    }
+
+    function loadStatusQueueSnapshot_() {
+      var target = document.getElementById('statusQueueGlobal');
+      if (!target) return;
+      google.script.run
+        .withSuccessHandler(updateStatusQueuePanel_)
+        .withFailureHandler(function() {
+          target.textContent = 'Queue health is temporarily unavailable. Your individual status cards are still current.';
+        })
+        .getQueueHealthSnapshot();
+    }
+
+    function renderStatusSummary_(rows) {
+      var c = summarizeStatusRows_(rows);
+      return '<div class="status-summary"><div class="summary-card"><div class="num">' + c.total + '</div><div class="lbl">Total</div></div><div class="summary-card"><div class="num">' + c.queue + '</div><div class="lbl">Active Queue</div></div><div class="summary-card"><div class="num">' + c.review + '</div><div class="lbl">Review</div></div><div class="summary-card"><div class="num">' + (c.approved_ready + c.in_queue) + '</div><div class="lbl">Prod Wait</div></div><div class="summary-card"><div class="num">' + c.needs_fix + '</div><div class="lbl">Needs Fix</div></div><div class="summary-card"><div class="num">' + c.completed + '</div><div class="lbl">Done</div></div></div>';
+    }
+
+    function statusEmptyStateHtml_() {
+      return '<div id="statusEmptyState" class="status-empty-state"><div class="status-empty-icon">&#128269;</div><p class="status-empty-title">No search yet</p><p class="status-empty-copy">Enter your school email to see all your submissions, or paste a specific Submission ID or Request ID to look up one entry.</p><div class="status-help-grid"><div class="status-help-card"><div class="status-help-icon">&#128232;</div><div class="status-help-title">Enter Email or ID</div><div class="status-help-copy">Use your school email, Submission ID, or Request ID.</div></div><div class="status-help-card"><div class="status-help-icon">&#128270;</div><div class="status-help-title">Search Both Paths</div><div class="status-help-copy">DT submissions and special requests are checked together.</div></div><div class="status-help-card"><div class="status-help-icon">&#128200;</div><div class="status-help-title">Track Next Step</div><div class="status-help-copy">Read the timeline, remarks, and any revision request.</div></div></div></div>';
+    }
+
+    function focusStatusSearch_() {
+      var inp = document.getElementById('statusQuery');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+
+    function clearStatusSearch_() {
+      var inp = document.getElementById('statusQuery');
+      if (inp) { inp.value = ''; inp.focus(); }
+      setMsg('statusMsg', 'Search cleared. Enter your school email or an exact ID.', 'muted');
+      var results = document.getElementById('statusResults');
+      if (results) results.innerHTML = statusEmptyStateHtml_();
     }
 
     function loadStatuses() {
       var q = document.getElementById('statusQuery').value.trim();
       if (!q) { setMsg('statusMsg','Please enter your email or submission ID.','error'); return; }
       setMsg('statusMsg','Searching\\u2026','muted');
-      var statusBtn = document.querySelector('#page-status .btn-primary');
+      var statusBtn = document.getElementById('statusSearchBtn') || document.querySelector('#page-status .status-search-panel .btn-primary');
       if (statusBtn) { statusBtn.disabled = true; statusBtn.innerHTML = '\\u23f3 Searching\\u2026'; }
       var dtRows = null, orRows = null, dtDone = false, orDone = false, hadError = false;
       function merge() {
@@ -4322,7 +5870,12 @@ function renderPage_(page, boot) {
             '<div class="progress-strip"><div class="progress-fill" style="width:' + progress + '%"></div></div>' +
             '<div class="progress-meta"><span>Progress: ' + progress + '%</span><span>Owner: ' + esc(owner) + '</span></div>' +
             buildTimeline(r.status) +
-            '<div class="sub-card-body">' + detailFields + '</div>' + extra + '</div>';
+            '<div class="status-stage"><strong>Queue meaning:</strong> ' + esc(statusQueueMeaning_(r.status)) + '</div>' +
+            renderStatusNextPanel_(r) +
+            renderStatusActionPanel_(r) +
+            '<div class="sub-card-body">' + detailFields + '</div>' +
+            '<div class="status-file-title">&#128193; Submitted files and evidence</div>' +
+            renderStatusFileActions_(r) + extra + '</div>';
         }
         function renderSection(title, subtitle, rows) {
           if (!rows.length) return '';
@@ -4334,7 +5887,7 @@ function renderPage_(page, boot) {
         }
         var dtOnly = all.filter(function(r){ return r._source === 'dt'; });
         var otherOnly = all.filter(function(r){ return r._source === 'other'; });
-        var statusHtml = renderStatusSummary_(all);
+        var statusHtml = renderStatusSummary_(all) + renderStatusQueuePanel_(all);
         var topActivity = all[0] && all[0]._activity ? all[0]._activity : null;
         if (topActivity && (Number(topActivity.counts.total || 0) >= 2 || Number(topActivity.last24_count || 0) >= 2)) {
           statusHtml += '<div class="alert alert-info status-activity-banner"><span class="alert-icon">&#128202;</span><span><strong>Recent activity for this requester:</strong> ' + Number(topActivity.counts.total || 0) + ' request(s) today and ' + Number(topActivity.last24_count || 0) + ' in the last 24 hours. Review the latest record carefully before resubmitting or chasing the queue.</span></div>';
@@ -4346,6 +5899,7 @@ function renderPage_(page, boot) {
           statusHtml += all.map(renderCard).join('');
         }
         el.innerHTML = statusHtml;
+        loadStatusQueueSnapshot_();
       }
       function onError(err) { if (!hadError) { hadError = true; setMsg('statusMsg', err.message||String(err), 'error'); if (statusBtn) { statusBtn.disabled = false; statusBtn.innerHTML = '&#128270; Check Status'; } } }
       google.script.run.withSuccessHandler(function(rows){ dtRows = rows; dtDone = true; merge(); }).withFailureHandler(onError).getStudentStatuses(q);
@@ -4358,8 +5912,20 @@ function renderPage_(page, boot) {
     function initAdminPage() {
       if (!BOOT.currentUser.isAdmin) return;
       ['filterSource','filterYear','filterMachine','filterStatus'].forEach(function(id) {
-        var el = document.getElementById(id); if (el) el.addEventListener('change', loadAdminRows);
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', function() {
+          _activeQueueLane = '';
+          updateLaneActive_();
+          updateStatActive_();
+          loadAdminRows();
+        });
       });
+      var sortEl = document.getElementById('filterSort');
+      if (sortEl) sortEl.addEventListener('change', loadAdminRows);
+      var quickEl = document.getElementById('filterQuick');
+      if (quickEl) quickEl.addEventListener('input', function() { debounce_('adminQuickFilter', loadAdminRows, 250); });
+      updateLaneActive_();
+      updateStatActive_();
       ['filterTeacher','filterClass','filterStudentEmail'].forEach(function(id) {
         var el = document.getElementById(id); if (el) el.addEventListener('input', function() { debounce_('adminFilter', loadAdminRows, 400); });
       });
@@ -4377,6 +5943,181 @@ function renderPage_(page, boot) {
     function setStatCard(status, count) { var el = document.getElementById('stat_' + status); if (el) el.textContent = count; }
 
     var _adminRows = [];
+    var _adminRawRows = [];
+    var _adminRawKey = null;
+    var _adminRequestSeq = 0;
+    var _adminRenderState = { rows: [], next: 0, chunk: 80 };
+
+    function createClientActivity_() {
+      return { counts: { total: 0, dt: 0, special: 0 }, last24_count: 0, recent: [] };
+    }
+    function rowRequesterEmail_(row) {
+      return String((row && (row.student_email || row.requester_email)) || '').trim().toLowerCase();
+    }
+    function attachClientActivity_(rows) {
+      rows = rows || [];
+      var map = {};
+      rows.forEach(function(row) {
+        var email = rowRequesterEmail_(row);
+        if (email && !map[email]) map[email] = createClientActivity_();
+      });
+      var today = formatDisplayTs(new Date()).substring(0, 10);
+      var cutoff = Date.now() - 86400000;
+      rows.forEach(function(row) {
+        var email = rowRequesterEmail_(row);
+        if (!email || !map[email]) return;
+        var created = new Date(row.created_at || '');
+        var createdMs = isNaN(created.getTime()) ? 0 : created.getTime();
+        var createdLabel = formatDisplayTs(row.created_at);
+        if (createdLabel.substring(0, 10) === today) {
+          if (row._source === 'other') map[email].counts.special++;
+          else map[email].counts.dt++;
+        }
+        if (createdMs && createdMs >= cutoff) map[email].last24_count++;
+        map[email].recent.push({
+          source: row._source || 'dt',
+          id: row.submission_id || row.request_id || '',
+          created_at: row.created_at || '',
+          label: row._source === 'other'
+            ? (row.project_name || row.request_type || 'Special Request')
+            : ('DT Student Project - ' + (MACHINE_LABELS[row.machine] || row.machine || 'Fabrication')),
+          sort_time: createdMs
+        });
+      });
+      Object.keys(map).forEach(function(email) {
+        var a = map[email];
+        a.counts.total = a.counts.dt + a.counts.special;
+        a.recent = a.recent.sort(function(x, y) { return y.sort_time - x.sort_time; }).slice(0, 3);
+      });
+      rows.forEach(function(row) {
+        row._activity = map[rowRequesterEmail_(row)] || createClientActivity_();
+      });
+      return rows;
+    }
+    function adminRenderChunkSize_() {
+      return window.innerWidth < 700 ? 35 : 80;
+    }
+    function renderQueueRowHtml_(r, idx) {
+      var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
+      var machineLabel = esc(MACHINE_LABELS[r.machine]||r.machine||'');
+      var materialLabel = esc(r.material||'\u2014');
+      var prototypeLabel = r._source === 'other' ? '' : formatPrototypeFidelityLabel_(r.prototype_fidelity);
+      var dimsLabel = dims.length ? dims.join('\u00d7') + ' ' + esc(r.units||'') : '\u2014';
+      var submittedMeta = queueTimeMeta(r.created_at);
+      var updatedMeta = queueTimeMeta(r.updated_at);
+      var statusNote = queueStatusNote(r);
+      var progress = statusProgress(r.status);
+      var requesterCell = r._source === 'other'
+        ? '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.requester_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.requester_email||'') + '</div><div class="queue-meta">' + esc(r.project_name || 'Untitled Special Request') + '</div><div class="queue-meta-aux">Sponsor: ' + esc(r.teacher_in_charge || '\u2014') + (r.department_or_subject ? ' · ' + esc(r.department_or_subject) : '') + '</div></td>'
+        : '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.student_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.student_email||'') + '</div><div class="queue-meta">Class ' + esc(r.design_class_no||'\u2014') + ' · ' + esc(r.year_group||'\u2014') + '</div><div class="queue-meta-aux">Teacher: ' + esc(r.design_teacher||'\u2014') + '</div></td>';
+      var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + (prototypeLabel ? prototypePill(r.prototype_fidelity) : '') + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">Prototype: ' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
+      var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-mini-progress" title="Workflow progress"><span style="width:' + progress + '%"></span></div><div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
+      var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
+      var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
+      var rowClass = ['queue-row', queueRowStateClass(r.status), queueSourceClass(r._source), queueAttentionClass(r)].join(' ').trim();
+      return '<tr class="' + rowClass + '">' + requesterCell + contextCell + statusCell + metaCell + actionCell + '</tr>';
+    }
+    function updateAdminLoadMore_() {
+      var bar = document.getElementById('queueLoadMoreBar');
+      var text = document.getElementById('queueLoadMoreText');
+      var btn = document.getElementById('queueLoadMoreBtn');
+      if (!bar || !text || !btn) return;
+      var total = _adminRenderState.rows.length;
+      var shown = Math.min(_adminRenderState.next, total);
+      if (shown >= total) {
+        bar.style.display = total > adminRenderChunkSize_() ? 'flex' : 'none';
+        text.textContent = total ? 'Showing all ' + total + ' visible record(s).' : '';
+        btn.style.display = 'none';
+        return;
+      }
+      bar.style.display = 'flex';
+      btn.style.display = '';
+      text.textContent = 'Showing ' + shown + ' of ' + total + ' visible record(s). More rows are kept offscreen so the page stays responsive.';
+      btn.textContent = 'Load ' + Math.min(_adminRenderState.chunk, total - shown) + ' More';
+    }
+    function loadMoreAdminRows_() {
+      var tbody = document.getElementById('adminQueueBody');
+      if (!tbody) return;
+      var rows = _adminRenderState.rows || [];
+      var start = _adminRenderState.next;
+      var end = Math.min(rows.length, start + _adminRenderState.chunk);
+      if (end <= start) { updateAdminLoadMore_(); return; }
+      tbody.insertAdjacentHTML('beforeend', rows.slice(start, end).map(function(r, offset) {
+        return renderQueueRowHtml_(r, start + offset);
+      }).join(''));
+      _adminRenderState.next = end;
+      updateAdminLoadMore_();
+      setMsg('adminMsg', 'Showing ' + end + ' of ' + rows.length + ' visible records.', 'muted');
+    }
+
+    function adminDataKey_(source, filters) {
+      return JSON.stringify({
+        source: source || '',
+        year_group: filters.year_group || '',
+        machine: filters.machine || '',
+        status: filters.status || '',
+        teacher_query: filters.teacher_query || '',
+        class_no: filters.class_no || '',
+        student_email: filters.student_email || '',
+        mine_only: filters.mine_only || 'false'
+      });
+    }
+
+    function invalidateAdminRowsCache_() {
+      _adminRawRows = [];
+      _adminRawKey = null;
+    }
+
+    function normaliseAdminRows_(dtRows, orRows) {
+      (dtRows||[]).forEach(function(r){ r._source = 'dt'; });
+      (orRows||[]).forEach(function(r){
+        r._source = 'other';
+        r.student_name = r.requester_name || '';
+        r.student_email = r.requester_email || '';
+        r.design_class_no = r.department_or_subject || '';
+        r.submission_id = r.submission_id || r.request_id;
+      });
+      var rawRows = (dtRows||[]).concat(orRows||[]);
+      attachClientActivity_(rawRows);
+      return rawRows;
+    }
+
+    function renderAdminRows_(rawRows, filters, fromCache) {
+      rawRows = rawRows || [];
+      var rows = rawRows.slice();
+      if (filters.lane) rows = rows.filter(function(r) { return rowMatchesLane_(r, filters.lane); });
+      if (filters.quick) rows = rows.filter(function(r) { return rowMatchesQuick_(r, filters.quick); });
+      rows = sortQueueRows_(rows, filters.sort);
+      _adminRows = rows;
+      var counts = {};
+      rows.forEach(function(r){ counts[r.status] = (counts[r.status]||0)+1; });
+      ['submitted','needs_fix','approved','in_queue','in_production','completed','rejected'].forEach(function(s){ setStatCard(s, counts[s]||0); });
+      var totalEl = document.getElementById('statTotal');
+      if (totalEl) totalEl.textContent = rows.length;
+      refreshAdminInsights_(rows, rawRows.length);
+      updateQueueSummary_(rows, rawRows.length, filters);
+      updateLaneActive_();
+      updateStatActive_();
+      var el = document.getElementById('adminTable');
+      if (!el) return;
+      var filterBanner = filters.mine_only === 'true'
+        ? '<div class="alert alert-info" style="margin:0 0 12px;"><span class="alert-icon">&#8505;</span><span><strong>Filtered view:</strong> showing DT submissions where you are the teacher, plus Special Requests where you are the responsible teacher or approver. Turn off <strong>My students only</strong> to see the wider queue.</span></div>'
+        : '';
+      if (!rows.length) {
+        el.innerHTML = filterBanner + '<div class="queue-empty alert alert-neutral"><span class="alert-icon">\ud83d\udce5</span><span>' + (rawRows.length ? 'No visible records match the current lane, search, or sort filters.' : (filters.mine_only === 'true' ? 'No records are currently linked to your teacher / sponsor account under these filters.' : 'No submissions match the current filters.')) + '</span></div>';
+        setMsg('adminMsg', (fromCache ? 'Filtered locally. ' : '') + rows.length + ' visible / ' + rawRows.length + ' loaded.', 'muted');
+        return;
+      }
+      var chunk = adminRenderChunkSize_();
+      var initial = Math.min(rows.length, chunk);
+      _adminRenderState = { rows: rows, next: initial, chunk: chunk };
+      el.innerHTML = filterBanner + '<div class="tbl-wrap"><table class="queue-table"><thead><tr><th>Requester</th><th>Job</th><th>Status</th><th>Queue Context</th><th>Action</th></tr></thead><tbody id="adminQueueBody">' +
+        rows.slice(0, initial).map(function(r, idx) { return renderQueueRowHtml_(r, idx); }).join('') +
+        '</tbody></table></div><div class="queue-load-more" id="queueLoadMoreBar"><span class="queue-load-more-text" id="queueLoadMoreText"></span><button type="button" class="btn btn-ghost btn-sm" id="queueLoadMoreBtn" onclick="loadMoreAdminRows_()">Load More</button></div>';
+      updateAdminLoadMore_();
+      setMsg('adminMsg', (fromCache ? 'Filtered locally. ' : '') + rows.length + ' visible / ' + rawRows.length + ' loaded. Showing ' + initial + ' now.', 'muted');
+    }
+
     function loadAdminRows() {
       var source = (document.getElementById('filterSource')||{}).value||'';
       var filters = {
@@ -4386,55 +6127,31 @@ function renderPage_(page, boot) {
         teacher_query: (document.getElementById('filterTeacher')||{}).value||'',
         class_no: (document.getElementById('filterClass')||{}).value||'',
         student_email: (document.getElementById('filterStudentEmail')||{}).value||'',
-        mine_only: (document.getElementById('filterMineOnly')||{}).checked ? 'true' : 'false'
+        mine_only: (document.getElementById('filterMineOnly')||{}).checked ? 'true' : 'false',
+        quick: ((document.getElementById('filterQuick')||{}).value||'').trim(),
+        sort: (document.getElementById('filterSort')||{}).value||'newest',
+        lane: _activeQueueLane || ''
       };
+      var dataKey = adminDataKey_(source, filters);
+      if (_adminRawKey === dataKey) {
+        _adminRequestSeq++;
+        renderAdminRows_(_adminRawRows, filters, true);
+        return;
+      }
       setMsg('adminMsg','Loading\\u2026','muted');
+      var loadingTable = document.getElementById('adminTable');
+      if (loadingTable) loadingTable.innerHTML = '<div class="queue-skeleton" aria-label="Loading queue"></div>';
+      var requestSeq = ++_adminRequestSeq;
       var dtRows = null, orRows = null, dtDone = false, orDone = false, hadError = false;
       function renderAdmin() {
         if (!dtDone || !orDone || hadError) return;
-        (dtRows||[]).forEach(function(r){ r._source = 'dt'; });
-        (orRows||[]).forEach(function(r){ r._source = 'other'; r.student_name = r.requester_name || ''; r.student_email = r.requester_email || ''; r.design_class_no = r.department_or_subject || ''; r.submission_id = r.submission_id || r.request_id; });
-        var rows = (dtRows||[]).concat(orRows||[]);
-        rows.sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
-        _adminRows = rows;
-        var counts = {};
-        rows.forEach(function(r){ counts[r.status] = (counts[r.status]||0)+1; });
-        ['submitted','needs_fix','approved','in_queue','in_production','completed','rejected'].forEach(function(s){ setStatCard(s, counts[s]||0); });
-        document.getElementById('statTotal').textContent = rows.length;
-        setMsg('adminMsg', rows.length + ' submission(s).', 'muted');
-        var el = document.getElementById('adminTable');
-        var filterBanner = filters.mine_only === 'true'
-          ? '<div class="alert alert-info" style="margin:0 0 12px;"><span class="alert-icon">&#8505;</span><span><strong>Filtered view:</strong> showing DT submissions where you are the teacher, plus Special Requests where you are the responsible teacher or approver. Turn off <strong>My students only</strong> to see the wider queue.</span></div>'
-          : '';
-        if (!rows.length) { el.innerHTML = filterBanner + '<div class="queue-empty alert alert-neutral"><span class="alert-icon">\ud83d\udce5</span><span>' + (filters.mine_only === 'true' ? 'No records are currently linked to your teacher / sponsor account under these filters.' : 'No submissions match the current filters.') + '</span></div>'; return; }
-        el.innerHTML = filterBanner + '<div class="tbl-wrap"><table class="queue-table"><thead><tr><th>Requester</th><th>Job</th><th>Status</th><th>Queue Context</th><th>Action</th></tr></thead><tbody>' +
-          rows.map(function(r, idx) {
-            var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
-            var machineLabel = esc(MACHINE_LABELS[r.machine]||r.machine||'');
-            var materialLabel = esc(r.material||'\u2014');
-            var prototypeLabel = r._source === 'other' ? '' : formatPrototypeFidelityLabel_(r.prototype_fidelity);
-            var dimsLabel = dims.length ? dims.join('\u00d7') + ' ' + esc(r.units||'') : '\u2014';
-            var submittedMeta = queueTimeMeta(r.created_at);
-            var updatedMeta = queueTimeMeta(r.updated_at);
-            var statusNote = queueStatusNote(r);
-            var requesterCell = r._source === 'other'
-              ? '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.requester_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.requester_email||'') + '</div><div class="queue-meta">' + esc(r.project_name || 'Untitled Special Request') + '</div><div class="queue-meta-aux">Sponsor: ' + esc(r.teacher_in_charge || '\u2014') + (r.department_or_subject ? ' · ' + esc(r.department_or_subject) : '') + '</div></td>'
-              : '<td class="queue-cell-requester" data-label="Requester"><div class="queue-name">' + esc(r.student_name||'\u2014') + '</div><div class="queue-meta-aux">' + esc(r.student_email||'') + '</div><div class="queue-meta">Class ' + esc(r.design_class_no||'\u2014') + ' · ' + esc(r.year_group||'\u2014') + '</div><div class="queue-meta-aux">Teacher: ' + esc(r.design_teacher||'\u2014') + '</div></td>';
-            var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + (prototypeLabel ? prototypePill(r.prototype_fidelity) : '') + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">Prototype: ' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
-            var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
-            var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
-            var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
-            var rowClass = ['queue-row', queueRowStateClass(r.status), queueSourceClass(r._source), queueAttentionClass(r)].join(' ').trim();
-            return '<tr class="' + rowClass + '">' +
-              requesterCell +
-              contextCell +
-              statusCell +
-              metaCell +
-              actionCell +
-            '</tr>';
-          }).join('') + '</tbody></table></div>';
+        if (requestSeq !== _adminRequestSeq) return;
+        var rawRows = normaliseAdminRows_(dtRows, orRows);
+        _adminRawRows = rawRows;
+        _adminRawKey = dataKey;
+        renderAdminRows_(rawRows, filters, false);
       }
-      function onError(err) { if (!hadError) { hadError = true; setMsg('adminMsg', err.message||String(err), 'error'); } }
+      function onError(err) { if (requestSeq !== _adminRequestSeq) return; if (!hadError) { hadError = true; setMsg('adminMsg', err.message||String(err), 'error'); } }
       if (source === 'other') {
         dtRows = []; dtDone = true;
         google.script.run.withSuccessHandler(function(rows){ orRows = rows; orDone = true; renderAdmin(); }).withFailureHandler(onError).getAdminOtherRequests(filters);
@@ -4450,7 +6167,10 @@ function renderPage_(page, boot) {
     function filterByStatus(status) {
       var sel = document.getElementById('filterStatus');
       if (!sel) return;
+      _activeQueueLane = '';
       sel.value = (sel.value === status) ? '' : status;
+      updateLaneActive_();
+      updateStatActive_();
       loadAdminRows();
     }
 
@@ -4539,9 +6259,18 @@ function renderPage_(page, boot) {
       overlay.classList.add('show');
       overlay.onclick = function(e) { if (e.target === overlay) closeDrawer(); };
       syncDrawerActionCue_();
+      refreshOverlayLock_();
+      setTimeout(function() {
+        var closeBtn = overlay.querySelector('.drawer-close');
+        if (closeBtn) closeBtn.focus();
+      }, 0);
     }
 
-    function closeDrawer() { document.getElementById('reviewDrawer').classList.remove('show'); }
+    function closeDrawer() {
+      var overlay = document.getElementById('reviewDrawer');
+      if (overlay) overlay.classList.remove('show');
+      refreshOverlayLock_();
+    }
 
     function syncDrawerActionCue_() {
       var statusEl = document.getElementById('drawer_status');
@@ -4574,6 +6303,7 @@ function renderPage_(page, boot) {
         } else {
           showToast(msg, 'success');
         }
+        invalidateAdminRowsCache_();
         closeDrawer(); loadAdminRows();
       }
       function onFail(err) { if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = 'Save Changes'; } showToast(err.message||String(err),'error'); }
@@ -4619,184 +6349,181 @@ function renderPage_(page, boot) {
         .getSpreadsheetUrl();
     }
 
+    /* ---------- PREVIEW STUDENT VIEW ---------- */
+    var _studentPreviewActive = false;
+    function previewStudentView() {
+      if (_studentPreviewActive) {
+        /* Exit preview */
+        _studentPreviewActive = false;
+        document.body.className = document.body.className.replace(/role-student/g, 'role-' + BOOT.currentUser.role);
+        var previewBanner = document.getElementById('studentPreviewBanner');
+        if (previewBanner) previewBanner.remove();
+        /* Restore admin nav */
+        var navBar = document.querySelector('.tab-bar');
+        _pages.forEach(function(n) {
+          var nav = document.getElementById('nav-' + n);
+          if (nav) nav.style.display = '';
+        });
+        switchPage('admin');
+        showToast('Exited student preview.','success');
+        return;
+      }
+      _studentPreviewActive = true;
+      /* Swap body class */
+      document.body.className = document.body.className.replace(/role-\\w+/g, 'role-student');
+      /* Show only student-visible pages */
+      var studentPages = ['submit','status','machines','other','help'];
+      _pages.forEach(function(n) {
+        var nav = document.getElementById('nav-' + n);
+        if (!nav) return;
+        nav.style.display = studentPages.indexOf(n) !== -1 ? '' : 'none';
+      });
+      /* Add preview banner */
+      var banner = document.createElement('div');
+      banner.id = 'studentPreviewBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:#fbbf24;color:#78350f;text-align:center;padding:6px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;';
+      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
+      document.body.prepend(banner);
+      switchPage('submit');
+      showToast('Now viewing as student. Admin pages are hidden.','success');
+    }
+
     /* ---------- EMAIL MODAL ---------- */
+    function closeEmailModal_() {
+      var overlay = document.getElementById('emailOverlay');
+      if (overlay) overlay.remove();
+      refreshOverlayLock_();
+    }
+
     function showEmailModal_(draft) {
-      var d = Object.assign({ to: '', cc: '', subject: '', body_html: '', draft_type: 'custom_email', draft_title: 'Email Draft', helper_note: '' }, draft || {});
-      window.__emailDraft = Object.assign({}, d);
-      window.__emailDraftOriginal = Object.assign({}, d);
+      var d = draft || {};
+      window.__emailDraft = d;
       var existing = document.getElementById('emailOverlay');
       if (existing) existing.remove();
       var overlay = document.createElement('div');
       overlay.id = 'emailOverlay';
       overlay.className = 'overlay';
-      var warn = d.missing_to ? '<div class="alert alert-warning" style="margin:0;"><span class="alert-icon">&#9888;</span><span>Recipient email missing. Add the address before sending.</span></div>' : '';
-      var help = d.helper_note ? '<div class="compose-help">' + esc(d.helper_note) + '</div>' : '';
+      var warn = d.missing_to ? '<div class="alert alert-warning" style="margin:10px 20px 0;"><span class="alert-icon">&#9888;</span><span>Recipient email missing. Copy this draft and add it manually.</span></div>' : '';
       overlay.innerHTML =
-        '<div class="modal compose-modal">' +
-          '<div class="modal-head"><h3>&#9993; ' + esc(d.draft_title || 'Email Draft') + '</h3><button class="modal-close" onclick="closeEmailModal_()">&times;</button></div>' +
-          '<div class="compose-layout">' +
-            help + warn +
-            '<div class="compose-grid">' +
-              '<div class="compose-field compose-field--full"><label>To</label><input id="emailTo" type="text" value="' + esc(d.to || '') + '" placeholder="student@school.edu"></div>' +
-              '<div class="compose-field"><label>CC</label><input id="emailCc" type="text" value="' + esc(d.cc || '') + '" placeholder="Optional: comma-separated emails"></div>' +
-              '<div class="compose-field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '" placeholder="Email subject"></div>' +
-            '</div>' +
-            '<div class="compose-toolbar">' +
-              '<span class="compose-toolbar-label">Format</span>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;bold&quot;)"><strong>B</strong></button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;italic&quot;)"><em>I</em></button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="formatEmailEditor_(&quot;insertUnorderedList&quot;)">&#8226; List</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;action&quot;)">Action Block</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;next_steps&quot;)">Next Steps</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;collection&quot;)">Collection Note</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" onclick="insertEmailSnippet_(&quot;signature&quot;)">Signature</button>' +
-            '</div>' +
-            '<div class="compose-editor-wrap">' +
-              '<div id="emailEditor" class="compose-editor" contenteditable="true" data-placeholder="Type your message here\u2026">' + (d.body_html || '') + '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="compose-footer">' +
-            '<div id="emailComposerMsg" class="compose-status">Edit the email, then send it directly or open it in your mail client.</div>' +
-            '<div class="compose-actions">' +
-              '<button class="btn btn-primary btn-sm" id="sendEmailBtn" onclick="sendEmailDraft_()">&#9993; Send Email</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="copyEmailHtml_()">&#128203; Copy HTML</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="openMailDraft_()">Open in Mail</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="restoreEmailDraft_()">Restore Draft</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="closeEmailModal_()">Close</button>' +
-            '</div>' +
+        '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle" tabindex="-1">' +
+          '<div class="modal-head"><h3 id="emailModalTitle">&#9993; Email Draft</h3><button class="modal-close" onclick="closeEmailModal_()" aria-label="Close email draft">&times;</button></div>' +
+          '<div class="email-meta">' +
+            '<div class="field"><label>To</label><input id="emailTo" type="email" value="' + esc(d.to || '') + '" placeholder="user@example.edu"></div>' +
+            '<div class="field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '"></div>' +
+          '</div>' + warn +
+          '<div class="email-preview"><div class="email-preview-head"><h4>Email Body</h4><div class="email-preview-note">You can edit this draft before copying or opening it in your mail app. Mail links use plain text; Copy Rich HTML keeps formatting where the browser allows it.</div></div><div class="email-body" id="emailBody" contenteditable="true" role="textbox" aria-label="Editable email body">' + (d.body_html||'') + '</div></div>' +
+          '<div class="email-action-bar">' +
+            '<button class="btn btn-primary btn-sm" onclick="copyEmailPackage_()">&#128203; Copy Subject + Body</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="copyEmailHtml_()">Copy Rich HTML</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="copyEmailPlainText_()">Copy Text</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="openMailDraft_()">Open Mail</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="openGmailDraft_()">Open Gmail</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="closeEmailModal_()">Close</button>' +
           '</div></div>';
       document.body.appendChild(overlay);
-      overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
-      var editor = document.getElementById('emailEditor');
-      if (editor) editor.focus();
+      overlay.addEventListener('click', function(e){ if (e.target === overlay) closeEmailModal_(); });
+      refreshOverlayLock_();
+      setTimeout(function() {
+        var closeBtn = overlay.querySelector('.modal-close');
+        if (closeBtn) closeBtn.focus();
+      }, 0);
     }
 
-    function closeEmailModal_() {
-      var overlay = document.getElementById('emailOverlay');
-      if (overlay) overlay.remove();
+    function emailHtmlToText_(html) {
+      try {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = String(html || '');
+        return (tmp.innerText || tmp.textContent || '')
+          .replace(/[ \\t]+/g, ' ')
+          .replace(/\\n\\s+/g, '\\n')
+          .replace(/\\n{3,}/g, '\\n\\n')
+          .trim();
+      } catch(e) { return ''; }
     }
 
-    function collectEmailDraft_() {
-      var base = window.__emailDraft || {};
-      var editor = document.getElementById('emailEditor');
+    function getEmailDraftFromModal_() {
+      var body = document.getElementById('emailBody');
+      var fallback = window.__emailDraft || {};
       return {
-        to: ((document.getElementById('emailTo')||{}).value || '').trim(),
-        cc: ((document.getElementById('emailCc')||{}).value || '').trim(),
-        subject: ((document.getElementById('emailSubject')||{}).value || '').trim(),
-        body_html: editor ? editor.innerHTML.trim() : '',
-        draft_type: base.draft_type || 'custom_email',
-        draft_title: base.draft_title || 'Email Draft',
-        submission_id: base.submission_id || ''
+        to: (document.getElementById('emailTo') || {}).value || fallback.to || '',
+        subject: (document.getElementById('emailSubject') || {}).value || fallback.subject || '',
+        body_html: body ? body.innerHTML : (fallback.body_html || ''),
+        body_text: body ? emailHtmlToText_(body.innerHTML) : (fallback.body_text || '')
       };
     }
 
-    function setEmailComposerMsg_(msg, tone) {
-      var el = document.getElementById('emailComposerMsg');
-      if (!el) return;
-      el.textContent = msg || '';
-      el.style.color = tone === 'error' ? '#b91c1c' : tone === 'success' ? '#166534' : 'var(--slate)';
+    function fallbackWriteClipboard_(text, successMsg) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch(e) { ok = false; }
+      ta.remove();
+      showToast(ok ? (successMsg || 'Copied.') : 'Copy failed. Select the draft text manually.', ok ? 'success' : 'error');
     }
 
-    function setEmailModalBusy_(busy, label) {
-      var btn = document.getElementById('sendEmailBtn');
-      if (!btn) return;
-      btn.disabled = !!busy;
-      btn.innerHTML = busy ? (label || '&#9993; Sending\u2026') : '&#9993; Send Email';
-    }
-
-    function restoreEmailDraft_() {
-      var original = window.__emailDraftOriginal || {};
-      var toEl = document.getElementById('emailTo');
-      var ccEl = document.getElementById('emailCc');
-      var subjectEl = document.getElementById('emailSubject');
-      var editor = document.getElementById('emailEditor');
-      if (toEl) toEl.value = original.to || '';
-      if (ccEl) ccEl.value = original.cc || '';
-      if (subjectEl) subjectEl.value = original.subject || '';
-      if (editor) editor.innerHTML = original.body_html || '';
-      setEmailComposerMsg_('Draft restored to the generated version.', 'success');
-    }
-
-    function formatEmailEditor_(command) {
-      var editor = document.getElementById('emailEditor');
-      if (!editor) return;
-      editor.focus();
-      try { document.execCommand(command, false, null); } catch (e) {}
-    }
-
-    function insertHtmlAtCursor_(html) {
-      var editor = document.getElementById('emailEditor');
-      if (!editor) return;
-      editor.focus();
-      try {
-        document.execCommand('insertHTML', false, html);
-      } catch (e) {
-        editor.innerHTML += html;
+    function writeClipboard_(text, successMsg) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function(){
+          showToast(successMsg || 'Copied.','success');
+        }).catch(function(){
+          fallbackWriteClipboard_(text, successMsg);
+        });
+      } else {
+        fallbackWriteClipboard_(text, successMsg);
       }
     }
 
-    function insertEmailSnippet_(kind) {
-      var snippets = {
-        action: '<p><strong>Action required:</strong> Please review the points below carefully and update your file before submitting the next version.</p>',
-        next_steps: '<p><strong>Suggested next steps:</strong></p><ul><li>Check the file format and dimensions</li><li>Correct the issue noted above</li><li>Resubmit the updated file through the dashboard</li></ul>',
-        collection: '<p><strong>Collection:</strong> Once the job is completed, please collect it from the Design Technology workshop.</p>',
-        signature: '<p>Best regards,<br>Design Technology Technician Team</p>'
-      };
-      insertHtmlAtCursor_(snippets[kind] || '');
+    function writeHtmlClipboard_(html, plain, successMsg) {
+      if (navigator.clipboard && window.ClipboardItem && window.Blob) {
+        var item = new ClipboardItem({
+          'text/html': new Blob([html || ''], { type: 'text/html' }),
+          'text/plain': new Blob([plain || emailHtmlToText_(html)], { type: 'text/plain' })
+        });
+        navigator.clipboard.write([item]).then(function(){
+          showToast(successMsg || 'Rich email body copied.','success');
+        }).catch(function(){
+          writeClipboard_(plain || emailHtmlToText_(html), 'Email text copied.');
+        });
+      } else {
+        writeClipboard_(plain || emailHtmlToText_(html), 'Email text copied.');
+      }
     }
 
     function openMailDraft_() {
-      var d = collectEmailDraft_();
+      var d = getEmailDraftFromModal_();
       var to = encodeURIComponent(String(d.to||''));
       var subject = encodeURIComponent(String(d.subject||''));
-      var bodyText = '';
-      try {
-        bodyText = String(d.body_html||'')
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<\/p>/gi, '\n\n')
-          .replace(/<\/li>/gi, '\n')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      } catch(e) {}
-      var body = encodeURIComponent(bodyText);
+      var body = encodeURIComponent(String(d.body_text||''));
       window.open('mailto:' + to + '?subject=' + subject + (body ? '&body=' + body : ''), '_blank');
     }
 
-    function copyEmailHtml_() {
-      var current = collectEmailDraft_();
-      if (!current.body_html) return;
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(current.body_html).then(function(){ showToast('HTML copied to clipboard.','success'); });
-      } else {
-        var body = document.getElementById('emailEditor');
-        if (!body) return;
-        var r = document.createRange(); r.selectNodeContents(body);
-        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.execCommand('copy');
-        showToast('Copied.','success');
-      }
+    function openGmailDraft_() {
+      var d = getEmailDraftFromModal_();
+      var url = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(String(d.to||'')) +
+        '&su=' + encodeURIComponent(String(d.subject||'')) +
+        '&body=' + encodeURIComponent(String(d.body_text||''));
+      window.open(url, '_blank');
     }
 
-    function sendEmailDraft_() {
-      var current = collectEmailDraft_();
-      if (!current.to) { setEmailComposerMsg_('Add at least one recipient before sending.', 'error'); return; }
-      if (!current.subject) { setEmailComposerMsg_('Add a subject before sending.', 'error'); return; }
-      if (!current.body_html || current.body_html === '<br>') { setEmailComposerMsg_('Email body is empty.', 'error'); return; }
-      setEmailModalBusy_(true, '&#9993; Sending\u2026');
-      setEmailComposerMsg_('Sending email\u2026', 'muted');
-      google.script.run
-        .withSuccessHandler(function(result) {
-          setEmailModalBusy_(false);
-          setEmailComposerMsg_('Email sent successfully to ' + (result.to || current.to) + '.', 'success');
-          showToast('Email sent successfully.','success');
-        })
-        .withFailureHandler(function(err) {
-          setEmailModalBusy_(false);
-          setEmailComposerMsg_(err.message || String(err), 'error');
-          showToast(err.message || String(err), 'error');
-        })
-        .sendComposedEmail(current);
+    function copyEmailHtml_() {
+      var d = getEmailDraftFromModal_();
+      writeHtmlClipboard_(d.body_html || '', d.body_text || '', 'Rich email body copied.');
+    }
+
+    function copyEmailPlainText_() {
+      var d = getEmailDraftFromModal_();
+      writeClipboard_(d.body_text || '', 'Email text copied.');
+    }
+
+    function copyEmailPackage_() {
+      var d = getEmailDraftFromModal_();
+      var text = 'To: ' + (d.to || '') + '\\nSubject: ' + (d.subject || '') + '\\n\\n' + (d.body_text || '');
+      writeClipboard_(text, 'Email subject and body copied.');
     }
 
     /* ================================================
@@ -4954,7 +6681,7 @@ function renderPage_(page, boot) {
        AUDIT LOG PAGE (admin only)
     ================================================ */
     function initAuditPage() {
-      if (!BOOT.currentUser.isAdmin) return;
+      if (BOOT.currentUser.role !== 'admin') return;
       loadAuditLog();
     }
     function loadAuditLog() {
@@ -4999,6 +6726,19 @@ function renderPage_(page, boot) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
 
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      var emailOverlay = document.getElementById('emailOverlay');
+      if (emailOverlay) {
+        closeEmailModal_();
+        return;
+      }
+      var drawerOverlay = document.getElementById('reviewDrawer');
+      if (drawerOverlay && drawerOverlay.classList.contains('show')) {
+        closeDrawer();
+      }
+    });
+
     /* ---------- SCROLL TO TOP ---------- */
     (function(){
       var btn = document.getElementById('scrollTopBtn');
@@ -5011,8 +6751,22 @@ function renderPage_(page, boot) {
     /* ---------- HELP ACCORDION ---------- */
     (function(){
       document.querySelectorAll('.help-section-title').forEach(function(title) {
+        title.setAttribute('role', 'button');
+        title.setAttribute('tabindex', '0');
+        title.setAttribute('aria-expanded', title.closest('.help-section').classList.contains('help-expanded') ? 'true' : 'false');
+        function toggle() {
+          var section = title.closest('.help-section');
+          section.classList.toggle('help-expanded');
+          title.setAttribute('aria-expanded', section.classList.contains('help-expanded') ? 'true' : 'false');
+        }
         title.addEventListener('click', function() {
-          title.closest('.help-section').classList.toggle('help-expanded');
+          toggle();
+        });
+        title.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
         });
       });
     })();
@@ -5020,6 +6774,8 @@ function renderPage_(page, boot) {
       var el = document.getElementById(id);
       if (!el) return;
       el.classList.add('help-expanded');
+      var title = el.querySelector('.help-section-title');
+      if (title) title.setAttribute('aria-expanded', 'true');
       el.scrollIntoView({behavior:'smooth',block:'start'});
     }
 
@@ -5042,6 +6798,12 @@ function renderPage_(page, boot) {
 </html>
 `;
 }
+
+
+
+/* ============================================================
+   90_UiPages.js
+   ============================================================ */
 
 /* =========================
    DISCLAIMER HELPER RENDERERS
@@ -5075,15 +6837,30 @@ function renderBulletList_(items) {
 
 function renderSubmitPage_() {
   return `
-  <div class="welcome-banner">
-    <h3>&#128075; Welcome to the Design Fabrication Dashboard</h3>
-    <p>Submit your DT coursework laser cutting or 3D printing files for lo-fi or hi-fi prototypes below. Your submission will be reviewed by the technician and you&rsquo;ll receive email updates on its status.</p>
-    <div class="welcome-pills">
-      <span class="welcome-pill">&#128293; Laser Cutting</span>
-      <span class="welcome-pill">&#9881; 3D Printing</span>
-      <span class="welcome-pill">&#128640; Fast Tracking</span>
-      <span class="welcome-pill">&#128172; Email Notifications</span>
+  <div class="home-hero">
+    <div>
+      <div class="home-hero-kicker">VSA Design &amp; Technology Workshop</div>
+      <h1>Submit fabrication files with fewer mistakes.</h1>
+      <p>Use this dashboard for DT coursework laser cutting and 3D printing. It checks the basic rules, sends the file to the workshop queue, and gives you a status trail after technician review.</p>
+      <div class="home-hero-actions">
+        <button type="button" class="btn btn-primary" onclick="scrollToId_('submitForm')">&#128221; Start DT Submission</button>
+        <button type="button" class="btn btn-ghost" onclick="switchPage('status')">&#128270; Check Status</button>
+        <button type="button" class="btn btn-ghost" onclick="switchPage('other')">&#11088; Special Request</button>
+      </div>
     </div>
+    <div class="home-panel">
+      <div class="home-panel-title">Before you upload</div>
+      <div class="home-panel-row"><span class="home-panel-icon">&#128293;</span><span>Laser jobs need editable vector files, not screenshots or pixel images.</span></div>
+      <div class="home-panel-row"><span class="home-panel-icon">&#9881;</span><span>3D print jobs need an STL and a dimension screenshot.</span></div>
+      <div class="home-panel-row"><span class="home-panel-icon">&#9200;</span><span>Submission does not mean same-day production. Every job is reviewed first.</span></div>
+    </div>
+  </div>
+
+  <div class="workflow-strip" aria-label="Fabrication workflow">
+    <div class="workflow-step"><span class="workflow-num">1</span><span><strong>Prepare</strong><span>Check file type, size, and preview.</span></span></div>
+    <div class="workflow-step"><span class="workflow-num">2</span><span><strong>Submit</strong><span>Upload one working file per request.</span></span></div>
+    <div class="workflow-step"><span class="workflow-num">3</span><span><strong>Review</strong><span>Technician checks readiness and notes fixes.</span></span></div>
+    <div class="workflow-step"><span class="workflow-num">4</span><span><strong>Track</strong><span>Use your ID or email on My Status.</span></span></div>
   </div>
 
   <div class="card">
@@ -5093,6 +6870,8 @@ function renderSubmitPage_() {
 
     ` + renderDisclaimerBox_('&#9200; ' + APP.uiText.turnaroundHeadline, APP.uiText.turnaroundShort + renderBulletList_(APP.uiText.turnaroundFactors)) + `
 
+    <div class="submit-workspace">
+      <div class="submit-main-column">
     <div class="guide-card">
       <div class="guide-title">&#128221; Submission Checklist</div>
       <ul class="guide-list">
@@ -5141,10 +6920,10 @@ function renderSubmitPage_() {
                 <option value="Technician">Technician</option>
                 <option value="Teacher C">Teacher C</option>
                 <option value="Teacher D">Teacher D</option>
+                <option value="Teacher E">Teacher E</option>
                 <option value="Teacher F">Teacher F</option>
                 <option value="Teacher G">Teacher G</option>
                 <option value="Teacher H">Teacher H</option>
-                <option value="Teacher E">Teacher E</option>
                 <option value="Teacher I">Teacher I</option>
                 <option value="Teacher J">Teacher J</option>
               </select>
@@ -5224,7 +7003,7 @@ function renderSubmitPage_() {
             <div class="field">
               <label>Working File <span class="req">*</span></label>
               <div class="file-zone" id="zone_workingFile" role="button" tabindex="0">
-                <input type="file" id="workingFile">
+                <input type="file" id="workingFile" accept=".af,.afdesign,.svg,.dxf,.stl">
                 <div class="file-zone-icon">&#128196;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
                 <div class="file-zone-sub">Affinity Designer (.af, .afdesign), SVG, DXF, or STL. One working file only per submission.</div>
@@ -5232,12 +7011,12 @@ function renderSubmitPage_() {
               </div>
             </div>
             <div class="field">
-              <label>Preview Image <span class="req">*</span></label>
+              <label>Preview Image <span id="previewReqMark" class="req" style="display:none;">*</span></label>
               <div class="file-zone" id="zone_previewFile" role="button" tabindex="0">
                 <input type="file" id="previewFile" accept="image/*">
                 <div class="file-zone-icon">&#128444;&#65039;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
-                <div class="file-zone-sub">PNG, JPG, or JPEG accepted</div>
+                <div class="file-zone-sub" id="previewFileHint">PNG, JPG, or JPEG accepted. Required only when the selected rule asks for it.</div>
                 <div class="file-chosen" id="chosen_previewFile"></div>
               </div>
             </div>
@@ -5301,6 +7080,53 @@ function renderSubmitPage_() {
       </div>
       <p style="text-align:center;font-size:12px;color:var(--slate-lt);padding:0 24px 20px;">Need help preparing your next file? The <a href="javascript:void(0)" onclick="switchPage('machines')" style="font-weight:700;">Machines Guide</a> explains file types, workflows, and report tips.</p>
     </div>
+      </div>
+
+      <aside class="submit-helper-rail" aria-label="DT submission convenience checklist">
+        <div class="submit-helper-head">
+          <div>
+            <div class="submit-helper-title">Convenience checklist</div>
+            <div class="submit-helper-copy">Live guidance for draft saving, file confidence, and queue wording while you complete the form.</div>
+          </div>
+          <span class="submit-rail-pill" id="submitRailReadyPill">Starting</span>
+        </div>
+        <div class="submit-rail-progress">
+          <div class="submit-rail-progress-track"><span class="submit-rail-progress-fill" id="submitRailProgressFill"></span></div>
+          <div class="submit-rail-progress-text" id="submitRailProgressText">0/5 sections ready</div>
+        </div>
+        <div class="submit-rail-next" id="submitRailNextAction">
+          <strong>Next step</strong>
+          Start with your student details.
+        </div>
+        <div class="submit-rail-list">
+          <div class="submit-rail-item" id="submitRailDraftItem">
+            <span class="submit-rail-icon" id="submitRailDraftIcon">&#9675;</span>
+            <span><span class="submit-rail-item-title">Draft restored/saved</span><span class="submit-rail-item-note" id="submitRailDraftNote">Autosave starts when you type. Files are never saved by the browser.</span></span>
+          </div>
+          <div class="submit-rail-item" id="submitRailRulesItem">
+            <span class="submit-rail-icon" id="submitRailRulesIcon">&#9675;</span>
+            <span><span class="submit-rail-item-title">Rules selected</span><span class="submit-rail-item-note" id="submitRailRulesNote">Choose year group and machine to load materials, units, dimensions, and preview rules.</span></span>
+          </div>
+          <div class="submit-rail-item" id="submitRailFilesItem">
+            <span class="submit-rail-icon" id="submitRailFilesIcon">&#9675;</span>
+            <span><span class="submit-rail-item-title">File confidence</span><span class="submit-rail-item-note" id="submitRailFilesNote">Attach one editable working file; add a preview image when the selected rule asks for it.</span></span>
+          </div>
+          <div class="submit-rail-item is-done" id="submitRailQueueItem">
+            <span class="submit-rail-icon" id="submitRailQueueIcon">&#10003;</span>
+            <span><span class="submit-rail-item-title">Queue wording</span><span class="submit-rail-item-note" id="submitRailQueueNote">Submitting sends the file to human technician review first. It is not same-day production.</span></span>
+          </div>
+          <div class="submit-rail-item is-done" id="submitRailCtaItem">
+            <span class="submit-rail-icon" id="submitRailCtaIcon">&#10003;</span>
+            <span><span class="submit-rail-item-title">No ghost CTA</span><span class="submit-rail-item-note" id="submitRailCtaNote">Use the buttons below for real actions: resume the form, check status, or open the machine guide.</span></span>
+          </div>
+        </div>
+        <div class="submit-rail-actions">
+          <button type="button" class="btn btn-primary btn-sm" onclick="scrollToId_('submitForm')">&#128221; Resume Form</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="switchPage('status')">&#128270; Check Status</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="switchPage('machines')">&#128736; Machine Guide</button>
+        </div>
+      </aside>
+    </div>
   </div>
   `;
 }
@@ -5312,9 +7138,37 @@ function renderOtherRequestPage_() {
 
 
   return `
+  <div class="page-hero page-hero--special">
+    <div>
+      <div class="page-hero-kicker">Special fabrication pathway</div>
+      <h1>${APP.uiText.otherRequestIntroHeadline}</h1>
+      <p>${APP.uiText.otherRequestIntroBody} Use this route when the work is teacher-approved, outside the regular DT coursework queue, and ready for a technician to review.</p>
+    </div>
+    <div class="page-hero-actions">
+      <button type="button" class="btn btn-primary" onclick="scrollToId_('otherForm')">&#128221; Start Request</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('machines')">&#128736; Machine Guide</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('status')">&#128270; Track Request</button>
+    </div>
+  </div>
+
+  <div class="request-note-strip" aria-label="Special request workflow">
+    <div class="request-note">
+      <span class="request-note-icon">&#128274;</span>
+      <span><strong>Teacher sponsor first</strong><span>Competition, club, event, or subject work needs a responsible staff contact.</span></span>
+    </div>
+    <div class="request-note">
+      <span class="request-note-icon">&#128206;</span>
+      <span><strong>Attach ready files</strong><span>Share the design file, key dimensions, materials, deadline, and purpose.</span></span>
+    </div>
+    <div class="request-note">
+      <span class="request-note-icon">&#128736;</span>
+      <span><strong>Human review</strong><span>Technicians decide feasibility and timing. The system only organises the request.</span></span>
+    </div>
+  </div>
+
   <div class="card">
-    <div class="section-title">&#128301; ${APP.uiText.otherRequestIntroHeadline}</div>
-    <div class="section-sub">${APP.uiText.otherRequestIntroBody}</div>
+    <div class="section-title">&#128301; Request Form</div>
+    <div class="section-sub">Complete the details below so the workshop can judge feasibility, timing, and machine fit.</div>
     <div class="orientation-line" style="font-size:12px;color:var(--slate-lt);margin-bottom:8px;">This page is for competitions, clubs, other subjects, exhibitions, and non-DT fabrication requests.</div>
     <div class="bys-block">
       <div class="bys-title">&#128214; Before You Start</div>
@@ -5364,7 +7218,7 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
+              <input type="email" name="requester_email" placeholder="user@example.edu" required>
               <div class="helper">Use your school email address.</div>
             </div>
             <div class="field">
@@ -5478,11 +7332,11 @@ function renderOtherRequestPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Responsible Teacher Email <span class="req">*</span></label>
-              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="teacher@example.edu" required>
+              <input type="email" name="teacher_in_charge_email" id="otherTeacherEmail" placeholder="user@example.edu" required>
             </div>
             <div class="field">
               <label>Approver Email <span class="req">*</span></label>
-              <input type="email" name="approved_by_email" placeholder="approver@example.edu" required>
+              <input type="email" name="approved_by_email" placeholder="user@example.edu" required>
               <div class="helper">Email of the teacher or HOD who approved this request. Can be the same as above.</div>
             </div>
           </div>
@@ -5553,7 +7407,7 @@ function renderOtherRequestPage_() {
             <div class="field">
               <label>Working File <span class="req">*</span></label>
               <div class="file-zone" id="zone_otherWorkingFile" role="button" tabindex="0">
-                <input type="file" id="otherWorkingFile">
+                <input type="file" id="otherWorkingFile" accept=".af,.afdesign,.svg,.dxf,.stl">
                 <div class="file-zone-icon">&#128196;</div>
                 <div class="file-zone-label">Click or drag &amp; drop</div>
                 <div class="file-zone-sub">Upload the fabrication file that should be processed</div>
@@ -5561,7 +7415,7 @@ function renderOtherRequestPage_() {
               </div>
             </div>
             <div class="field">
-              <label>Preview Image <span class="req">*</span></label>
+              <label>Preview Image <small>(optional)</small></label>
               <div class="file-zone" id="zone_otherPreviewFile" role="button" tabindex="0">
                 <input type="file" id="otherPreviewFile" accept="image/*">
                 <div class="file-zone-icon">&#128444;&#65039;</div>
@@ -5659,40 +7513,60 @@ function renderStatusPage_(user) {
   var isStudentView = !user || !user.isAdmin;
   var title = isStudentView ? '&#128270; My Submission Status' : '&#128270; Submission Lookup';
   var sub = isStudentView
-    ? 'Enter your school email, Submission ID, or Request ID to check your fabrication progress. Your results will load automatically.'
+    ? 'Enter your school email, Submission ID, or Request ID to check progress, submitted files, feedback, and what to do next. Your results will load automatically.'
     : 'Look up any submission by student email, Submission ID, or Request ID.';
   return `
+  <div class="page-hero page-hero--status">
+    <div>
+      <div class="page-hero-kicker">Fabrication tracking</div>
+      <h1>${title}</h1>
+      <p>${sub} Status information shows where the request sits in the human review and workshop process.</p>
+    </div>
+    <div class="page-hero-actions">
+      <button type="button" class="btn btn-primary" onclick="focusStatusSearch_()">&#128270; Search Now</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('submit')">&#128221; New DT Submission</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('other')">&#128301; Special Request</button>
+    </div>
+  </div>
+
   <div class="card">
-    <div class="section-title">${title}</div>
-    <div class="section-sub">${sub}</div>
+    <div class="section-title">&#128269; Status Lookup</div>
+    <div class="section-sub">Search both DT submissions and special fabrication requests from one place. Each result shows the current stage, next action, file links, and any technician feedback.</div>
 
     ` + renderDisclaimerBox_('&#9200; Turnaround Time Notice', APP.uiText.turnaroundStatusNotice) + `
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <input id="statusQuery" type="text" placeholder="Email, Submission ID, or Request ID" style="flex:1;min-width:220px;">
-      <button class="btn btn-primary" onclick="loadStatuses()" style="white-space:nowrap;">&#128270; Check Status</button>
+    <div class="status-search-panel">
+      <div class="status-search-row">
+        <input id="statusQuery" type="text" placeholder="Email, Submission ID, or Request ID" aria-label="Email, Submission ID, or Request ID">
+        <button id="statusSearchBtn" class="btn btn-primary" onclick="loadStatuses()" style="white-space:nowrap;">&#128270; Check Status</button>
+        <button class="btn btn-ghost" onclick="clearStatusSearch_()" style="white-space:nowrap;">Clear</button>
+      </div>
+      <div class="status-search-hint">
+        <span>&#128161;</span>
+        <span>Students can use their school email. Teachers, technicians, and admins can paste an exact ID when following up with a learner or sponsor.</span>
+      </div>
     </div>
     <div id="statusMsg" class="inline-msg tc-muted" style="margin-bottom:12px;"></div>
     <div id="statusResults">
-      <div id="statusEmptyState" style="text-align:center;padding:32px 16px;color:var(--muted);">
-        <div style="font-size:36px;margin-bottom:12px;">&#128269;</div>
-        <p style="margin:0 0 6px;font-weight:600;">No search yet</p>
-        <p style="margin:0 0 18px;font-size:13px;">Enter your school email to see all your submissions, or paste a specific Submission ID or Request ID to look up a single entry.</p>
-        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;max-width:600px;margin:0 auto;">
-          <div style="flex:1;min-width:160px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:14px;text-align:center;">
-            <div style="font-size:22px;margin-bottom:4px;">&#128232;</div>
-            <div style="font-size:12px;font-weight:700;color:var(--navy);">Step 1: Enter Email</div>
-            <div style="font-size:11px;color:var(--slate-lt);margin-top:2px;">Your school email address</div>
+      <div id="statusEmptyState" class="status-empty-state">
+        <div class="status-empty-icon">&#128269;</div>
+        <p class="status-empty-title">No search yet</p>
+        <p class="status-empty-copy">Enter your school email to see all your submissions, or paste a specific Submission ID or Request ID to look up one entry.</p>
+        <div class="status-help-grid">
+          <div class="status-help-card">
+            <div class="status-help-icon">&#128232;</div>
+            <div class="status-help-title">Enter Email or ID</div>
+            <div class="status-help-copy">Use your school email, Submission ID, or Request ID.</div>
           </div>
-          <div style="flex:1;min-width:160px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:14px;text-align:center;">
-            <div style="font-size:22px;margin-bottom:4px;">&#128270;</div>
-            <div style="font-size:12px;font-weight:700;color:var(--navy);">Step 2: Click Check</div>
-            <div style="font-size:11px;color:var(--slate-lt);margin-top:2px;">We&rsquo;ll search both pathways</div>
+          <div class="status-help-card">
+            <div class="status-help-icon">&#128270;</div>
+            <div class="status-help-title">Search Both Paths</div>
+            <div class="status-help-copy">DT submissions and special requests are checked together.</div>
           </div>
-          <div style="flex:1;min-width:160px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:14px;text-align:center;">
-            <div style="font-size:22px;margin-bottom:4px;">&#128200;</div>
-            <div style="font-size:12px;font-weight:700;color:var(--navy);">Step 3: Track Progress</div>
-            <div style="font-size:11px;color:var(--slate-lt);margin-top:2px;">See status, timeline &amp; remarks</div>
+          <div class="status-help-card">
+            <div class="status-help-icon">&#128200;</div>
+            <div class="status-help-title">Track Next Step</div>
+            <div class="status-help-copy">Read the timeline, remarks, and any revision request.</div>
           </div>
         </div>
       </div>
@@ -5720,52 +7594,129 @@ function renderAdminPage_(user) {
 
   var roleLabel = user.role === 'technician' ? 'Production Queue' : user.role === 'teacher' ? 'My Students' : 'Submission Dashboard';
   var roleHint  = user.role === 'technician'
-    ? '<strong>Process Jobs:</strong> Click "Review" on any row to open the review panel. Set statuses and notify teachers from there.'
+    ? '<strong>Process Jobs:</strong> Start with Review Now, inspect the file details, then move jobs through the queue when they are ready.'
     : user.role === 'teacher'
-      ? '<strong>Monitor Students:</strong> "My students only" is on by default. Review status, follow up on items marked "Needs Fix".'
-      : '<strong>Admin View:</strong> Full access to all submissions. Click "Review" to open the detail panel.';
+      ? '<strong>Monitor Students:</strong> "My students only" is on by default. Follow up on submitted and needs-fix work first.'
+      : '<strong>Admin View:</strong> Use the queue lanes, filters, and review panel to manage submissions without opening the sheet.';
+  var roleSteps = user.role === 'technician'
+    ? [
+        ['Review first', 'Open new and needs-fix jobs before moving anything into production.'],
+        ['Inspect evidence', 'Use file links, machine type, notes, and issue templates from the review panel.'],
+        ['Decide as human reviewer', 'Set approved, queued, production, or complete only after workshop checks.']
+      ]
+    : user.role === 'teacher'
+      ? [
+          ['Start with my students', 'The default view keeps your class list focused and avoids unrelated queue noise.'],
+          ['Find learning follow-up', 'Check submitted and needs-fix rows for students who need design feedback.'],
+          ['Keep judgement human', 'Use patterns as prompts for teaching, not as automatic grading.']
+        ]
+      : [
+          ['Watch the load', 'Use Queue Health and lanes before changing deadlines or asking for bulk follow-up.'],
+          ['Tune rules carefully', 'Manage year-group rules, users, and machines from the admin-only pages.'],
+          ['Use audit trail', 'Review role changes and status actions when preparing handover or support.']
+        ];
+  var roleStepHtml = roleSteps.map(function(step, i) {
+    return '<div class="admin-role-step"><span class="admin-role-step-num">' + (i + 1) + '</span><div><div class="admin-role-step-title">' + escapeHtml_(step[0]) + '</div><div class="admin-role-step-copy">' + escapeHtml_(step[1]) + '</div></div></div>';
+  }).join('');
+  var openSheetButton = user.role === 'admin'
+    ? '<button class="btn btn-ghost btn-sm" onclick="openMasterSheet()">&#128196; Open Sheet</button>'
+    : '';
 
   return `
-  <div class="card" style="margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
-      <div>
-        <div class="section-title">&#128736; ${escapeHtml_(roleLabel)}</div>
-        <div class="section-sub">${roleHint}</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-ghost btn-sm" onclick="previewStudentView()">&#128065; Student View</button>
-        <button class="btn btn-ghost btn-sm" onclick="openMasterSheet()">&#128196; Open Sheet</button>
-      </div>
+  <div class="admin-hero">
+    <div>
+      <div class="admin-hero-kicker">Fabrication operations</div>
+      <h2 class="admin-hero-title">&#128736; ${escapeHtml_(roleLabel)}</h2>
+      <div class="admin-hero-sub">${roleHint} Queue pressure, review risk, machine mix, and repeat-submission signals are grouped here for day-to-day workshop decisions.</div>
     </div>
+    <div class="admin-hero-actions">
+      <button class="btn btn-ghost btn-sm" onclick="previewStudentView()">&#128065; Student View</button>
+      ${openSheetButton}
+      <button class="btn btn-primary btn-sm" onclick="loadAdminRows()">&#8635; Refresh</button>
+    </div>
+  </div>
 
-    <div class="stats-bar">
-      <div class="stat-card" onclick="filterByStatus('')" id="statCardAll"><div class="stat-num" id="statTotal">&mdash;</div><div class="stat-label">Total</div></div>
-      <div class="stat-card" onclick="filterByStatus('submitted')"><div class="stat-num pill pill-submitted" id="stat_submitted">&mdash;</div><div class="stat-label">Submitted</div></div>
-      <div class="stat-card" onclick="filterByStatus('needs_fix')"><div class="stat-num pill pill-needs_fix" id="stat_needs_fix">&mdash;</div><div class="stat-label">Needs Fix</div></div>
-      <div class="stat-card" onclick="filterByStatus('approved')"><div class="stat-num pill pill-approved" id="stat_approved">&mdash;</div><div class="stat-label">Approved</div></div>
-      <div class="stat-card" onclick="filterByStatus('in_queue')"><div class="stat-num pill pill-in_queue" id="stat_in_queue">&mdash;</div><div class="stat-label">In Queue</div></div>
-      <div class="stat-card" onclick="filterByStatus('in_production')"><div class="stat-num pill pill-in_production" id="stat_in_production">&mdash;</div><div class="stat-label">In Prod</div></div>
-      <div class="stat-card" onclick="filterByStatus('completed')"><div class="stat-num pill pill-completed" id="stat_completed">&mdash;</div><div class="stat-label">Done</div></div>
-      <div class="stat-card" onclick="filterByStatus('rejected')"><div class="stat-num pill pill-rejected" id="stat_rejected">&mdash;</div><div class="stat-label">Rejected</div></div>
+  <div class="admin-role-steps">${roleStepHtml}</div>
+
+  <div class="card">
+    <div class="admin-workboard">
+      <div class="admin-workboard-main">
+        <div class="admin-section-label">Queue at a glance</div>
+        <div class="stats-bar">
+          <div class="stat-card" onclick="filterByStatus('')" id="statCardAll" data-status=""><div class="stat-num" id="statTotal">&mdash;</div><div class="stat-label">Total</div></div>
+          <div class="stat-card" onclick="filterByStatus('submitted')" data-status="submitted"><div class="stat-num pill pill-submitted" id="stat_submitted">&mdash;</div><div class="stat-label">Submitted</div></div>
+          <div class="stat-card" onclick="filterByStatus('needs_fix')" data-status="needs_fix"><div class="stat-num pill pill-needs_fix" id="stat_needs_fix">&mdash;</div><div class="stat-label">Needs Fix</div></div>
+          <div class="stat-card" onclick="filterByStatus('approved')" data-status="approved"><div class="stat-num pill pill-approved" id="stat_approved">&mdash;</div><div class="stat-label">Approved</div></div>
+          <div class="stat-card" onclick="filterByStatus('in_queue')" data-status="in_queue"><div class="stat-num pill pill-in_queue" id="stat_in_queue">&mdash;</div><div class="stat-label">In Queue</div></div>
+          <div class="stat-card" onclick="filterByStatus('in_production')" data-status="in_production"><div class="stat-num pill pill-in_production" id="stat_in_production">&mdash;</div><div class="stat-label">In Prod</div></div>
+          <div class="stat-card" onclick="filterByStatus('completed')" data-status="completed"><div class="stat-num pill pill-completed" id="stat_completed">&mdash;</div><div class="stat-label">Done</div></div>
+          <div class="stat-card" onclick="filterByStatus('rejected')" data-status="rejected"><div class="stat-num pill pill-rejected" id="stat_rejected">&mdash;</div><div class="stat-label">Rejected</div></div>
+        </div>
+
+        <div class="admin-insight-grid">
+          <div class="admin-insight" id="insightCardActive"><div class="admin-insight-top"><span class="admin-insight-label">Active Work</span><span class="admin-insight-icon">&#9881;</span></div><div><div class="admin-insight-value" id="insightActive">&mdash;</div><div class="admin-insight-note" id="insightActiveNote">Awaiting data</div></div></div>
+          <div class="admin-insight" id="insightCardReview"><div class="admin-insight-top"><span class="admin-insight-label">Review Now</span><span class="admin-insight-icon">&#128269;</span></div><div><div class="admin-insight-value" id="insightReview">&mdash;</div><div class="admin-insight-note" id="insightReviewNote">New or needs-fix jobs</div></div></div>
+          <div class="admin-insight" id="insightCardProduction"><div class="admin-insight-top"><span class="admin-insight-label">Production Lane</span><span class="admin-insight-icon">&#128295;</span></div><div><div class="admin-insight-value" id="insightProduction">&mdash;</div><div class="admin-insight-note" id="insightProductionNote">Approved, queued, or in production</div></div></div>
+          <div class="admin-insight" id="insightCardOldest"><div class="admin-insight-top"><span class="admin-insight-label">Oldest Active</span><span class="admin-insight-icon">&#9201;</span></div><div><div class="admin-insight-value" id="insightOldest">&mdash;</div><div class="admin-insight-note" id="insightOldestNote">No active items yet</div></div></div>
+          <div class="admin-insight"><div class="admin-insight-top"><span class="admin-insight-label">Special Requests</span><span class="admin-insight-icon">&#11088;</span></div><div><div class="admin-insight-value" id="insightSpecial">&mdash;</div><div class="admin-insight-note" id="insightSpecialNote">Outside DT coursework</div></div></div>
+          <div class="admin-insight"><div class="admin-insight-top"><span class="admin-insight-label">Laser Jobs</span><span class="admin-insight-icon">&#128293;</span></div><div><div class="admin-insight-value" id="insightLaser">&mdash;</div><div class="admin-insight-note" id="insightLaserNote">Sheet fabrication</div></div></div>
+          <div class="admin-insight"><div class="admin-insight-top"><span class="admin-insight-label">3D Print Jobs</span><span class="admin-insight-icon">&#128424;</span></div><div><div class="admin-insight-value" id="insight3d">&mdash;</div><div class="admin-insight-note" id="insight3dNote">Print queue</div></div></div>
+          <div class="admin-insight" id="insightCardRepeat"><div class="admin-insight-top"><span class="admin-insight-label">Repeat Risk</span><span class="admin-insight-icon">&#9888;</span></div><div><div class="admin-insight-value" id="insightRepeat">&mdash;</div><div class="admin-insight-note" id="insightRepeatNote">Same-day repeat activity</div></div></div>
+        </div>
+      </div>
+
+      <aside class="admin-health-panel">
+        <div class="admin-health-head">
+          <div class="admin-health-title">Queue Health</div>
+          <span class="admin-health-pill" id="adminHealthPill">Loading</span>
+        </div>
+        <div class="admin-health-meter"><span class="admin-health-fill" id="adminHealthFill"></span></div>
+        <div class="admin-health-copy" id="adminHealthText">Loading current queue pressure.</div>
+        <div class="admin-health-list">
+          <div class="admin-health-row"><span>Queue workload</span><strong id="healthReview">&mdash;</strong></div>
+          <div class="admin-health-row"><span>Production-ready</span><strong id="healthProduction">&mdash;</strong></div>
+          <div class="admin-health-row"><span>Waiting on student</span><strong id="healthStudentWait">&mdash;</strong></div>
+          <div class="admin-health-row"><span>Repeat flags</span><strong id="healthRepeat">&mdash;</strong></div>
+        </div>
+      </aside>
     </div>
   </div>
 
   <div class="card">
+    <div class="queue-toolbar">
+      <div>
+        <div class="queue-toolbar-title">Queue Records</div>
+        <div class="queue-toolbar-sub" id="queueSummaryLine">Use focus lanes, filters, search, and sort to narrow the work queue.</div>
+      </div>
+      <div id="adminMsg" class="inline-msg tc-muted"></div>
+    </div>
+
+    <div class="queue-lane-bar" id="queueLaneBar">
+      <button class="lane-btn" type="button" data-lane="" onclick="setQueueLane('')">&#128203; All Work</button>
+      <button class="lane-btn" type="button" data-lane="review" onclick="setQueueLane('review')">&#128269; Review Now</button>
+      <button class="lane-btn" type="button" data-lane="production" onclick="setQueueLane('production')">&#128295; Production</button>
+      <button class="lane-btn" type="button" data-lane="special" onclick="setQueueLane('special')">&#11088; Special</button>
+      <button class="lane-btn" type="button" data-lane="laser" onclick="setQueueLane('laser')">&#128293; Laser</button>
+      <button class="lane-btn" type="button" data-lane="3d" onclick="setQueueLane('3d')">&#128424; 3D Print</button>
+      <button class="lane-btn" type="button" data-lane="done" onclick="setQueueLane('done')">&#9989; Done / Rejected</button>
+    </div>
+
     <div class="filter-bar">
+      <div class="field filter-wide"><label>Search Queue</label><input type="text" id="filterQuick" placeholder="Name, email, ID, teacher, material, project"></div>
       <div class="field"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Special Requests</option></select></div>
       <div class="field"><label>Year</label><select id="filterYear"><option value="">All</option><option value="Y8">Y8</option><option value="Y9">Y9</option><option value="Y10">Y10</option></select></div>
       <div class="field"><label>Machine</label><select id="filterMachine"><option value="">All</option><option value="laser">Laser</option><option value="3d">3D Print</option></select></div>
       <div class="field"><label>Status</label><select id="filterStatus"><option value="">All</option><option value="submitted">Submitted</option><option value="needs_fix">Needs Fix</option><option value="approved">Approved</option><option value="in_queue">In Queue</option><option value="in_production">In Prod</option><option value="completed">Done</option><option value="rejected">Rejected</option></select></div>
+      <div class="field"><label>Sort</label><select id="filterSort"><option value="newest">Latest spreadsheet rows</option><option value="priority">Priority</option><option value="time_newest">Newest timestamp</option><option value="oldest">Oldest active</option><option value="updated">Recently updated</option><option value="name">Requester A-Z</option></select></div>
       <div class="field"><label>Teacher</label><input type="text" id="filterTeacher" placeholder="Name"></div>
       <div class="field"><label>Class</label><input type="text" id="filterClass" placeholder="e.g. 8.1"></div>
       <div class="field"><label>Student</label><input type="text" id="filterStudentEmail" placeholder="Email"></div>
       <div class="filter-meta">
         <label class="teacher-toggle"><input type="checkbox" id="filterMineOnly"> My students only</label>
-        <button class="btn btn-ghost btn-sm" onclick="document.querySelectorAll('.filter-bar select,.filter-bar input[type=text]').forEach(function(el){el.value='';});document.getElementById('filterMineOnly').checked=false;loadAdminRows();">&#10060; Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearAdminFilters_()">&#10060; Clear</button>
         <button class="btn btn-primary btn-sm" onclick="loadAdminRows()">&#8635; Refresh</button>
       </div>
     </div>
-    <div id="adminMsg" class="inline-msg tc-muted"></div>
     <div id="adminTable"></div>
   </div>
 
@@ -6497,7 +8448,7 @@ function renderHelpPage_() {
     <ul class="do-list">
       <li><span><code>Y8_ChanTaiMan_3mm.afdesign</code></span></li>
       <li><span><code>Y10_LokWaiYan_final.stl</code></span></li>
-      <li><span><code>Y9_WongSiuMing_acrylic_v2.svg</code></span></li>
+      <li><span><code>Y9_ExampleStudent_acrylic_v2.svg</code></span></li>
     </ul>
 
     <h4>&#10060; Do NOT Use Vague Names</h4>
@@ -6520,7 +8471,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
+          <li>Your <strong>school email</strong> (e.g. user@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -6870,3 +8821,4 @@ function escapeHtml_(str) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+

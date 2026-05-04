@@ -2,6 +2,24 @@
 
 All notable documentation-facing changes to this repository are recorded here.
 
+## [1.2.0-public-dashboard-sync] - 2026-05-04
+
+### Dashboard release sync
+
+- Replaced the public `code.gs` snapshot with the latest dashboard code used for the public Apps Script release.
+- Added the updated Admin queue behaviour where the default sort is **Latest spreadsheet rows**, so newly appended spreadsheet submissions appear first.
+- Preserved optional priority, timestamp, oldest-active, recently-updated, and requester-name sorting.
+- Added full-row status colouring in the queue: completed rows are green, rejected rows are red-tinted, needs-fix rows are amber, and active production states use distinct colours.
+- Added smoother Admin queue filtering by keeping quick search, sort, and focus-lane changes client-side after the main row set is loaded.
+- Added richer Status Lookup cards with current step, student next action, next checkpoint, last update, submitted file/evidence links, and machine-specific checklists.
+- Tightened role boundaries so teacher and technician users stay in the operations queue while system-admin-only pages remain admin-only.
+
+### Public-safe preparation
+
+- Sanitised live Apps Script deployment IDs, spreadsheet IDs, Drive IDs, staff names, staff emails, and student examples from the published code snapshot.
+- Kept only neutral `example.edu` contact placeholders and generic teacher labels.
+- Added a public-safe header note to `code.gs` documenting the sanitisation rules for this snapshot.
+
 ## [1.1.0-doc-sync] - 2026-03-25
 
 ### Documentation alignment
