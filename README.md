@@ -36,18 +36,22 @@ That separation matters because DT coursework can be prioritised differently, Sp
 
 ## Current Snapshot
 
-The current `code.gs` snapshot includes:
+The current `code.gs` snapshot is a public-safe sync of the latest Apps Script dashboard release. It includes:
 
 - DT coursework submission with prototype type selection (`low`, `hi`, `na`)
 - Special Request submission with sponsor / teacher approval fields
 - sheet-backed submission deadline and cutoff controls by year group or class
 - merged reviewer queue across DT and Special Request records
+- default Admin queue ordering by latest spreadsheet row, so newly appended submissions appear first
+- full-row status colouring for faster queue scanning, including green completed rows and distinct active / needs-fix / rejected states
+- client-side quick search, focus-lane, and sort re-rendering after the main queue data loads, reducing repeated Apps Script roundtrips
+- richer student Status Lookup cards with current step, next action, next checkpoint, submitted files, and machine-specific checklists
 - repeat-submission and last-24-hour activity signals for reviewers and submitters
 - manual email draft generation for students and teachers
 - machine guide content with workshop-specific guidance and manufacturer-verified specs
 - rules, users, submission controls, and audit views for admins
 
-This repository should be treated as a documentation-oriented working copy of the project. Before any public push, review all configured contacts and school-specific values in `code.gs`.
+This repository should be treated as a documentation-oriented working copy of the project. The published `code.gs` intentionally uses neutral `example.edu` contacts, generic teacher labels, and blank deployment metadata. Before deploying it to a school environment, configure contacts, script properties, and deployment settings locally.
 
 ## Repository Contents
 
@@ -124,6 +128,10 @@ Admins retain full workflow control.
 
 - merged queue view for DT and Special Request records
 - filters by source, year, machine, status, teacher, class, and student email
+- default sort by latest spreadsheet row so manual spreadsheet additions are visible at the top of the queue
+- optional priority and timestamp sorts for review-focused workflows
+- full-row status colours for completed, rejected, needs-fix, submitted, approved, queued, and in-production work
+- client-side quick search, sort, and focus-lane rendering for smoother use with larger queues
 - teacher-scoped queue view with “My students only” default
 - review drawer with record context, activity history, remarks, and status actions
 - audit log entries for status changes, manual email sends, rule edits, and cutoff actions
@@ -144,6 +152,7 @@ Admins retain full workflow control.
 - user management page
 - audit log page
 - direct open-link to the backing spreadsheet
+- system-admin-only access for rules, users, audit, and direct spreadsheet opening
 
 ### Guidance Content
 
