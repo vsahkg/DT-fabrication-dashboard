@@ -45,6 +45,7 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - default Admin queue ordering by latest spreadsheet row, so newly appended submissions appear first
 - full-row status colouring for faster queue scanning, including green completed rows and distinct active / needs-fix / rejected states
 - client-side quick search, focus-lane, and sort re-rendering after the main queue data loads, reducing repeated Apps Script roundtrips
+- explicit Admin Refresh actions that bypass the local cache and reload the backing spreadsheet
 - richer student Status Lookup cards with current step, next action, next checkpoint, submitted files, and machine-specific checklists
 - repeat-submission and last-24-hour activity signals for reviewers and submitters
 - manual email draft generation for students and teachers
@@ -132,6 +133,7 @@ Admins retain full workflow control.
 - optional priority and timestamp sorts for review-focused workflows
 - full-row status colours for completed, rejected, needs-fix, submitted, approved, queued, and in-production work
 - client-side quick search, sort, and focus-lane rendering for smoother use with larger queues
+- explicit Refresh buttons that force a fresh spreadsheet read when staff need to verify newly-added rows
 - teacher-scoped queue view with “My students only” default
 - review drawer with record context, activity history, remarks, and status actions
 - audit log entries for status changes, manual email sends, rule edits, and cutoff actions
