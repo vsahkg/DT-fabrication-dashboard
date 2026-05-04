@@ -349,6 +349,19 @@ const APP = {
 
   adminRoles: ['admin', 'teacher', 'technician'],
 
+  queuePolicy: {
+    activeBusyThreshold: 20,
+    activeHeavyThreshold: 30,
+    laserCapacityNotice: {
+      active: true,
+      version: '2026-05-04-laser-reduced-capacity',
+      title: 'Laser queue update',
+      summary: 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.',
+      detail: 'Please avoid duplicate submissions. Check Status for updates, and keep your file ready in case a revision is requested.',
+      scaleLabel: 'Busy starts at 20 active queue items. Heavy starts above 30 active queue items.'
+    }
+  },
+
   uiText: {
     turnaroundHeadline: 'Please Allow Processing Time',
     turnaroundShort: 'Submitting a file does <strong>not</strong> mean same-day production. Every submission goes through <strong>review, approval, queueing, and production</strong> &mdash; each step takes time. Turnaround depends on file readiness, workload, machine availability, and job priority.',
@@ -901,6 +914,7 @@ function doGet(e) {
     currentUser: user,
     statuses: user.isAdmin ? Object.values(APP.status) : [],
     appName: APP.props.getProperty('APP_NAME') || APP.name,
+    queuePolicy: APP.queuePolicy || {},
     uiText: {
       statusMessages: APP.uiText.statusMessages,
       otherRequestTypes: APP.uiText.otherRequestTypes,
@@ -925,7 +939,7 @@ function getRulesForClient() {
 
 function getQueueHealthSnapshot() {
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'queue_health_snapshot_v2';
+  var cacheKey = 'queue_health_snapshot_v3';
   try {
     var cached = cache.get(cacheKey);
     if (cached) return JSON.parse(cached);
@@ -990,6 +1004,11 @@ function getQueueHealthSnapshot() {
     ok: true,
     updated_at: formatHongKongTimestamp_(new Date()),
     counts: counts,
+    thresholds: {
+      busy_active_queue: Number((APP.queuePolicy || {}).activeBusyThreshold || 20),
+      heavy_active_queue: Number((APP.queuePolicy || {}).activeHeavyThreshold || 30)
+    },
+    laser_capacity_notice: (APP.queuePolicy || {}).laserCapacityNotice || null,
     oldest_active_created_at: oldestActive ? oldestActive.created_at : '',
     note: 'Active queue includes Submitted, Approved, In Queue, and In Production. Needs Fix waits on student revision and is tracked separately.'
   };
@@ -3518,6 +3537,8 @@ function renderPage_(page, boot) {
     .status-machine-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 5px; vertical-align: -1px; background: #2563eb; }
     .status-machine-dot--print { background: #0f766e; }
     .status-workload-foot { margin-top: 9px; color: var(--slate-lt); font-size: 11px; line-height: 1.4; }
+    .status-workload-alert { margin-top: 11px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; border-radius: 10px; padding: 9px 10px; font-size: 11px; line-height: 1.45; }
+    .status-workload-alert strong { color: #9a3412; }
     .status-stage { margin-top: 12px; background: #f8fafc; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--slate); line-height: 1.5; }
     .status-stage strong { color: var(--navy); }
     .status-next-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
@@ -3755,6 +3776,15 @@ function renderPage_(page, boot) {
     .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--card-border); }
     .modal-head h3 { font-size: 16px; font-weight: 700; }
     .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--slate); padding: 4px; }
+    .laser-capacity-modal { max-width: 620px; }
+    .laser-capacity-body { padding: 18px 20px 20px; display: grid; gap: 14px; }
+    .laser-capacity-alert { border-radius: 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; padding: 13px 14px; font-size: 13px; line-height: 1.55; }
+    .laser-capacity-alert strong { display: block; color: #9a3412; margin-bottom: 3px; }
+    .laser-capacity-scale { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .laser-capacity-scale-item { border: 1px solid var(--card-border); border-radius: 10px; padding: 11px 12px; background: #f8fafc; }
+    .laser-capacity-scale-item strong { display: block; font-size: 13px; color: var(--navy); }
+    .laser-capacity-scale-item span { display: block; margin-top: 3px; font-size: 11px; color: var(--slate-lt); line-height: 1.4; }
+    .laser-capacity-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--card-border); padding-top: 14px; }
     .email-meta { padding: 14px 20px; background: var(--bg); font-size: 13px; display: grid; gap: 10px; }
     .email-meta .field { margin: 0; }
     .email-meta input { font-size: 13px; }
@@ -4051,6 +4081,8 @@ function renderPage_(page, boot) {
       .drawer { width: 100vw; }
       .overlay { align-items: flex-end; padding: 10px; }
       .modal { width: 100%; max-width: 100%; max-height: 92vh; border-radius: 12px 12px 0 0; }
+      .laser-capacity-scale { grid-template-columns: 1fr; }
+      .laser-capacity-actions .btn { width: 100%; }
       .qs-hero { padding: 20px 16px; }
       .qs-steps { grid-template-columns: 1fr; }
       .qs-audience { flex-direction: column; }
@@ -4165,6 +4197,24 @@ function renderPage_(page, boot) {
       completed: 'Ready for collection.',
       rejected: 'Follow up with teacher or requester.'
     };
+    var QUEUE_POLICY = BOOT.queuePolicy || {};
+    var QUEUE_BUSY_THRESHOLD = Math.max(1, Number(QUEUE_POLICY.activeBusyThreshold || 20));
+    var QUEUE_HEAVY_THRESHOLD = Math.max(QUEUE_BUSY_THRESHOLD + 1, Number(QUEUE_POLICY.activeHeavyThreshold || 30));
+    var LASER_CAPACITY_NOTICE = QUEUE_POLICY.laserCapacityNotice || {};
+
+    function queueLoadState_(load) {
+      load = Math.max(0, Number(load || 0));
+      if (load > QUEUE_HEAVY_THRESHOLD) return { key: 'heavy', label: 'Heavy', fill: 'status-workload-fill--heavy' };
+      if (load >= QUEUE_BUSY_THRESHOLD) return { key: 'busy', label: 'Busy', fill: 'status-workload-fill--busy' };
+      if (load >= 8) return { key: 'active', label: 'Active', fill: '' };
+      return { key: 'calm', label: 'Calm', fill: '' };
+    }
+
+    function queueLoadPct_(load) {
+      load = Math.max(0, Number(load || 0));
+      if (!load) return 0;
+      return Math.max(8, Math.min(100, Math.round((load / QUEUE_HEAVY_THRESHOLD) * 100)));
+    }
 
     function statusProgress(status) { return Number(STATUS_PROGRESS[String(status||'').trim()]||0); }
     function statusOwner(status) { return STATUS_OWNER[String(status||'').trim()]||'Workflow Team'; }
@@ -4521,14 +4571,14 @@ function renderPage_(page, boot) {
       setInsightTone_('insightCardRepeat', repeat ? 'admin-insight--attention' : 'admin-insight--ok');
       setInsightTone_('insightCardOldest', active ? '' : 'admin-insight--ok');
 
-      var pressure = queueWorkload + review + repeat + Math.ceil(waitingStudent / 2);
-      var fill = Math.min(100, pressure * 9);
-      var pill = pressure >= 8 ? 'High' : (pressure >= 4 ? 'Busy' : 'Calm');
-      var text = pressure >= 8
-        ? 'Queue is carrying noticeable pressure. Submitted and approved jobs both count as active queue workload; needs-fix items are tracked separately.'
-        : pressure >= 4
-          ? 'Queue is active. Use focus lanes to separate first review, production-ready work, and waiting-on-student items.'
-          : 'Queue pressure is low in the current view. Submitted and approved jobs are still counted as queue workload.';
+      var queueState = queueLoadState_(queueWorkload);
+      var fill = queueLoadPct_(queueWorkload);
+      var pill = queueState.label;
+      var text = queueWorkload > QUEUE_HEAVY_THRESHOLD
+        ? 'Heavy queue. More than ' + QUEUE_HEAVY_THRESHOLD + ' active jobs are waiting across review, approved, queue, and production states.'
+        : queueWorkload >= QUEUE_BUSY_THRESHOLD
+          ? 'Busy queue. Active workload is at or above ' + QUEUE_BUSY_THRESHOLD + ' jobs; use lanes to separate review, production-ready, and waiting-on-student items.'
+          : 'Queue pressure is below the busy threshold. Submitted and approved jobs are still counted as active queue workload.';
       setText_('adminHealthPill', pill);
       setText_('adminHealthText', text);
       setText_('healthReview', String(queueWorkload));
@@ -4590,13 +4640,16 @@ function renderPage_(page, boot) {
     var _init = {};
     function refreshOverlayLock_() {
       var emailOverlay = document.getElementById('emailOverlay');
+      var laserOverlay = document.getElementById('laserCapacityOverlay');
       var drawerOverlay = document.getElementById('reviewDrawer');
       var drawerOpen = drawerOverlay && drawerOverlay.classList.contains('show');
-      document.body.classList.toggle('modal-open', !!emailOverlay || !!drawerOpen);
+      document.body.classList.toggle('modal-open', !!emailOverlay || !!laserOverlay || !!drawerOpen);
     }
     function closeTransientPanels_() {
       var emailOverlay = document.getElementById('emailOverlay');
       if (emailOverlay) emailOverlay.remove();
+      var laserOverlay = document.getElementById('laserCapacityOverlay');
+      if (laserOverlay) laserOverlay.remove();
       var drawerOverlay = document.getElementById('reviewDrawer');
       if (drawerOverlay) drawerOverlay.classList.remove('show');
       refreshOverlayLock_();
@@ -4663,6 +4716,7 @@ function renderPage_(page, boot) {
       initPage(BOOT.page);
       focusActiveNav_(BOOT.page);
       enhanceClickableCards_();
+      setTimeout(showStudentLaserCapacityNotice_, 300);
     }
 
     /* ---------- TOAST ---------- */
@@ -4705,6 +4759,64 @@ function renderPage_(page, boot) {
       return String(str||'')
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function laserCapacitySeenKey_() {
+      return 'laserCapacityNoticeSeen:' + String(LASER_CAPACITY_NOTICE.version || 'current');
+    }
+
+    function shouldShowStudentLaserCapacityNotice_() {
+      var role = String((BOOT.currentUser && BOOT.currentUser.role) || 'guest');
+      if (role !== 'student' && role !== 'guest') return false;
+      if (!LASER_CAPACITY_NOTICE || LASER_CAPACITY_NOTICE.active === false) return false;
+      try {
+        if (sessionStorage.getItem(laserCapacitySeenKey_()) === '1') return false;
+      } catch(e) {}
+      return true;
+    }
+
+    function closeLaserCapacityNotice_(remember) {
+      var overlay = document.getElementById('laserCapacityOverlay');
+      if (overlay) overlay.remove();
+      if (remember !== false) {
+        try { sessionStorage.setItem(laserCapacitySeenKey_(), '1'); } catch(e) {}
+      }
+      refreshOverlayLock_();
+    }
+
+    function showStudentLaserCapacityNotice_() {
+      if (!shouldShowStudentLaserCapacityNotice_()) return;
+      if (document.getElementById('laserCapacityOverlay')) return;
+      var summary = LASER_CAPACITY_NOTICE.summary || 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.';
+      var detail = LASER_CAPACITY_NOTICE.detail || 'Please avoid duplicate submissions and check Status for updates.';
+      var scale = LASER_CAPACITY_NOTICE.scaleLabel || ('Busy starts at ' + QUEUE_BUSY_THRESHOLD + ' active queue items. Heavy starts above ' + QUEUE_HEAVY_THRESHOLD + ' active queue items.');
+      var overlay = document.createElement('div');
+      overlay.id = 'laserCapacityOverlay';
+      overlay.className = 'overlay';
+      overlay.innerHTML =
+        '<div class="modal laser-capacity-modal" role="dialog" aria-modal="true" aria-labelledby="laserCapacityTitle" tabindex="-1">' +
+          '<div class="modal-head"><h3 id="laserCapacityTitle">&#128293; ' + esc(LASER_CAPACITY_NOTICE.title || 'Laser queue update') + '</h3><button class="modal-close" onclick="closeLaserCapacityNotice_()" aria-label="Close laser queue update">&times;</button></div>' +
+          '<div class="laser-capacity-body">' +
+            '<div class="laser-capacity-alert"><strong>Reduced laser capacity</strong>' + esc(summary) + '</div>' +
+            '<div class="laser-capacity-scale" aria-label="Current queue scale">' +
+              '<div class="laser-capacity-scale-item"><strong>Busy</strong><span>' + QUEUE_BUSY_THRESHOLD + '-' + QUEUE_HEAVY_THRESHOLD + ' active queue items.</span></div>' +
+              '<div class="laser-capacity-scale-item"><strong>Heavy</strong><span>More than ' + QUEUE_HEAVY_THRESHOLD + ' active queue items.</span></div>' +
+            '</div>' +
+            '<div class="laser-capacity-alert"><strong>What students should do</strong>' + esc(detail) + '<br>' + esc(scale) + '</div>' +
+            '<div class="laser-capacity-actions">' +
+              '<button class="btn btn-ghost btn-sm" onclick="closeLaserCapacityNotice_()">Close</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="closeLaserCapacityNotice_(); switchPage(\\'status\\')">&#128270; Check Status</button>' +
+              '<button class="btn btn-primary btn-sm" onclick="closeLaserCapacityNotice_(); switchPage(\\'help\\'); setTimeout(function(){ helpJump_(\\'help-laser\\'); }, 250);">&#128221; Laser Checklist</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', function(e){ if (e.target === overlay) closeLaserCapacityNotice_(); });
+      refreshOverlayLock_();
+      setTimeout(function() {
+        var closeBtn = overlay.querySelector('.modal-close');
+        if (closeBtn) closeBtn.focus();
+      }, 0);
     }
 
     /* ---------- DEBOUNCE ---------- */
@@ -5714,10 +5826,7 @@ function renderPage_(page, boot) {
     }
 
     function statusLoadState_(load) {
-      if (load >= 70) return { key: 'heavy', label: 'Very busy', fill: 'status-workload-fill--heavy' };
-      if (load >= 35) return { key: 'busy', label: 'Busy', fill: 'status-workload-fill--busy' };
-      if (load >= 12) return { key: 'active', label: 'Active', fill: '' };
-      return { key: 'calm', label: 'Calm', fill: '' };
+      return queueLoadState_(load);
     }
 
     function statusPct_(value, total) {
@@ -5755,7 +5864,11 @@ function renderPage_(page, boot) {
       var printPct = machineTotal ? 100 - laserPct : 0;
       if (laserActive && laserPct < 8) laserPct = 8;
       if (printActive && printPct < 8) printPct = 8;
-      var loadPct = load ? Math.max(8, Math.min(100, Math.round((load / 100) * 100))) : 0;
+      var loadPct = queueLoadPct_(load);
+      var notice = (snapshot.laser_capacity_notice || LASER_CAPACITY_NOTICE || {});
+      var capacityHtml = notice && notice.active !== false
+        ? '<div class="status-workload-alert"><strong>Laser capacity update:</strong> ' + esc(notice.summary || 'One laser cutter is currently offline. Only one laser cutter is running.') + '</div>'
+        : '';
       if (pill) {
         pill.textContent = state.label.toUpperCase();
         pill.className = 'pill pill-submitted';
@@ -5766,7 +5879,7 @@ function renderPage_(page, boot) {
           '<span class="status-workload-state status-workload-state--' + state.key + '">' + esc(state.label) + '</span>' +
         '</div>' +
         '<div class="status-workload-bar" aria-hidden="true"><div class="status-workload-fill ' + state.fill + '" style="width:' + loadPct + '%;"></div></div>' +
-        '<div class="status-workload-scale" aria-hidden="true"><span>Light</span><span>Steady</span><span>Busy</span><span>Heavy</span></div>' +
+        '<div class="status-workload-scale" aria-hidden="true"><span>Light</span><span>Steady</span><span>Busy from ' + QUEUE_BUSY_THRESHOLD + '</span><span>Heavy &gt; ' + QUEUE_HEAVY_THRESHOLD + '</span></div>' +
         '<div class="status-workload-lanes" aria-hidden="true">' +
           statusLaneHtml_('First review', 'Waiting for human review', waitingReview, laneTotal, 'status-workload-lane-fill--review') +
           statusLaneHtml_('Ready / queued', 'Approved or waiting for a slot', readyWait, laneTotal, 'status-workload-lane-fill--ready') +
@@ -5778,6 +5891,7 @@ function renderPage_(page, boot) {
           '<div class="status-machine-mix"><div class="status-machine-laser" style="flex-basis:' + laserPct + '%;"></div><div class="status-machine-print" style="flex-basis:' + printPct + '%;"></div></div>' +
           '<div class="status-machine-legend"><span><i class="status-machine-dot"></i>Laser</span><span><i class="status-machine-dot status-machine-dot--print"></i>3D printing</span></div>' +
         '</div>' +
+        capacityHtml +
         '<div class="status-workload-foot">Updated recently. This is workload context only, not an exact promise of turnaround.</div>';
     }
 
@@ -6752,6 +6866,11 @@ function renderPage_(page, boot) {
       var emailOverlay = document.getElementById('emailOverlay');
       if (emailOverlay) {
         closeEmailModal_();
+        return;
+      }
+      var laserOverlay = document.getElementById('laserCapacityOverlay');
+      if (laserOverlay) {
+        closeLaserCapacityNotice_();
         return;
       }
       var drawerOverlay = document.getElementById('reviewDrawer');
