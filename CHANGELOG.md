@@ -12,6 +12,7 @@ All notable documentation-facing changes to this repository are recorded here.
 - Added full-row status colouring in the queue: completed rows are green, rejected rows are red-tinted, needs-fix rows are amber, and active production states use distinct colours.
 - Added smoother Admin queue filtering by keeping quick search, sort, and focus-lane changes client-side after the main row set is loaded.
 - Fixed the explicit Admin Refresh buttons so they bypass the local row cache and fetch the latest spreadsheet data.
+- Changed dashboard year dropdowns to come from active Rules rows, so newly configured years such as Y6 and Y7 appear without code edits.
 - Added richer Status Lookup cards with current step, student next action, next checkpoint, last update, submitted file/evidence links, and machine-specific checklists.
 - Tightened role boundaries so teacher and technician users stay in the operations queue while system-admin-only pages remain admin-only.
 

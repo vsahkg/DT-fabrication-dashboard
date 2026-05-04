@@ -2764,10 +2764,26 @@ function createFolderTree_(rootFolder) {
   const submissions = getOrCreateFolder_(rootFolder, 'submissions');
   const previews = getOrCreateFolder_(rootFolder, 'previews');
 
-  ['Y8', 'Y9', 'Y10'].forEach(year => {
+  const machinesByYear = {};
+  (APP.defaultRules || []).forEach(row => {
+    const year = String(row[0] || '').trim().toUpperCase();
+    const machine = String(row[1] || '').trim().toLowerCase();
+    if (!year) return;
+    if (!machinesByYear[year]) machinesByYear[year] = {};
+    if (machine) machinesByYear[year][machine] = true;
+  });
+  Object.keys(machinesByYear).sort((a, b) => {
+    const ay = /^Y(\d+)$/i.exec(a);
+    const by = /^Y(\d+)$/i.exec(b);
+    if (ay && by) return Number(ay[1]) - Number(by[1]);
+    if (ay) return -1;
+    if (by) return 1;
+    return a.localeCompare(b);
+  }).forEach(year => {
     const subYear = getOrCreateFolder_(submissions, year);
-    getOrCreateFolder_(subYear, 'laser');
-    if (year === 'Y10') getOrCreateFolder_(subYear, '3d');
+    Object.keys(machinesByYear[year]).forEach(machine => {
+      getOrCreateFolder_(subYear, machine);
+    });
 
     getOrCreateFolder_(previews, year);
   });
@@ -3088,7 +3104,7 @@ function renderPage_(page, boot) {
   }
 
   /* System-admin pages rendered empty for teacher/technician/student roles. */
-  var rulesPageHtml = isSystemAdmin ? renderRulesPage_() : '';
+  var rulesPageHtml = isSystemAdmin ? renderRulesPage_(boot) : '';
   var usersPageHtml = isSystemAdmin ? renderUsersPage_() : '';
   var auditPageHtml = isSystemAdmin ? renderAuditPage_() : '';
 
@@ -4091,9 +4107,9 @@ function renderPage_(page, boot) {
   <div class="shell">
     <div class="content">
       <div id="page-submit" style="display:${page === 'submit' ? 'block' : 'none'}">${renderSubmitPage_()}</div>
-      <div id="page-other"  style="display:${page === 'other'  ? 'block' : 'none'}">${renderOtherRequestPage_()}</div>
+      <div id="page-other"  style="display:${page === 'other'  ? 'block' : 'none'}">${renderOtherRequestPage_(boot)}</div>
       <div id="page-status" style="display:${page === 'status' ? 'block' : 'none'}">${renderStatusPage_(boot.currentUser)}</div>
-      ` + (isAdmin ? `<div id="page-admin"  style="display:${page === 'admin'  ? 'block' : 'none'}">${renderAdminPage_(boot.currentUser)}</div>` : `<div id="page-admin" style="display:none"><div class="card"><div class="section-title">&#128274; Access Restricted</div><p>You do not have permission to view this page.</p></div></div>`) + `
+      ` + (isAdmin ? `<div id="page-admin"  style="display:${page === 'admin'  ? 'block' : 'none'}">${renderAdminPage_(boot.currentUser, boot)}</div>` : `<div id="page-admin" style="display:none"><div class="card"><div class="section-title">&#128274; Access Restricted</div><p>You do not have permission to view this page.</p></div></div>`) + `
       <div id="page-machines" style="display:${page === 'machines' ? 'block' : 'none'}">${renderMachinesPage_()}</div>
       <div id="page-help"   style="display:${page === 'help'   ? 'block' : 'none'}">${renderHelpPage_()}</div>
       ` + (isSystemAdmin ? `<div id="page-rules"  style="display:${page === 'rules'  ? 'block' : 'none'}">` + rulesPageHtml + `</div>
@@ -4966,7 +4982,15 @@ function renderPage_(page, boot) {
 
       var years = [];
       BOOT.rules.forEach(function(r) { if (years.indexOf(r.year_group) === -1) years.push(r.year_group); });
-      yearSel.innerHTML = '<option value="">\\u2014 Select year \\u2014</option>' + years.map(function(y) { return '<option value="' + y + '">' + y + '</option>'; }).join('');
+      years.sort(function(a, b) {
+        var ay = /^Y(\d+)$/i.exec(String(a || ''));
+        var by = /^Y(\d+)$/i.exec(String(b || ''));
+        if (ay && by) return Number(ay[1]) - Number(by[1]);
+        if (ay) return -1;
+        if (by) return 1;
+        return String(a || '').localeCompare(String(b || ''));
+      });
+      yearSel.innerHTML = '<option value="">\\u2014 Select year \\u2014</option>' + years.map(function(y) { return '<option value="' + esc(y) + '">' + esc(y) + '</option>'; }).join('');
 
       /* Pre-fill student email if logged in */
       var emailInput = form.querySelector('[name="student_email"]');
@@ -6830,6 +6854,36 @@ function renderBulletList_(items) {
   return '<ul>' + items.map(function(item) { return '<li>' + item + '</li>'; }).join('') + '</ul>';
 }
 
+function getRuleYearGroupsForUi_(boot) {
+  var sourceRules = (boot && boot.rules && boot.rules.length) ? boot.rules : [];
+  if (!sourceRules.length && typeof APP !== 'undefined' && APP.defaultRules) {
+    sourceRules = APP.defaultRules.map(function(row) { return { year_group: row[0] }; });
+  }
+  var years = [];
+  sourceRules.forEach(function(rule) {
+    var year = String(rule.year_group || '').trim().toUpperCase();
+    if (year && years.indexOf(year) === -1) years.push(year);
+  });
+  years.sort(function(a, b) {
+    var ay = /^Y(\d+)$/i.exec(a);
+    var by = /^Y(\d+)$/i.exec(b);
+    if (ay && by) return Number(ay[1]) - Number(by[1]);
+    if (ay) return -1;
+    if (by) return 1;
+    return a.localeCompare(b);
+  });
+  return years;
+}
+
+function renderRuleYearOptionsForUi_(boot, blankLabel) {
+  var options = [];
+  if (blankLabel !== null) options.push('<option value="">' + escapeHtml_(blankLabel || 'All') + '</option>');
+  getRuleYearGroupsForUi_(boot).forEach(function(year) {
+    options.push('<option value="' + escapeHtml_(year) + '">' + escapeHtml_(year) + '</option>');
+  });
+  return options.join('');
+}
+
 function renderSubmitPage_() {
   return `
   <div class="home-hero">
@@ -7126,10 +7180,11 @@ function renderSubmitPage_() {
   `;
 }
 
-function renderOtherRequestPage_() {
+function renderOtherRequestPage_(boot) {
   var teacherOptions = Object.keys(APP.teacherEmails).sort().map(function(t) {
     return '<option value="' + escapeHtml_(t) + '">' + escapeHtml_(t) + '</option>';
   }).join('');
+  var yearOptions = renderRuleYearOptionsForUi_(boot, '— Select —');
 
 
   return `
@@ -7232,11 +7287,7 @@ function renderOtherRequestPage_() {
             <div class="field" id="otherYearGroupField" style="display:none;">
               <label>Year Group</label>
               <select name="year_group" id="otherYearGroup">
-                <option value="">&mdash; Select &mdash;</option>
-                <option value="Y6">Y6</option><option value="Y7">Y7</option>
-                <option value="Y8">Y8</option>
-                <option value="Y9">Y9</option><option value="Y10">Y10</option>
-                <option value="Y11">Y11</option><option value="Y12">Y12</option>
+                ${yearOptions}
               </select>
             </div>
           </div>
@@ -7570,7 +7621,7 @@ function renderStatusPage_(user) {
   `;
 }
 
-function renderAdminPage_(user) {
+function renderAdminPage_(user, boot) {
   if (!user.isAdmin) {
     return `
     <div class="card">
@@ -7616,6 +7667,7 @@ function renderAdminPage_(user) {
   var openSheetButton = user.role === 'admin'
     ? '<button class="btn btn-ghost btn-sm" onclick="openMasterSheet()">&#128196; Open Sheet</button>'
     : '';
+  var yearFilterOptions = renderRuleYearOptionsForUi_(boot, 'All');
 
   return `
   <div class="admin-hero">
@@ -7699,7 +7751,7 @@ function renderAdminPage_(user) {
     <div class="filter-bar">
       <div class="field filter-wide"><label>Search Queue</label><input type="text" id="filterQuick" placeholder="Name, email, ID, teacher, material, project"></div>
       <div class="field"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Special Requests</option></select></div>
-      <div class="field"><label>Year</label><select id="filterYear"><option value="">All</option><option value="Y8">Y8</option><option value="Y9">Y9</option><option value="Y10">Y10</option></select></div>
+      <div class="field"><label>Year</label><select id="filterYear">${yearFilterOptions}</select></div>
       <div class="field"><label>Machine</label><select id="filterMachine"><option value="">All</option><option value="laser">Laser</option><option value="3d">3D Print</option></select></div>
       <div class="field"><label>Status</label><select id="filterStatus"><option value="">All</option><option value="submitted">Submitted</option><option value="needs_fix">Needs Fix</option><option value="approved">Approved</option><option value="in_queue">In Queue</option><option value="in_production">In Prod</option><option value="completed">Done</option><option value="rejected">Rejected</option></select></div>
       <div class="field"><label>Sort</label><select id="filterSort"><option value="newest">Latest spreadsheet rows</option><option value="priority">Priority</option><option value="time_newest">Newest timestamp</option><option value="oldest">Oldest active</option><option value="updated">Recently updated</option><option value="name">Requester A-Z</option></select></div>
@@ -8712,10 +8764,8 @@ function renderHelpPage_() {
   `;
 }
 
-function renderRulesPage_() {
-  var yearOptions = ['Y8', 'Y9', 'Y10'].map(function(year) {
-    return '<option value="' + year + '">' + year + '</option>';
-  }).join('');
+function renderRulesPage_(boot) {
+  var yearOptions = renderRuleYearOptionsForUi_(boot, '— Select year —');
   return `
   <div class="card">
     <div class="section-title">&#9881; Rules Configuration</div>
@@ -8735,7 +8785,6 @@ function renderRulesPage_() {
       <div class="field">
         <label>Year Group</label>
         <select id="submissionControlYear">
-          <option value="">&mdash; Select year &mdash;</option>
           ${yearOptions}
         </select>
       </div>
