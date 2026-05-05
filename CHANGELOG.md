@@ -2,6 +2,24 @@
 
 All notable documentation-facing changes to this repository are recorded here.
 
+## [1.2.2-case-number-status-lookup] - 2026-05-05
+
+### Latest dashboard update
+
+- Added source-aware case numbers: DT submissions use `M###`, while Special Requests use `A###`.
+- Updated student Status Lookup cards so the visible reference is the case number only; raw Submission IDs and Request IDs remain backend/audit references but are no longer shown on lookup cards.
+- Updated lookup actions to copy only the case number, giving students a short reference to quote when asking teachers or technicians for help.
+- Sorted mixed DT and Special Request lookup results by submitted time instead of grouping Special Requests at the bottom.
+- Added a 14-day daily request activity timeline to the queue health snapshot used by the student lookup context panel.
+- Kept printed workshop labels aligned with the case-number system, including `A###` labels for Special Requests.
+- Improved student and requester email wording so confirmation/update messages foreground the case number and system-generated email footer.
+
+### Public-safe preparation
+
+- Regenerated the published `code.gs` from the current split Apps Script deployment source.
+- Replaced live Apps Script deployment metadata, staff names, staff emails, and school email examples with public-safe placeholders.
+- Re-ran syntax and privacy scans before publishing the repository update.
+
 ## [1.2.1-label-printing] - 2026-05-05
 
 ### Latest dashboard update
