@@ -31,7 +31,7 @@ const DEPLOYMENT_INFO = {
   appName: 'Design Fabrication Dashboard',
   version: 'public-github-sanitized',
   channel: 'github-reference',
-  updatedAt: '2026-05-04',
+  updatedAt: '2026-05-05',
   scriptId: '',
   targetDeploymentId: '',
   targetUrl: '',
@@ -3701,6 +3701,7 @@ function renderPage_(page, boot) {
     .queue-cell-status { min-width: 212px; }
     .queue-cell-meta { min-width: 132px; }
     .queue-cell-action { width: 98px; text-align: right; }
+    .queue-action-stack { display: grid; gap: 6px; justify-items: end; }
     .queue-name { font-size: 15px; font-weight: 800; color: var(--navy); line-height: 1.18; }
     .queue-meta { font-size: 11px; color: var(--slate); margin-top: 3px; line-height: 1.32; }
     .queue-meta-aux { font-size: 10px; color: var(--slate-lt); margin-top: 2px; line-height: 1.32; }
@@ -3730,6 +3731,7 @@ function renderPage_(page, boot) {
     .queue-review-btn--quiet { box-shadow: none; opacity: .88; }
     .queue-row--completed .queue-review-btn { color: #166534; border-color: #86efac; background: #f0fdf4; }
     .queue-row--rejected .queue-review-btn { color: #9f1239; border-color: #fecdd3; background: #fff1f2; }
+    .queue-label-btn { width: 88px; min-width: 88px; justify-content: center; box-shadow: none; }
     .queue-empty { margin-top: 12px; }
     .queue-load-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 2px; padding: 12px 14px; background: #f8fafc; border: 1px solid var(--card-border); border-radius: 10px; }
     .queue-load-more-text { font-size: 12px; color: var(--slate); line-height: 1.4; }
@@ -4105,8 +4107,9 @@ function renderPage_(page, boot) {
       .queue-row--active td:first-child, .queue-row--other td:first-child { box-shadow: none; }
       .queue-cell-action { width: auto; display: flex !important; align-items: center; justify-content: space-between; gap: 12px; text-align: left; }
       .queue-cell-action::before { margin-bottom: 0; }
+      .queue-action-stack { grid-template-columns: 1fr 1fr; justify-items: stretch; width: 100%; }
       .queue-meta-block { gap: 8px; }
-      .queue-review-btn { min-height: 40px; }
+      .queue-review-btn, .queue-label-btn { width: 100%; min-width: 0; min-height: 40px; }
       .drawer-body { padding: 16px; }
       .drawer-actions { padding: 12px 16px; }
       .drawer-actions .btn { flex: 1 1 100%; }
@@ -6143,10 +6146,97 @@ function renderPage_(page, boot) {
       var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + (prototypeLabel ? prototypePill(r.prototype_fidelity) : '') + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">Prototype: ' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
       var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-mini-progress" title="Workflow progress"><span style="width:' + progress + '%"></span></div><div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
       var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
-      var actionCell = '<td class="queue-cell-action" data-label="Action"><button class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button></td>';
+      var actionCell = '<td class="queue-cell-action" data-label="Action"><div class="queue-action-stack">' +
+        '<button type="button" class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm queue-label-btn" onclick="printQueueLabel_(' + idx + ')">&#128424; Label</button>' +
+        '</div></td>';
       var rowClass = ['queue-row', queueRowStateClass(r.status), queueSourceClass(r._source), queueAttentionClass(r)].join(' ').trim();
       return '<tr class="' + rowClass + '">' + requesterCell + contextCell + statusCell + metaCell + actionCell + '</tr>';
     }
+
+    function queueLabelData_(r) {
+      r = r || {};
+      var isOther = r._source === 'other';
+      var name = isOther ? (r.requester_name || r.student_name || '') : (r.student_name || '');
+      var classText = isOther
+        ? ([r.year_group, r['class'] || r.design_class_no].filter(Boolean).join(' ') || r.department_or_subject || '')
+        : (r.design_class_no || r.year_group || '');
+      var teacher = isOther ? (r.teacher_in_charge || r.design_teacher || r.approved_by_email || '') : (r.design_teacher || '');
+      var machine = MACHINE_LABELS[r.machine] || r.machine || '';
+      var id = r.submission_id || r.request_id || '';
+      return {
+        name: name || 'Unnamed requester',
+        classText: classText || 'No class',
+        teacher: teacher || 'No teacher',
+        machine: machine || 'Machine',
+        id: id || '',
+        source: isOther ? 'Special Request' : 'DT Submission'
+      };
+    }
+
+    function printLabelWindow_(data) {
+      var w = window.open('', '_blank', 'width=520,height=320');
+      if (!w) {
+        showToast('Popup blocked. Allow popups, then press Label again.', 'error');
+        return;
+      }
+      var doc = '<!doctype html><html><head><meta charset="utf-8">' +
+        '<title>Print fabrication label</title>' +
+        '<style>' +
+          '@page{size:90mm 29mm;margin:0;}' +
+          'html,body{margin:0;padding:0;}' +
+          'body{font-family:Arial,Helvetica,sans-serif;color:#111;}' +
+          '.label-sheet{box-sizing:border-box;width:90mm;height:29mm;padding:2.1mm 3mm;overflow:hidden;display:flex;align-items:center;}' +
+          '.label{width:100%;min-width:0;}' +
+          '.label-top{display:flex;align-items:flex-start;justify-content:space-between;gap:2mm;}' +
+          '.label-name{font-size:13pt;font-weight:800;line-height:1.04;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+          '.label-machine{flex:0 0 auto;border:1px solid #111;border-radius:1mm;padding:.55mm 1.15mm;font-size:7.5pt;font-weight:800;line-height:1;text-transform:uppercase;white-space:nowrap;}' +
+          '.label-row{margin-top:1.15mm;display:flex;gap:2.3mm;font-size:8.3pt;font-weight:700;line-height:1.08;white-space:nowrap;overflow:hidden;}' +
+          '.label-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;}' +
+          '.label-id{margin-top:1mm;font-size:6.8pt;line-height:1;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+          '.print-toolbar{display:none;}' +
+          '@media screen{body{width:auto;min-height:100vh;background:#f1f5f9;display:grid;place-items:start center;padding:16px;box-sizing:border-box;}.label-sheet{background:#fff;border:1px dashed #64748b;box-shadow:0 12px 30px rgba(15,23,42,.16);}.print-toolbar{display:flex;gap:8px;margin-top:14px;justify-content:center}.print-toolbar button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;font:700 12px Arial;cursor:pointer}.print-toolbar button.primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}}' +
+          '@media print{.print-toolbar{display:none!important;}}' +
+        '</style></head><body>' +
+          '<div class="label-sheet" role="img" aria-label="Fabrication label">' +
+            '<div class="label">' +
+              '<div class="label-top"><div class="label-name">' + esc(data.name) + '</div><div class="label-machine">' + esc(data.machine) + '</div></div>' +
+              '<div class="label-row"><span>Class: ' + esc(data.classText) + '</span><span>Teacher: ' + esc(data.teacher) + '</span></div>' +
+              '<div class="label-id">' + esc(data.source) + (data.id ? ' · ' + esc(data.id) : '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="print-toolbar"><button class="primary" onclick="window.print()">Print 90×29 mm label</button><button onclick="window.close()">Close</button></div>' +
+        '</body></html>';
+      w.document.open();
+      w.document.write(doc);
+      w.document.close();
+      w.focus();
+      setTimeout(function() {
+        try { w.print(); } catch(e) {}
+      }, 350);
+    }
+
+    function printQueueLabel_(idx) {
+      var r = _adminRows[idx];
+      if (!r) {
+        showToast('Label data not found. Refresh the queue and try again.', 'error');
+        return;
+      }
+      printLabelWindow_(queueLabelData_(r));
+    }
+
+    function printQueueLabelById_(id) {
+      var targetId = String(id || '');
+      var row = (_adminRows || []).filter(function(r) {
+        return String(r.submission_id || r.request_id || '') === targetId;
+      })[0];
+      if (!row) {
+        showToast('Label data not found. Reopen the request and try again.', 'error');
+        return;
+      }
+      printLabelWindow_(queueLabelData_(row));
+    }
+
     function updateAdminLoadMore_() {
       var bar = document.getElementById('queueLoadMoreBar');
       var text = document.getElementById('queueLoadMoreText');
@@ -6387,6 +6477,7 @@ function renderPage_(page, boot) {
       var saveId = esc(r.submission_id || r.request_id);
       document.getElementById('drawerActions').innerHTML =
         '<button class="btn btn-primary btn-sm" onclick="saveFromDrawer(\\'' + saveId + '\\')">Save Changes</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="printQueueLabelById_(\\'' + saveId + '\\')">&#128424; Print Label</button>' +
         (isOther ? '' : '<button class="btn btn-ghost btn-sm" onclick="draftEmail(\\'' + saveId + '\\')">\\u2709 Draft Email</button>') +
         (isTech || BOOT.currentUser.role === 'admin' ? '<button class="btn btn-ghost btn-sm" onclick="reportTeacher(\\'' + saveId + '\\')">\\ud83d\\udce2 Notify Teacher</button>' : '') +
         '<button class="btn btn-ghost btn-sm" onclick="closeDrawer()">Close</button>';

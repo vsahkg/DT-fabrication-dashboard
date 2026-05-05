@@ -15,6 +15,7 @@ All notable documentation-facing changes to this repository are recorded here.
 - Changed dashboard year dropdowns to come from active Rules rows, so newly configured years such as Y6 and Y7 appear without code edits.
 - Redefined queue pressure for the reduced-capacity period: Busy begins at 20 active queue items and Heavy begins above 30.
 - Added a student-facing laser capacity notice explaining that one laser cutter is offline and only one laser cutter is currently running.
+- Added browser-based 90 x 29 mm fabrication label printing from queue rows and review drawers for Brother QL-style printer-driver workflows.
 - Added richer Status Lookup cards with current step, student next action, next checkpoint, last update, submitted file/evidence links, and machine-specific checklists.
 - Tightened role boundaries so teacher and technician users stay in the operations queue while system-admin-only pages remain admin-only.
 
