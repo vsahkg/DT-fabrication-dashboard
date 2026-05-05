@@ -49,6 +49,7 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - explicit Admin Refresh actions that bypass the local cache and reload the backing spreadsheet
 - reduced-capacity queue scale where Busy starts at 20 active queue items and Heavy starts above 30
 - student-facing laser capacity notice for periods when one laser cutter is offline and only one cutter is running
+- browser-based 90 x 29 mm fabrication label printing for Brother QL-style printer drivers from queue rows and the review drawer
 - richer student Status Lookup cards with current step, next action, next checkpoint, submitted files, and machine-specific checklists
 - repeat-submission and last-24-hour activity signals for reviewers and submitters
 - manual email draft generation for students and teachers
@@ -138,6 +139,7 @@ Admins retain full workflow control.
 - full-row status colours for completed, rejected, needs-fix, submitted, approved, queued, and in-production work
 - client-side quick search, sort, and focus-lane rendering for smoother use with larger queues
 - explicit Refresh buttons that force a fresh spreadsheet read when staff need to verify newly-added rows
+- print-ready single labels with requester name, class/year, teacher/sponsor, machine type, and request ID for workshop tracking
 - teacher-scoped queue view with “My students only” default
 - review drawer with record context, activity history, remarks, and status actions
 - audit log entries for status changes, manual email sends, rule edits, and cutoff actions
