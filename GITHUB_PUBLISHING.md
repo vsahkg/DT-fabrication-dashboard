@@ -24,6 +24,7 @@ Review the repository for:
 - Google Drive folder IDs
 - deployment URLs
 - credentials or tokens
+- real class rosters, student names, student IDs, or student email addresses
 - screenshots containing private student or staff data
 - internal-only notes or comments
 
@@ -33,6 +34,7 @@ Check these parts of `code.gs` every time:
 
 - `APP.technicianCcEmail`
 - `APP.teacherEmails`
+- `APP.teacherBetaClasses`
 - `APP.adminEmailOverrides`
 - any hardcoded example emails in page content
 - footer or help text that may reference internal branding or live behaviour
@@ -53,6 +55,7 @@ Specifically re-check:
 - role and navigation descriptions
 - DT Submit versus Special Request terminology
 - admin tooling descriptions
+- Class Submission tracker and export descriptions
 - public-safety wording
 
 ## Screenshots and Assets Checklist

@@ -2,6 +2,27 @@
 
 All notable documentation-facing changes to this repository are recorded here.
 
+## [1.3.0-class-submission-readiness] - 2026-05-14
+
+### Latest dashboard update
+
+- Synced the public `code.gs` snapshot from the latest split Apps Script deployment source after the Class Submission tracker work.
+- Added the teacher-facing **Class Submission** page for tracking expected design-class submissions across multiple teacher/class groups.
+- Added teacher and class filters, student search, missing-only filtering, class summary cards, per-class progress bars, latest-case display, completion / missing / needs-fix counts, and class-entry typo notes.
+- Added `getTeacherBetaClassStatus()` and `getTeacherBetaClassStatusCsv_()` so the page can load class-status data and export a spreadsheet-style CSV.
+- Added the `teacher_class_csv` web action as a server-side fallback export path for class submission status.
+- Improved the Class Submission spreadsheet download flow so loaded page data exports directly instead of opening a raw CSV page when data is already available.
+- Fixed a client-side Class Submission render crash caused by missing `query` / `missingOnly` state during summary rendering.
+- Fixed a dashboard-wide client-script crash caused by unescaped CSV newline / BOM strings in the browser export helper.
+- Kept the status lookup, queue-health, estimated pickup, case-number, label-printing, student-domain, file-extension, and email wording updates from the live Apps Script work in the public snapshot.
+
+### Public-safe preparation
+
+- Replaced live teacher names and staff emails with generic `Teacher A`, `Teacher B`, `Teacher C`, and `example.edu` placeholders.
+- Replaced all teacher class rosters with synthetic demo students while preserving class numbers and roster counts for realistic feature demonstration.
+- Removed live Apps Script deployment IDs, script IDs, school domains, student IDs, parent emails, and real student/staff names from the published code.
+- Updated README and handover documentation so GitHub describes the Class Submission tracker, export path, and sanitisation model clearly.
+
 ## [1.2.2-case-number-status-lookup] - 2026-05-05
 
 ### Latest dashboard update

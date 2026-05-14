@@ -23,6 +23,7 @@ Review these configuration surfaces in `code.gs`:
 
 - `APP.technicianCcEmail`
 - `APP.teacherEmails`
+- `APP.teacherBetaClasses`
 - `APP.adminEmailOverrides`
 - `APP.uiText`
 
@@ -51,7 +52,7 @@ Sheet headers and runtime object keys are tightly coupled. If you rename a heade
 
 ### Watch for config drift
 
-Teacher mappings, admin override emails, submit-page dropdown options, and public docs can drift apart if changed independently.
+Teacher mappings, class-tracker rosters, admin override emails, submit-page dropdown options, and public docs can drift apart if changed independently.
 
 ## Where To Edit Common Things
 
@@ -75,8 +76,11 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 ### Teacher and admin identity mapping
 
 - teacher mappings live in `APP.teacherEmails`
+- Class Submission tracker rosters live in `APP.teacherBetaClasses`
 - elevated-role email overrides live in `APP.adminEmailOverrides`
 - submit-page teacher dropdown content is hardcoded in `renderSubmitPage_()`
+
+The public GitHub snapshot uses generic teacher labels and synthetic demo rosters. A live deployment should replace those values privately and keep the replacement out of public commits.
 
 ### Notification behaviour
 
@@ -89,12 +93,20 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 - queue rendering and drawer rendering live in the client JS inside `renderPage_()`
 - repeat-submission context comes from the `getSubmissionActivity*` helper family
 
+### Class Submission tracker
+
+- `renderTeacherBetaPage_()` renders the teacher/admin class status UI
+- `getTeacherBetaClassStatus()` loads interactive page data
+- `getTeacherBetaClassStatusCsv_()` and the `teacher_class_csv` action support spreadsheet export
+- roster status compares expected class emails against submission rows, so email and class-number data quality directly affects results
+
 ## Common Risks
 
 - breaking a template literal while editing HTML or JS
 - renaming a sheet header without updating all dependent code
 - changing a status without updating queue labels, notifications, and help text
 - changing teacher mappings but forgetting the submit-page dropdown
+- changing class-tracker rosters but forgetting teacher scoping or public sanitisation
 - updating deadline / cutoff logic without re-testing DT submission blocking
 - publishing school-specific contact values unintentionally
 
@@ -113,6 +125,7 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 ## What To Check Before Deployment
 
 - `APP.teacherEmails` matches the real staff list
+- `APP.teacherBetaClasses` contains only intended live rosters and is not copied into public GitHub without sanitisation
 - submit-page teacher dropdown options match the mapping
 - `APP.technicianCcEmail` is correct
 - `APP.adminEmailOverrides` only contains intended elevated accounts
@@ -131,13 +144,14 @@ After meaningful changes, verify:
 3. blocked DT classes or year groups are actually blocked when a cutoff row applies
 4. status lookup returns both DT and Special Request rows correctly
 5. teacher queue scoping still works
-6. technician status restrictions still work
-7. review drawer opens the correct record
-8. manual draft generation works for student and teacher emails
-9. status changes write to sheets and `AuditLog`
-10. automatic emails still send correctly
-11. Machines and Help pages render correctly on desktop and mobile
-12. no new syntax or editor errors are reported in `code.gs`
+6. Class Submission loads for teacher/admin roles, filters by teacher/class, and exports CSV
+7. technician status restrictions still work
+8. review drawer opens the correct record
+9. manual draft generation works for student and teacher emails
+10. status changes write to sheets and `AuditLog`
+11. automatic emails still send correctly
+12. Machines and Help pages render correctly on desktop and mobile
+13. no new syntax or editor errors are reported in `code.gs`
 
 ## Public Publishing Discipline
 
