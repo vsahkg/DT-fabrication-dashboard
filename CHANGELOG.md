@@ -14,6 +14,7 @@ All notable documentation-facing changes to this repository are recorded here.
 - Improved the Class Submission spreadsheet download flow so loaded page data exports directly instead of opening a raw CSV page when data is already available.
 - Fixed a client-side Class Submission render crash caused by missing `query` / `missingOnly` state during summary rendering.
 - Fixed a dashboard-wide client-script crash caused by unescaped CSV newline / BOM strings in the browser export helper.
+- Added a Student View Preview popup test control so staff/admin users can force-open the student-facing laser capacity popup while testing.
 - Kept the status lookup, queue-health, estimated pickup, case-number, label-printing, student-domain, file-extension, and email wording updates from the live Apps Script work in the public snapshot.
 
 ### Public-safe preparation

@@ -7359,13 +7359,15 @@ function renderPage_(page, boot) {
       return 'laserCapacityNoticeSeen:' + String(LASER_CAPACITY_NOTICE.version || 'current');
     }
 
-    function shouldShowStudentLaserCapacityNotice_() {
+    function shouldShowStudentLaserCapacityNotice_(force) {
       var role = String((BOOT.currentUser && BOOT.currentUser.role) || 'guest');
-      if (role !== 'student' && role !== 'guest') return false;
+      if (!force && role !== 'student' && role !== 'guest') return false;
       if (!LASER_CAPACITY_NOTICE || LASER_CAPACITY_NOTICE.active === false) return false;
-      try {
-        if (sessionStorage.getItem(laserCapacitySeenKey_()) === '1') return false;
-      } catch(e) {}
+      if (!force) {
+        try {
+          if (sessionStorage.getItem(laserCapacitySeenKey_()) === '1') return false;
+        } catch(e) {}
+      }
       return true;
     }
 
@@ -7378,8 +7380,11 @@ function renderPage_(page, boot) {
       refreshOverlayLock_();
     }
 
-    function showStudentLaserCapacityNotice_() {
-      if (!shouldShowStudentLaserCapacityNotice_()) return;
+    function showStudentLaserCapacityNotice_(force) {
+      if (!shouldShowStudentLaserCapacityNotice_(force)) {
+        if (force) showToast('No active student popup is configured right now.', 'error');
+        return;
+      }
       if (document.getElementById('laserCapacityOverlay')) return;
       var summary = LASER_CAPACITY_NOTICE.summary || 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.';
       var detail = LASER_CAPACITY_NOTICE.detail || 'Please avoid duplicate submissions and check Status for updates.';
@@ -9508,9 +9513,10 @@ function renderPage_(page, boot) {
       var banner = document.createElement('div');
       banner.id = 'studentPreviewBanner';
       banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:#fbbf24;color:#78350f;text-align:center;padding:6px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;';
-      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
+      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"showStudentLaserCapacityNotice_(true)\" style=\"background:#fff7ed;color:#7c2d12;border:1px solid rgba(120,53,15,.24);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;\">Show Student Popup</button><button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
       document.body.prepend(banner);
       switchPage('submit');
+      setTimeout(function() { showStudentLaserCapacityNotice_(true); }, 350);
       showToast('Now viewing as student. Admin pages are hidden.','success');
     }
 
