@@ -5,7 +5,8 @@
  * - live Apps Script deployment IDs and spreadsheet/Drive IDs are intentionally omitted
  * - staff and student emails are replaced with example.edu placeholders
  * - teacher names are replaced with generic labels
- * - configure school-specific contacts via this file or script properties before deployment
+ * - teacher class rosters use synthetic demo students only
+ * - configure school-specific contacts, rosters, script properties, and deployments locally
  */
 
 /* ============================================================
@@ -18,6 +19,9 @@
  * After running, accept the Google authorization prompt.
  */
 function authorizeScopes() {
+  if (APP.props.getProperty('MASTER_SPREADSHEET_ID') || APP.props.getProperty('ROOT_FOLDER_ID')) {
+    requireSystemAdmin_();
+  }
   // Touch MailApp so GAS requests the send_mail scope
   var remaining = MailApp.getRemainingDailyQuota();
   Logger.log('Authorization OK. Daily email quota remaining: ' + remaining);
@@ -31,9 +35,9 @@ function authorizeScopes() {
 
 const DEPLOYMENT_INFO = {
   appName: 'Design Fabrication Dashboard',
-  version: 'public-github-sanitized',
+  version: 'public-github-sanitized-class-submission-sync',
   channel: 'github-reference',
-  updatedAt: '2026-05-05',
+  updatedAt: '2026-05-14',
   scriptId: '',
   targetDeploymentId: '',
   targetUrl: '',
@@ -54,6 +58,9 @@ const APP = {
 
   /* CC for Needs Fix emails — all parties on one thread for follow-up */
   technicianCcEmail: 'technician@example.edu',
+  studentEmailDomains: ['student.example.edu'],
+  staffEmailDomains: ['example.edu'],
+  allowedEmailDomains: ['student.example.edu', 'example.edu'],
 
   sheets: {
     submissions: {
@@ -82,6 +89,7 @@ const APP = {
         'issue_code',
         'admin_remarks',
         'submitted_by',
+        'submitter_key',
         'updated_at',
         'updated_by',
         'prototype_fidelity'
@@ -186,6 +194,7 @@ const APP = {
         'issue_code',
         'admin_remarks',
         'submitted_by',
+        'submitter_key',
         'updated_at',
         'updated_by'
       ]
@@ -354,6 +363,12 @@ const APP = {
   queuePolicy: {
     activeBusyThreshold: 20,
     activeHeavyThreshold: 30,
+    studentCountRevealThreshold: 50,
+    pickupEstimate: {
+      workStartsAfterSchoolDays: 3,
+      pickupStartAfterSchoolDays: 4,
+      pickupEndAfterSchoolDays: 5
+    },
     laserCapacityNotice: {
       active: true,
       version: '2026-05-04-laser-reduced-capacity',
@@ -501,31 +516,417 @@ const APP = {
   },
 
   teacherEmails: {
-    'Teacher A':    'teacher.a@example.edu',
-    'Teacher B':    'teacher.b@example.edu',
-    'Teacher C':    'teacher.c@example.edu',
-    'Teacher D':    'teacher.d@example.edu',
-    'Teacher E':    'teacher.e@example.edu',
-    'Teacher F':    'teacher.f@example.edu',
-    'Teacher G':    'teacher.g@example.edu',
-    'Teacher H':    'teacher.h@example.edu',
-    'Technician':   'technician@example.edu',
-    'Teacher I':    'teacher.i@example.edu',
-    'Teacher J':    'teacher.j@example.edu'
+    "Teacher A": "teacher.a@example.edu",
+    "Teacher B": "teacher.b@example.edu",
+    "Teacher C": "teacher.c@example.edu",
+    "Teacher D": "teacher.d@example.edu",
+    "Teacher E": "teacher.e@example.edu",
+    "Teacher F": "teacher.f@example.edu",
+    "Teacher G": "teacher.g@example.edu",
+    "Teacher H": "teacher.h@example.edu",
+    "Teacher I": "teacher.i@example.edu"
   },
 
+  teacherBetaClasses: [
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y6", class_no: "6.2", label: "Class 6.2", roster: [
+      { homeroom: "Y06 Demo", student_no: "1", name: "Demo Student 001", email: "student001@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "2", name: "Demo Student 002", email: "student002@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "3", name: "Demo Student 003", email: "student003@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "4", name: "Demo Student 004", email: "student004@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "5", name: "Demo Student 005", email: "student005@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "6", name: "Demo Student 006", email: "student006@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "7", name: "Demo Student 007", email: "student007@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "8", name: "Demo Student 008", email: "student008@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "9", name: "Demo Student 009", email: "student009@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "10", name: "Demo Student 010", email: "student010@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "11", name: "Demo Student 011", email: "student011@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "12", name: "Demo Student 012", email: "student012@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "13", name: "Demo Student 013", email: "student013@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "14", name: "Demo Student 014", email: "student014@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "15", name: "Demo Student 015", email: "student015@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "16", name: "Demo Student 016", email: "student016@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "17", name: "Demo Student 017", email: "student017@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "18", name: "Demo Student 018", email: "student018@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "19", name: "Demo Student 019", email: "student019@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "20", name: "Demo Student 020", email: "student020@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "21", name: "Demo Student 021", email: "student021@student.example.edu" }
+    ] },
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y6", class_no: "6.5", label: "Class 6.5", roster: [
+      { homeroom: "Y06 Demo", student_no: "1", name: "Demo Student 022", email: "student022@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "2", name: "Demo Student 023", email: "student023@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "3", name: "Demo Student 024", email: "student024@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "4", name: "Demo Student 025", email: "student025@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "5", name: "Demo Student 026", email: "student026@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "6", name: "Demo Student 027", email: "student027@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "7", name: "Demo Student 028", email: "student028@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "8", name: "Demo Student 029", email: "student029@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "9", name: "Demo Student 030", email: "student030@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "10", name: "Demo Student 031", email: "student031@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "11", name: "Demo Student 032", email: "student032@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "12", name: "Demo Student 033", email: "student033@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "13", name: "Demo Student 034", email: "student034@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "14", name: "Demo Student 035", email: "student035@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "15", name: "Demo Student 036", email: "student036@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "16", name: "Demo Student 037", email: "student037@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "17", name: "Demo Student 038", email: "student038@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "18", name: "Demo Student 039", email: "student039@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "19", name: "Demo Student 040", email: "student040@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "20", name: "Demo Student 041", email: "student041@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "21", name: "Demo Student 042", email: "student042@student.example.edu" }
+    ] },
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y6", class_no: "6.8", label: "Class 6.8", roster: [
+      { homeroom: "Y06 Demo", student_no: "1", name: "Demo Student 043", email: "student043@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "2", name: "Demo Student 044", email: "student044@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "3", name: "Demo Student 045", email: "student045@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "4", name: "Demo Student 046", email: "student046@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "5", name: "Demo Student 047", email: "student047@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "6", name: "Demo Student 048", email: "student048@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "7", name: "Demo Student 049", email: "student049@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "8", name: "Demo Student 050", email: "student050@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "9", name: "Demo Student 051", email: "student051@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "10", name: "Demo Student 052", email: "student052@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "11", name: "Demo Student 053", email: "student053@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "12", name: "Demo Student 054", email: "student054@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "13", name: "Demo Student 055", email: "student055@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "14", name: "Demo Student 056", email: "student056@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "15", name: "Demo Student 057", email: "student057@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "16", name: "Demo Student 058", email: "student058@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "17", name: "Demo Student 059", email: "student059@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "18", name: "Demo Student 060", email: "student060@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "19", name: "Demo Student 061", email: "student061@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "20", name: "Demo Student 062", email: "student062@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "21", name: "Demo Student 063", email: "student063@student.example.edu" }
+    ] },
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y7", class_no: "7.2", label: "Class 7.2", roster: [
+      { homeroom: "Y07 Demo", student_no: "1", name: "Demo Student 064", email: "student064@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "2", name: "Demo Student 065", email: "student065@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "3", name: "Demo Student 066", email: "student066@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "4", name: "Demo Student 067", email: "student067@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "5", name: "Demo Student 068", email: "student068@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "6", name: "Demo Student 069", email: "student069@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "7", name: "Demo Student 070", email: "student070@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "8", name: "Demo Student 071", email: "student071@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "9", name: "Demo Student 072", email: "student072@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "10", name: "Demo Student 073", email: "student073@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "11", name: "Demo Student 074", email: "student074@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "12", name: "Demo Student 075", email: "student075@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "13", name: "Demo Student 076", email: "student076@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "14", name: "Demo Student 077", email: "student077@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "15", name: "Demo Student 078", email: "student078@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "16", name: "Demo Student 079", email: "student079@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "17", name: "Demo Student 080", email: "student080@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "18", name: "Demo Student 081", email: "student081@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "19", name: "Demo Student 082", email: "student082@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "20", name: "Demo Student 083", email: "student083@student.example.edu" }
+    ] },
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y7", class_no: "7.5", label: "Class 7.5", roster: [
+      { homeroom: "Y07 Demo", student_no: "1", name: "Demo Student 084", email: "student084@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "2", name: "Demo Student 085", email: "student085@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "3", name: "Demo Student 086", email: "student086@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "4", name: "Demo Student 087", email: "student087@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "5", name: "Demo Student 088", email: "student088@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "6", name: "Demo Student 089", email: "student089@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "7", name: "Demo Student 090", email: "student090@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "8", name: "Demo Student 091", email: "student091@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "9", name: "Demo Student 092", email: "student092@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "10", name: "Demo Student 093", email: "student093@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "11", name: "Demo Student 094", email: "student094@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "12", name: "Demo Student 095", email: "student095@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "13", name: "Demo Student 096", email: "student096@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "14", name: "Demo Student 097", email: "student097@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "15", name: "Demo Student 098", email: "student098@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "16", name: "Demo Student 099", email: "student099@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "17", name: "Demo Student 100", email: "student100@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "18", name: "Demo Student 101", email: "student101@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "19", name: "Demo Student 102", email: "student102@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "20", name: "Demo Student 103", email: "student103@student.example.edu" }
+    ] },
+    { teacher: "Teacher A", teacher_email: "teacher.a@example.edu", year_group: "Y7", class_no: "7.8", label: "Class 7.8", roster: [
+      { homeroom: "Y07 Demo", student_no: "1", name: "Demo Student 104", email: "student104@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "2", name: "Demo Student 105", email: "student105@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "3", name: "Demo Student 106", email: "student106@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "4", name: "Demo Student 107", email: "student107@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "5", name: "Demo Student 108", email: "student108@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "6", name: "Demo Student 109", email: "student109@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "7", name: "Demo Student 110", email: "student110@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "8", name: "Demo Student 111", email: "student111@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "9", name: "Demo Student 112", email: "student112@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "10", name: "Demo Student 113", email: "student113@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "11", name: "Demo Student 114", email: "student114@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "12", name: "Demo Student 115", email: "student115@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "13", name: "Demo Student 116", email: "student116@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "14", name: "Demo Student 117", email: "student117@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "15", name: "Demo Student 118", email: "student118@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "16", name: "Demo Student 119", email: "student119@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "17", name: "Demo Student 120", email: "student120@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "18", name: "Demo Student 121", email: "student121@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "19", name: "Demo Student 122", email: "student122@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "20", name: "Demo Student 123", email: "student123@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y6", class_no: "6.7", label: "Class 6.7", roster: [
+      { homeroom: "Y06 Demo", student_no: "1", name: "Demo Student 124", email: "student124@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "2", name: "Demo Student 125", email: "student125@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "3", name: "Demo Student 126", email: "student126@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "4", name: "Demo Student 127", email: "student127@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "5", name: "Demo Student 128", email: "student128@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "6", name: "Demo Student 129", email: "student129@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "7", name: "Demo Student 130", email: "student130@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "8", name: "Demo Student 131", email: "student131@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "9", name: "Demo Student 132", email: "student132@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "10", name: "Demo Student 133", email: "student133@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "11", name: "Demo Student 134", email: "student134@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "12", name: "Demo Student 135", email: "student135@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "13", name: "Demo Student 136", email: "student136@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "14", name: "Demo Student 137", email: "student137@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "15", name: "Demo Student 138", email: "student138@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "16", name: "Demo Student 139", email: "student139@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "17", name: "Demo Student 140", email: "student140@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y7", class_no: "7.6", label: "Class 7.6", roster: [
+      { homeroom: "Y07 Demo", student_no: "1", name: "Demo Student 141", email: "student141@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "2", name: "Demo Student 142", email: "student142@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "3", name: "Demo Student 143", email: "student143@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "4", name: "Demo Student 144", email: "student144@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "5", name: "Demo Student 145", email: "student145@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "6", name: "Demo Student 146", email: "student146@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "7", name: "Demo Student 147", email: "student147@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "8", name: "Demo Student 148", email: "student148@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "9", name: "Demo Student 149", email: "student149@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "10", name: "Demo Student 150", email: "student150@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "11", name: "Demo Student 151", email: "student151@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "12", name: "Demo Student 152", email: "student152@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "13", name: "Demo Student 153", email: "student153@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "14", name: "Demo Student 154", email: "student154@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "15", name: "Demo Student 155", email: "student155@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "16", name: "Demo Student 156", email: "student156@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "17", name: "Demo Student 157", email: "student157@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "18", name: "Demo Student 158", email: "student158@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "19", name: "Demo Student 159", email: "student159@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "20", name: "Demo Student 160", email: "student160@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y8", class_no: "8.3", label: "Class 8.3", roster: [
+      { homeroom: "Y08 Demo", student_no: "1", name: "Demo Student 161", email: "student161@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "2", name: "Demo Student 162", email: "student162@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "3", name: "Demo Student 163", email: "student163@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "4", name: "Demo Student 164", email: "student164@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "5", name: "Demo Student 165", email: "student165@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "6", name: "Demo Student 166", email: "student166@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "7", name: "Demo Student 167", email: "student167@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "8", name: "Demo Student 168", email: "student168@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "9", name: "Demo Student 169", email: "student169@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "10", name: "Demo Student 170", email: "student170@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "11", name: "Demo Student 171", email: "student171@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "12", name: "Demo Student 172", email: "student172@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "13", name: "Demo Student 173", email: "student173@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "14", name: "Demo Student 174", email: "student174@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "15", name: "Demo Student 175", email: "student175@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "16", name: "Demo Student 176", email: "student176@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "17", name: "Demo Student 177", email: "student177@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "18", name: "Demo Student 178", email: "student178@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y9", class_no: "9.1", label: "Class 9.1", roster: [
+      { homeroom: "Y09 Demo", student_no: "1", name: "Demo Student 179", email: "student179@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "2", name: "Demo Student 180", email: "student180@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "3", name: "Demo Student 181", email: "student181@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "4", name: "Demo Student 182", email: "student182@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "5", name: "Demo Student 183", email: "student183@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "6", name: "Demo Student 184", email: "student184@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "7", name: "Demo Student 185", email: "student185@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "8", name: "Demo Student 186", email: "student186@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "9", name: "Demo Student 187", email: "student187@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "10", name: "Demo Student 188", email: "student188@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "11", name: "Demo Student 189", email: "student189@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "12", name: "Demo Student 190", email: "student190@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "13", name: "Demo Student 191", email: "student191@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "14", name: "Demo Student 192", email: "student192@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "15", name: "Demo Student 193", email: "student193@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "16", name: "Demo Student 194", email: "student194@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "17", name: "Demo Student 195", email: "student195@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "18", name: "Demo Student 196", email: "student196@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "19", name: "Demo Student 197", email: "student197@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "20", name: "Demo Student 198", email: "student198@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "21", name: "Demo Student 199", email: "student199@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "22", name: "Demo Student 200", email: "student200@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y9", class_no: "9.6", label: "Class 9.6", roster: [
+      { homeroom: "Y09 Demo", student_no: "1", name: "Demo Student 201", email: "student201@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "2", name: "Demo Student 202", email: "student202@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "3", name: "Demo Student 203", email: "student203@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "4", name: "Demo Student 204", email: "student204@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "5", name: "Demo Student 205", email: "student205@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "6", name: "Demo Student 206", email: "student206@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "7", name: "Demo Student 207", email: "student207@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "8", name: "Demo Student 208", email: "student208@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "9", name: "Demo Student 209", email: "student209@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "10", name: "Demo Student 210", email: "student210@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "11", name: "Demo Student 211", email: "student211@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "12", name: "Demo Student 212", email: "student212@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "13", name: "Demo Student 213", email: "student213@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "14", name: "Demo Student 214", email: "student214@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "15", name: "Demo Student 215", email: "student215@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "16", name: "Demo Student 216", email: "student216@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "17", name: "Demo Student 217", email: "student217@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "18", name: "Demo Student 218", email: "student218@student.example.edu" }
+    ] },
+    { teacher: "Teacher B", teacher_email: "teacher.b@example.edu", year_group: "Y10", class_no: "10.3", label: "Class 10.3", roster: [
+      { homeroom: "Y10 Demo", student_no: "1", name: "Demo Student 219", email: "student219@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "2", name: "Demo Student 220", email: "student220@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "3", name: "Demo Student 221", email: "student221@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "4", name: "Demo Student 222", email: "student222@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "5", name: "Demo Student 223", email: "student223@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "6", name: "Demo Student 224", email: "student224@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "7", name: "Demo Student 225", email: "student225@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "8", name: "Demo Student 226", email: "student226@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "9", name: "Demo Student 227", email: "student227@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "10", name: "Demo Student 228", email: "student228@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "11", name: "Demo Student 229", email: "student229@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "12", name: "Demo Student 230", email: "student230@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "13", name: "Demo Student 231", email: "student231@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "14", name: "Demo Student 232", email: "student232@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "15", name: "Demo Student 233", email: "student233@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "16", name: "Demo Student 234", email: "student234@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "17", name: "Demo Student 235", email: "student235@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "18", name: "Demo Student 236", email: "student236@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "19", name: "Demo Student 237", email: "student237@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "20", name: "Demo Student 238", email: "student238@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "21", name: "Demo Student 239", email: "student239@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "22", name: "Demo Student 240", email: "student240@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y6", class_no: "6.9", label: "Class 6.9", roster: [
+      { homeroom: "Y06 Demo", student_no: "1", name: "Demo Student 241", email: "student241@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "2", name: "Demo Student 242", email: "student242@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "3", name: "Demo Student 243", email: "student243@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "4", name: "Demo Student 244", email: "student244@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "5", name: "Demo Student 245", email: "student245@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "6", name: "Demo Student 246", email: "student246@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "7", name: "Demo Student 247", email: "student247@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "8", name: "Demo Student 248", email: "student248@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "9", name: "Demo Student 249", email: "student249@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "10", name: "Demo Student 250", email: "student250@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "11", name: "Demo Student 251", email: "student251@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "12", name: "Demo Student 252", email: "student252@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "13", name: "Demo Student 253", email: "student253@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "14", name: "Demo Student 254", email: "student254@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "15", name: "Demo Student 255", email: "student255@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "16", name: "Demo Student 256", email: "student256@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "17", name: "Demo Student 257", email: "student257@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "18", name: "Demo Student 258", email: "student258@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "19", name: "Demo Student 259", email: "student259@student.example.edu" },
+      { homeroom: "Y06 Demo", student_no: "20", name: "Demo Student 260", email: "student260@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y7", class_no: "7.3", label: "Class 7.3", roster: [
+      { homeroom: "Y07 Demo", student_no: "1", name: "Demo Student 261", email: "student261@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "2", name: "Demo Student 262", email: "student262@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "3", name: "Demo Student 263", email: "student263@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "4", name: "Demo Student 264", email: "student264@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "5", name: "Demo Student 265", email: "student265@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "6", name: "Demo Student 266", email: "student266@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "7", name: "Demo Student 267", email: "student267@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "8", name: "Demo Student 268", email: "student268@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "9", name: "Demo Student 269", email: "student269@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "10", name: "Demo Student 270", email: "student270@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "11", name: "Demo Student 271", email: "student271@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "12", name: "Demo Student 272", email: "student272@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "13", name: "Demo Student 273", email: "student273@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "14", name: "Demo Student 274", email: "student274@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "15", name: "Demo Student 275", email: "student275@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "16", name: "Demo Student 276", email: "student276@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "17", name: "Demo Student 277", email: "student277@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "18", name: "Demo Student 278", email: "student278@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "19", name: "Demo Student 279", email: "student279@student.example.edu" },
+      { homeroom: "Y07 Demo", student_no: "20", name: "Demo Student 280", email: "student280@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y8", class_no: "8.7", label: "Class 8.7", roster: [
+      { homeroom: "Y08 Demo", student_no: "1", name: "Demo Student 281", email: "student281@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "2", name: "Demo Student 282", email: "student282@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "3", name: "Demo Student 283", email: "student283@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "4", name: "Demo Student 284", email: "student284@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "5", name: "Demo Student 285", email: "student285@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "6", name: "Demo Student 286", email: "student286@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "7", name: "Demo Student 287", email: "student287@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "8", name: "Demo Student 288", email: "student288@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "9", name: "Demo Student 289", email: "student289@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "10", name: "Demo Student 290", email: "student290@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "11", name: "Demo Student 291", email: "student291@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "12", name: "Demo Student 292", email: "student292@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "13", name: "Demo Student 293", email: "student293@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "14", name: "Demo Student 294", email: "student294@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "15", name: "Demo Student 295", email: "student295@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "16", name: "Demo Student 296", email: "student296@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "17", name: "Demo Student 297", email: "student297@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "18", name: "Demo Student 298", email: "student298@student.example.edu" },
+      { homeroom: "Y08 Demo", student_no: "19", name: "Demo Student 299", email: "student299@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y9", class_no: "9.2", label: "Class 9.2", roster: [
+      { homeroom: "Y09 Demo", student_no: "1", name: "Demo Student 300", email: "student300@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "2", name: "Demo Student 301", email: "student301@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "3", name: "Demo Student 302", email: "student302@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "4", name: "Demo Student 303", email: "student303@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "5", name: "Demo Student 304", email: "student304@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "6", name: "Demo Student 305", email: "student305@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "7", name: "Demo Student 306", email: "student306@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "8", name: "Demo Student 307", email: "student307@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "9", name: "Demo Student 308", email: "student308@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "10", name: "Demo Student 309", email: "student309@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "11", name: "Demo Student 310", email: "student310@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "12", name: "Demo Student 311", email: "student311@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "13", name: "Demo Student 312", email: "student312@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "14", name: "Demo Student 313", email: "student313@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "15", name: "Demo Student 314", email: "student314@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "16", name: "Demo Student 315", email: "student315@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "17", name: "Demo Student 316", email: "student316@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "18", name: "Demo Student 317", email: "student317@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "19", name: "Demo Student 318", email: "student318@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y9", class_no: "9.5", label: "Class 9.5", roster: [
+      { homeroom: "Y09 Demo", student_no: "1", name: "Demo Student 319", email: "student319@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "2", name: "Demo Student 320", email: "student320@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "3", name: "Demo Student 321", email: "student321@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "4", name: "Demo Student 322", email: "student322@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "5", name: "Demo Student 323", email: "student323@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "6", name: "Demo Student 324", email: "student324@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "7", name: "Demo Student 325", email: "student325@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "8", name: "Demo Student 326", email: "student326@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "9", name: "Demo Student 327", email: "student327@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "10", name: "Demo Student 328", email: "student328@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "11", name: "Demo Student 329", email: "student329@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "12", name: "Demo Student 330", email: "student330@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "13", name: "Demo Student 331", email: "student331@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "14", name: "Demo Student 332", email: "student332@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "15", name: "Demo Student 333", email: "student333@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "16", name: "Demo Student 334", email: "student334@student.example.edu" },
+      { homeroom: "Y09 Demo", student_no: "17", name: "Demo Student 335", email: "student335@student.example.edu" }
+    ] },
+    { teacher: "Teacher C", teacher_email: "teacher.c@example.edu", year_group: "Y10", class_no: "10.4", label: "Class 10.4", roster: [
+      { homeroom: "Y10 Demo", student_no: "1", name: "Demo Student 336", email: "student336@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "2", name: "Demo Student 337", email: "student337@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "3", name: "Demo Student 338", email: "student338@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "4", name: "Demo Student 339", email: "student339@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "5", name: "Demo Student 340", email: "student340@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "6", name: "Demo Student 341", email: "student341@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "7", name: "Demo Student 342", email: "student342@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "8", name: "Demo Student 343", email: "student343@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "9", name: "Demo Student 344", email: "student344@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "10", name: "Demo Student 345", email: "student345@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "11", name: "Demo Student 346", email: "student346@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "12", name: "Demo Student 347", email: "student347@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "13", name: "Demo Student 348", email: "student348@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "14", name: "Demo Student 349", email: "student349@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "15", name: "Demo Student 350", email: "student350@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "16", name: "Demo Student 351", email: "student351@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "17", name: "Demo Student 352", email: "student352@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "18", name: "Demo Student 353", email: "student353@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "19", name: "Demo Student 354", email: "student354@student.example.edu" },
+      { homeroom: "Y10 Demo", student_no: "20", name: "Demo Student 355", email: "student355@student.example.edu" }
+    ] }
+  ],
+
   adminEmailOverrides: [
-    'teacher.h@example.edu',
+    'admin@example.edu',
     'technician@example.edu',
-    'teacher.i@example.edu',
+    'teacher.a@example.edu',
     'teacher.b@example.edu',
-    'teacher.d@example.edu',
-    'teacher.e@example.edu',
-    'teacher.f@example.edu',
-    'teacher.j@example.edu',
-    'teacher.c@example.edu',
-    'teacher.g@example.edu',
-    'teacher.a@example.edu'
+    'teacher.c@example.edu'
   ]
 };
 
@@ -641,6 +1042,10 @@ const MACHINE_SPECS = {
    ========================= */
 
 function bootstrap() {
+  if (APP.props.getProperty('MASTER_SPREADSHEET_ID') || APP.props.getProperty('ROOT_FOLDER_ID')) {
+    requireSystemAdmin_();
+  }
+
   const summary = {};
 
   const rootFolder = getOrCreateRootFolder_();
@@ -688,13 +1093,14 @@ function setup() {
 }
 
 function preflight() {
+  requireSystemAdmin_();
   const report = getDeploymentReadiness_(true, { includeStorageIds: true });
   Logger.log(JSON.stringify(report, null, 2));
   return report;
 }
 
 function getDeploymentReadiness() {
-  requireAdmin_();
+  requireSystemAdmin_();
   return getDeploymentReadiness_(true, { includeStorageIds: false });
 }
 
@@ -877,6 +1283,7 @@ function getErrorMessage_(err) {
   return String((err && err.message) || err || 'Unknown error');
 }
 
+
 /* ============================================================
    10_WebAndSubmissionApi.js
    ============================================================ */
@@ -887,7 +1294,7 @@ function getErrorMessage_(err) {
 
 function doGet(e) {
   const page = ((e && e.parameter && e.parameter.page) || 'submit').toLowerCase();
-  const safePage = ['submit', 'status', 'admin', 'machines', 'help', 'rules', 'users', 'audit', 'other'].includes(page) ? page : 'submit';
+  const safePage = ['submit', 'status', 'queue', 'teacherbeta', 'admin', 'machines', 'help', 'rules', 'users', 'audit', 'other'].includes(page) ? page : 'submit';
 
   let webAppUrl = '';
   try {
@@ -896,11 +1303,18 @@ function doGet(e) {
     if (u && u.includes('script.google.com') && (u.includes('/exec') || u.includes('/dev'))) webAppUrl = u;
   } catch(e) {}
   const user = getCurrentUser_();
-  const opsPages = ['admin'];
+  const action = String((e && e.parameter && e.parameter.action) || '').trim().toLowerCase();
+  if (action === 'teacher_class_csv') {
+    return ContentService
+      .createTextOutput(getTeacherBetaClassStatusCsv_(user, e && e.parameter ? e.parameter : {}))
+      .setMimeType(ContentService.MimeType.CSV);
+  }
+  const opsPages = ['admin', 'teacherbeta'];
   const systemAdminPages = ['rules', 'users', 'audit'];
   /* Server-side routing: students get the student app; teacher/technician stay in the operations queue. */
   let resolvedPage = safePage;
   if (opsPages.includes(safePage) && !user.isAdmin) resolvedPage = 'submit';
+  if (safePage === 'teacherbeta' && user.role !== 'teacher' && user.role !== 'admin') resolvedPage = user.isAdmin ? 'admin' : 'submit';
   if (systemAdminPages.includes(safePage) && user.role !== 'admin') {
     resolvedPage = user.isAdmin ? 'admin' : 'submit';
   }
@@ -912,9 +1326,9 @@ function doGet(e) {
     appTimeZone: getAppTimeZone_(),
     rules: getRulesForClient(),
     submissionControls: getSubmissionControlsForClient(),
-    issueTemplates: user.isAdmin ? getIssueTemplatesForClient() : [],
+    issueTemplates: isQueueOperator_(user) ? getIssueTemplatesForClient() : [],
     currentUser: user,
-    statuses: user.isAdmin ? Object.values(APP.status) : [],
+    statuses: isQueueOperator_(user) ? Object.values(APP.status) : [],
     appName: APP.props.getProperty('APP_NAME') || APP.name,
     queuePolicy: APP.queuePolicy || {},
     uiText: {
@@ -928,7 +1342,7 @@ function doGet(e) {
 
   return HtmlService.createHtmlOutput(renderPage_(resolvedPage, boot))
     .setTitle(APP.name)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
 /* =========================
@@ -937,6 +1351,199 @@ function doGet(e) {
 
 function getRulesForClient() {
   return getRowsAsObjects_(APP.sheets.rules.name).filter(r => String(r.active).toLowerCase() !== 'false');
+}
+
+function isActiveQueueStatus_(status) {
+  return {
+    submitted: true,
+    approved: true,
+    in_queue: true,
+    in_production: true
+  }[String(status || '').trim()] === true;
+}
+
+function queuePositionSource_(row) {
+  row = row || {};
+  var source = String(row._source || '').trim().toLowerCase();
+  if (source === 'other' || source === 'special' || source === 'special_request') return 'other';
+  if (source === 'dt') return 'dt';
+  return casePrefixForRow_(row) === 'A' ? 'other' : 'dt';
+}
+
+function queuePositionKey_(row) {
+  row = row || {};
+  var source = queuePositionSource_(row);
+  var id = source === 'other' ? row.request_id : row.submission_id;
+  id = String(id || '').trim();
+  if (id) return source + ':id:' + id;
+  return source + ':case:' + formatCaseNumber_(row);
+}
+
+function compareActiveQueueRows_(a, b) {
+  var createdDiff = getSortableTime_(a.created_at) - getSortableTime_(b.created_at);
+  if (createdDiff) return createdDiff;
+  var updatedDiff = getSortableTime_(a.updated_at) - getSortableTime_(b.updated_at);
+  if (updatedDiff) return updatedDiff;
+  var sourceDiff = queuePositionSource_(a).localeCompare(queuePositionSource_(b));
+  if (sourceDiff) return sourceDiff;
+  return Number(a._row_number || 0) - Number(b._row_number || 0);
+}
+
+function getActiveQueuePositionIndex_() {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'active_queue_position_index_v1';
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch (cacheReadErr) {}
+
+  var dtRows = getRowsAsObjects_(APP.sheets.submissions.name).map(function(row) {
+    row._source = 'dt';
+    return row;
+  });
+  var otherRows = getRowsAsObjects_(APP.sheets.otherRequests.name).map(function(row) {
+    row._source = 'other';
+    return row;
+  });
+  var activeRows = dtRows.concat(otherRows)
+    .filter(function(row) { return isActiveQueueStatus_(row.status); })
+    .sort(compareActiveQueueRows_);
+
+  var index = {
+    total: activeRows.length,
+    updated_at: formatHongKongTimestamp_(new Date()),
+    by_key: {}
+  };
+  activeRows.forEach(function(row, idx) {
+    var key = queuePositionKey_(row);
+    if (!key || index.by_key[key]) return;
+    index.by_key[key] = {
+      position: idx + 1,
+      total: activeRows.length
+    };
+  });
+
+  try { cache.put(cacheKey, JSON.stringify(index), 20); } catch (cacheWriteErr) {}
+  return index;
+}
+
+function isSchoolDay_(date) {
+  var parts = Utilities.formatDate(date, getAppTimeZone_(), 'yyyy-MM-dd').split('-');
+  var day = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0).getDay();
+  return day >= 1 && day <= 5;
+}
+
+function normalizeSchoolDate_(value, allowToday) {
+  var date = toDateObject_(value) || new Date();
+  var result = new Date(date.getTime());
+  if (!allowToday) result = new Date(result.getTime() + 24 * 60 * 60 * 1000);
+  while (!isSchoolDay_(result)) {
+    result = new Date(result.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return result;
+}
+
+function addSchoolDays_(value, days) {
+  var result = normalizeSchoolDate_(value, true);
+  var remaining = Math.max(0, Number(days || 0));
+  while (remaining > 0) {
+    result = new Date(result.getTime() + 24 * 60 * 60 * 1000);
+    if (isSchoolDay_(result)) remaining--;
+  }
+  return result;
+}
+
+function laterDate_(a, b) {
+  var da = toDateObject_(a) || new Date();
+  var db = toDateObject_(b) || new Date();
+  return da.getTime() >= db.getTime() ? da : db;
+}
+
+function formatPickupDateLabel_(date, afterSchool) {
+  var label = Utilities.formatDate(date, getAppTimeZone_(), 'EEE MMM d');
+  return afterSchool ? label + ' after school' : label;
+}
+
+function buildPickupEstimateForRow_(row) {
+  row = row || {};
+  var status = String(row.status || '').trim();
+  var active = isActiveQueueStatus_(status);
+  var estimate = {
+    pickup_estimate_label: '',
+    pickup_estimate_window: '',
+    pickup_estimate_note: '',
+    pickup_estimate_school_days: ''
+  };
+
+  if (status === 'completed') {
+    estimate.pickup_estimate_label = 'Ready to collect';
+    estimate.pickup_estimate_window = 'Ready now';
+    estimate.pickup_estimate_note = 'Collect from the workshop when your teacher or technician says it is ready.';
+    return estimate;
+  }
+  if (status === 'needs_fix') {
+    estimate.pickup_estimate_label = 'No pickup estimate yet';
+    estimate.pickup_estimate_window = 'Paused until revision';
+    estimate.pickup_estimate_note = 'A pickup estimate will be useful after the corrected file is submitted and reviewed.';
+    return estimate;
+  }
+  if (status === 'rejected') {
+    estimate.pickup_estimate_label = 'No pickup estimate';
+    estimate.pickup_estimate_window = 'Not active';
+    estimate.pickup_estimate_note = 'Speak with your teacher before submitting a replacement.';
+    return estimate;
+  }
+  if (!active) return estimate;
+
+  var policy = ((APP.queuePolicy || {}).pickupEstimate || {});
+  var workStartDays = Math.max(1, Number(policy.workStartsAfterSchoolDays || policy.minSchoolDaysFromSubmission || 3));
+  var pickupStartDays = Math.max(workStartDays + 1, Number(policy.pickupStartAfterSchoolDays || 4));
+  var pickupEndDays = Math.max(pickupStartDays, Number(policy.pickupEndAfterSchoolDays || 5));
+  var created = toDateObject_(row.created_at) || new Date();
+  var start = addSchoolDays_(created, pickupStartDays);
+  var end = addSchoolDays_(created, pickupEndDays);
+
+  estimate.pickup_estimate_label = 'Estimated pickup window';
+  estimate.pickup_estimate_window = formatPickupDateLabel_(start, true) + ' - ' + formatPickupDateLabel_(end, false);
+  estimate.pickup_estimate_note = 'Planning estimate only. The workshop normally needs about ' + workStartDays + ' school days from submission before working through the request, so pickup is usually around school day ' + pickupStartDays + '-' + pickupEndDays + ' after submission. Queue pressure, machine capacity, material, file fixes, and technician judgement can move this later.';
+  estimate.pickup_estimate_school_days = pickupStartDays + '-' + pickupEndDays + ' school days after submission';
+  return estimate;
+}
+
+function attachActiveQueuePositions_(rows) {
+  rows = rows || [];
+  if (!rows.length) return rows;
+  var index = getActiveQueuePositionIndex_();
+  rows.forEach(function(row) {
+    var status = String(row.status || '').trim();
+    var active = isActiveQueueStatus_(status);
+    row.queue_active = active;
+    row.queue_total_active = Number(index.total || 0);
+    row.queue_position_scope = 'whole_workshop_active';
+    row.queue_position_updated_at = index.updated_at || '';
+    if (active) {
+      var hit = index.by_key[queuePositionKey_(row)];
+      row.queue_position = hit ? Number(hit.position || 0) : '';
+      row.queue_position_note = 'Approximate active-workshop order. Counts Submitted, Approved, In Queue, and In Production. Machine type, material, revision work, and technician judgement can change the final order.';
+    } else if (status === 'needs_fix') {
+      row.queue_position = '';
+      row.queue_position_note = 'Paused for student revision. It will re-enter active workshop flow after a corrected file is submitted and reviewed.';
+    } else if (status === 'completed') {
+      row.queue_position = '';
+      row.queue_position_note = 'Completed requests are no longer counted in the active queue.';
+    } else if (status === 'rejected') {
+      row.queue_position = '';
+      row.queue_position_note = 'Rejected requests are not counted in the active queue.';
+    } else {
+      row.queue_position = '';
+      row.queue_position_note = 'Queue position is available after the request enters the active workshop flow.';
+    }
+    var pickup = buildPickupEstimateForRow_(row);
+    Object.keys(pickup).forEach(function(key) {
+      row[key] = pickup[key];
+    });
+  });
+  return rows;
 }
 
 function getQueueHealthSnapshot() {
@@ -971,18 +1578,12 @@ function getQueueHealthSnapshot() {
     dt_active: 0,
     special_active: 0
   };
-  var activeStatuses = {
-    submitted: true,
-    approved: true,
-    in_queue: true,
-    in_production: true
-  };
   var oldestActive = null;
 
   rows.forEach(function(row) {
     var status = String(row.status || '').trim();
     var machine = String(row.machine || '').trim().toLowerCase();
-    var active = !!activeStatuses[status];
+    var active = isActiveQueueStatus_(status);
     if (active) {
       counts.active_queue++;
       if (machine === 'laser') counts.laser_active++;
@@ -1009,7 +1610,8 @@ function getQueueHealthSnapshot() {
     daily_request_timeline: buildQueueDailyRequestTimeline_(rows, 14),
     thresholds: {
       busy_active_queue: Number((APP.queuePolicy || {}).activeBusyThreshold || 20),
-      heavy_active_queue: Number((APP.queuePolicy || {}).activeHeavyThreshold || 30)
+      heavy_active_queue: Number((APP.queuePolicy || {}).activeHeavyThreshold || 30),
+      student_count_reveal: Number((APP.queuePolicy || {}).studentCountRevealThreshold || 50)
     },
     laser_capacity_notice: (APP.queuePolicy || {}).laserCapacityNotice || null,
     oldest_active_created_at: oldestActive ? oldestActive.created_at : '',
@@ -1186,10 +1788,12 @@ function getSubmissionControlDecision_(yearGroup, classNo) {
 }
 
 function submitSubmission(payload) {
+  const identity = requireRequestIdentity_('submit a fabrication request');
   validateSubmission_(payload);
 
   const now = new Date();
   const submissionId = Utilities.getUuid();
+  const submitterKey = identity.userKey;
 
   const record = {
     submission_id: submissionId,
@@ -1215,6 +1819,7 @@ function submitSubmission(payload) {
     issue_code: '',
     admin_remarks: payload.additional_notes || '',
     submitted_by: payload.student_email || '',
+    submitter_key: submitterKey,
     updated_at: formatAppTimestamp_(now),
     updated_by: payload.student_email || '',
     prototype_fidelity: payload.prototype_fidelity || ''
@@ -1255,10 +1860,12 @@ function submitSubmission(payload) {
    ========================= */
 
 function submitOtherRequest(payload) {
+  const identity = requireRequestIdentity_('submit a special request');
   validateOtherRequest_(payload);
 
   const now = new Date();
   const requestId = 'OR-' + Utilities.getUuid().substring(0, 8).toUpperCase();
+  const submitterKey = identity.userKey;
 
   const record = {
     request_id: requestId,
@@ -1299,6 +1906,7 @@ function submitOtherRequest(payload) {
     issue_code: '',
     admin_remarks: '',
     submitted_by: payload.requester_email || '',
+    submitter_key: submitterKey,
     updated_at: formatAppTimestamp_(now),
     updated_by: payload.requester_email || ''
   };
@@ -1374,11 +1982,16 @@ function validateOtherRequest_(payload) {
   });
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.requester_email)) throw new Error('Requester email format is invalid.');
+  assertAllowedEmailDomain_(payload.requester_email, 'Requester email');
+  enforceRequesterEmailAccess_(payload.requester_email, 'Requester email');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.teacher_in_charge_email)) throw new Error('Teacher in charge email format is invalid.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.approved_by_email)) throw new Error('Approval email format is invalid.');
+  assertStaffEmailDomain_(payload.teacher_in_charge_email, 'Teacher in charge email');
+  assertStaffEmailDomain_(payload.approved_by_email, 'Approval email');
   if (!['laser', '3d'].includes(payload.machine)) throw new Error('Machine must be laser or 3d.');
 
   if (!payload.working_file || !payload.working_file.name) throw new Error('Working file is required.');
+  assertAffinityExtensionCase_(payload.working_file.name);
 
   if (payload.request_type === 'competition' && !String(payload.competition_name || '').trim()) {
     throw new Error('Competition name is required for competition requests.');
@@ -1397,13 +2010,19 @@ function validateOtherRequest_(payload) {
 function getOtherRequestStatuses(query) {
   var target = String(query || '').trim().toLowerCase();
   if (!target) return [];
-  return attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.otherRequests.name)
+  var canUseInternalId = isOperationsUser_(getCurrentUser_());
+  var rows = attachActiveQueuePositions_(attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.otherRequests.name)
+    .map(function(r) {
+      r._source = 'other';
+      return r;
+    })
     .filter(function(r) {
       return String(r.requester_email || '').trim().toLowerCase() === target ||
-             String(r.request_id || '').trim().toLowerCase() === target ||
+             (canUseInternalId && String(r.request_id || '').trim().toLowerCase() === target) ||
              caseNumberMatches_(r, query);
     })
-    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }), 'requester_email'));
+    .sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }), 'requester_email')));
+  return secureStudentLookupRows_(rows, ['requester_email']);
 }
 
 function getAdminOtherRequests(filters) {
@@ -1429,7 +2048,13 @@ function getAdminOtherRequests(filters) {
            String(r.approved_by_email || '').trim().toLowerCase().indexOf(teacherQuery) !== -1;
   });
   if (studentEmail) rows = rows.filter(function(r) { return String(r.requester_email||'').trim().toLowerCase().indexOf(studentEmail) !== -1; });
-  if (mineOnly && user.email) {
+  if (user.role === 'teacher' && user.email) {
+    var teacherEmail = user.email.toLowerCase();
+    rows = rows.filter(function(r) {
+      return String(r.teacher_in_charge_email||'').trim().toLowerCase() === teacherEmail ||
+             String(r.approved_by_email||'').trim().toLowerCase() === teacherEmail;
+    });
+  } else if (mineOnly && user.email) {
     var myEmail = user.email.toLowerCase();
     rows = rows.filter(function(r) {
       return String(r.teacher_in_charge_email||'').trim().toLowerCase() === myEmail ||
@@ -1441,7 +2066,7 @@ function getAdminOtherRequests(filters) {
 }
 
 function updateOtherRequestStatus(requestId, status, remarks) {
-  var user = requireAdmin_();
+  var user = requireQueueOperator_('change special request status');
   var validStatuses = Object.values(APP.status);
   var nextStatus = String(status || '').trim();
   if (!requestId) throw new Error('requestId is required.');
@@ -1464,6 +2089,8 @@ function updateOtherRequestStatus(requestId, status, remarks) {
     for (var r = 1; r < values.length; r++) {
       if (values[r][idCol] === requestId) {
         var rowIndex = r + 1;
+        var currentRow = rowArrayToObject_(headers, values[r], rowIndex);
+        assertTeacherCanAccessOtherRequest_(currentRow, user);
         var oldStatus = values[r][headers.indexOf('status')] || '';
         writeCellByHeader_(sheet, headers, rowIndex, 'status', nextStatus);
         writeCellByHeader_(sheet, headers, rowIndex, 'admin_remarks', String(remarks || '').trim());
@@ -1503,15 +2130,316 @@ function updateOtherRequestStatus(requestId, status, remarks) {
 function getStudentStatuses(query) {
   const target = String(query || '').trim().toLowerCase();
   if (!target) return [];
+  const canUseInternalId = isOperationsUser_(getCurrentUser_());
 
-  return attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.submissions.name)
+  const rows = attachActiveQueuePositions_(attachStudentFeedback_(attachSubmissionActivity_(getRowsAsObjects_(APP.sheets.submissions.name)
+    .map(function(r) {
+      r._source = 'dt';
+      return r;
+    })
     .filter(r => {
       const emailMatch = String(r.student_email || '').trim().toLowerCase() === target;
-      const idMatch = String(r.submission_id || '').trim().toLowerCase() === target;
+      const idMatch = canUseInternalId && String(r.submission_id || '').trim().toLowerCase() === target;
       const caseMatch = caseNumberMatches_(r, query);
       return emailMatch || idMatch || caseMatch;
     })
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), 'student_email'));
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), 'student_email')));
+  return secureStudentLookupRows_(rows, ['student_email']);
+}
+
+function getTeacherBetaVisibleClasses_(user) {
+  user = user || getCurrentUser_();
+  var classes = (APP.teacherBetaClasses || []).slice();
+  if (user.role === 'admin') return classes;
+  if (user.role !== 'teacher') throw new Error('Class is available to teacher accounts only.');
+  var email = normalizeEmail_(user.email);
+  var name = String(user.name || '').trim().toLowerCase();
+  return classes.filter(function(cls) {
+    return normalizeEmail_(cls.teacher_email) === email ||
+      String(cls.teacher || '').trim().toLowerCase() === name;
+  });
+}
+
+function normalizeTeacherBetaClassNo_(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function normalizeTeacherBetaTeacherKey_(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getTeacherBetaTeacherKey_(cls) {
+  return normalizeEmail_(cls.teacher_email) || normalizeTeacherBetaTeacherKey_(cls.teacher);
+}
+
+function getTeacherBetaTeachers_(classes) {
+  var map = {};
+  (classes || []).forEach(function(cls) {
+    var key = getTeacherBetaTeacherKey_(cls);
+    if (!key) return;
+    if (!map[key]) {
+      map[key] = {
+        key: key,
+        teacher: cls.teacher || cls.teacher_email || 'Teacher',
+        teacher_email: normalizeEmail_(cls.teacher_email),
+        classes: []
+      };
+    }
+    if (cls.class_no && map[key].classes.indexOf(cls.class_no) === -1) map[key].classes.push(cls.class_no);
+  });
+  return Object.keys(map).map(function(key) {
+    map[key].classes.sort(function(a, b) {
+      return normalizeTeacherBetaClassNo_(a).localeCompare(normalizeTeacherBetaClassNo_(b), undefined, { numeric: true });
+    });
+    return map[key];
+  }).sort(function(a, b) {
+    return String(a.teacher || '').localeCompare(String(b.teacher || ''));
+  });
+}
+
+function teacherBetaLatestSubmission_(rows) {
+  rows = (rows || []).slice();
+  rows.sort(function(a, b) {
+    var createdDiff = getSortableTime_(b.created_at) - getSortableTime_(a.created_at);
+    if (createdDiff) return createdDiff;
+    return Number(b._row_number || 0) - Number(a._row_number || 0);
+  });
+  return rows[0] || null;
+}
+
+function teacherBetaSubmissionSummary_(row, count, rosterClassNo) {
+  if (!row) return null;
+  row._source = 'dt';
+  var caseNo = formatCaseNumber_(row);
+  var enteredClassNo = String(row.design_class_no || '').trim();
+  var rosterClass = String(rosterClassNo || '').trim();
+  var classMismatch = !!(enteredClassNo && rosterClass &&
+    normalizeTeacherBetaClassNo_(enteredClassNo) !== normalizeTeacherBetaClassNo_(rosterClass));
+  return {
+    case_number: /^[AM]---$/i.test(caseNo) ? '' : caseNo,
+    status: row.status || '',
+    status_label: getStatusLabel_(row.status),
+    design_class_no: enteredClassNo,
+    roster_class_no: rosterClass,
+    class_mismatch: classMismatch,
+    machine: row.machine || '',
+    material: row.material || '',
+    prototype_fidelity: row.prototype_fidelity || '',
+    prototype_label: formatPrototypeFidelityLabel_(row.prototype_fidelity),
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || row.created_at || '',
+    submitted_count: count || 0
+  };
+}
+
+function teacherBetaStudentAction_(latest) {
+  if (!latest) return 'Send reminder or check student email/class entry';
+  var typoNote = latest.class_mismatch ? '; class entry typo noted' : '';
+  var status = String(latest.status || '').trim();
+  if (status === 'needs_fix') return 'Needs revision follow-up' + typoNote;
+  if (status === 'submitted') return 'No action. Waiting for technician review' + typoNote;
+  if (status === 'approved' || status === 'in_queue') return 'No action. Approved / waiting for production' + typoNote;
+  if (status === 'in_production') return 'No action. In production' + typoNote;
+  if (status === 'completed') return 'Complete' + typoNote;
+  if (status === 'rejected') return 'Teacher follow-up needed' + typoNote;
+  return 'Submitted' + typoNote;
+}
+
+function buildTeacherBetaClassStatus_(user, filters) {
+  if (user.role !== 'teacher' && user.role !== 'admin') throw new Error('Class is available to teachers and admins only.');
+  filters = filters || {};
+
+  var visibleClasses = getTeacherBetaVisibleClasses_(user);
+  var teacherOptions = getTeacherBetaTeachers_(visibleClasses);
+  var classes = visibleClasses.slice();
+  var requestedTeacher = normalizeEmail_(filters.teacher_email || filters.teacher_key || '') ||
+    normalizeTeacherBetaTeacherKey_(filters.teacher || filters.teacher_key || '');
+  if (requestedTeacher) {
+    classes = classes.filter(function(cls) {
+      return getTeacherBetaTeacherKey_(cls) === requestedTeacher ||
+        normalizeEmail_(cls.teacher_email) === requestedTeacher ||
+        normalizeTeacherBetaTeacherKey_(cls.teacher) === requestedTeacher;
+    });
+  }
+  var requestedClass = normalizeTeacherBetaClassNo_(filters.class_no);
+  if (requestedClass) {
+    classes = classes.filter(function(cls) {
+      return normalizeTeacherBetaClassNo_(cls.class_no) === requestedClass;
+    });
+  }
+
+  var rows = getRowsAsObjects_(APP.sheets.submissions.name).map(function(row) {
+    row._source = 'dt';
+    return row;
+  });
+  var rowsByEmail = {};
+  var rowsByClass = {};
+  rows.forEach(function(row) {
+    var rowEmail = normalizeEmail_(row.student_email);
+    if (rowEmail) {
+      if (!rowsByEmail[rowEmail]) rowsByEmail[rowEmail] = [];
+      rowsByEmail[rowEmail].push(row);
+    }
+    var rowClass = normalizeTeacherBetaClassNo_(row.design_class_no);
+    if (rowClass) {
+      if (!rowsByClass[rowClass]) rowsByClass[rowClass] = [];
+      rowsByClass[rowClass].push(row);
+    }
+  });
+  var visibleRosterEmailMap = {};
+  visibleClasses.forEach(function(cls) {
+    (cls.roster || []).forEach(function(student) {
+      var rosterEmail = normalizeEmail_(student.email);
+      if (rosterEmail) visibleRosterEmailMap[rosterEmail] = true;
+    });
+  });
+  var classReports = classes.map(function(cls) {
+    var classKey = normalizeTeacherBetaClassNo_(cls.class_no);
+    var roster = (cls.roster || []).slice();
+    var rosterEmailMap = {};
+    roster.forEach(function(student) {
+      var email = normalizeEmail_(student.email);
+      if (email) rosterEmailMap[email] = true;
+    });
+
+    var classRows = rowsByClass[classKey] || [];
+    var students = roster.map(function(student) {
+      var email = normalizeEmail_(student.email);
+      var matches = rowsByEmail[email] || [];
+      var latest = teacherBetaLatestSubmission_(matches);
+      var latestSummary = teacherBetaSubmissionSummary_(latest, matches.length, cls.class_no);
+      return {
+        homeroom: student.homeroom || '',
+        student_no: student.student_no || '',
+        name: student.name || '',
+        email: student.email || '',
+        submitted: !!latest,
+        latest: latestSummary,
+        action: teacherBetaStudentAction_(latestSummary)
+      };
+    });
+
+    var extraSubmissions = classRows
+      .filter(function(row) {
+        var rowEmail = normalizeEmail_(row.student_email);
+        return !rosterEmailMap[rowEmail] && !visibleRosterEmailMap[rowEmail];
+      })
+      .map(function(row) {
+        return {
+          student_name: row.student_name || '',
+          student_email: row.student_email || '',
+          case_number: formatCaseNumber_(row),
+          status: row.status || '',
+          status_label: getStatusLabel_(row.status),
+          created_at: row.created_at || '',
+          updated_at: row.updated_at || row.created_at || '',
+          material: row.material || ''
+        };
+      })
+      .sort(function(a, b) { return getSortableTime_(b.created_at) - getSortableTime_(a.created_at); });
+
+    var summary = {
+      expected: roster.length,
+      submitted: students.filter(function(s) { return s.submitted; }).length,
+      missing: students.filter(function(s) { return !s.submitted; }).length,
+      needs_fix: students.filter(function(s) { return s.latest && s.latest.status === 'needs_fix'; }).length,
+      completed: students.filter(function(s) { return s.latest && s.latest.status === 'completed'; }).length,
+      class_mismatches: students.filter(function(s) { return s.latest && s.latest.class_mismatch; }).length,
+      extras: extraSubmissions.length
+    };
+    summary.percent_submitted = summary.expected ? Math.round((summary.submitted / summary.expected) * 100) : 0;
+
+    return {
+      teacher: cls.teacher || '',
+      teacher_email: cls.teacher_email || '',
+      year_group: cls.year_group || '',
+      class_no: cls.class_no || '',
+      label: cls.label || ('Class ' + (cls.class_no || '')),
+      summary: summary,
+      students: students,
+      extra_submissions: extraSubmissions
+    };
+  });
+
+  return {
+    ok: true,
+    generated_at: formatHongKongTimestamp_(new Date()),
+    current_user_role: user.role,
+    teachers: teacherOptions,
+    classes: classReports
+  };
+}
+
+function getTeacherBetaClassStatus(filters) {
+  return buildTeacherBetaClassStatus_(getCurrentUser_(), filters || {});
+}
+
+function teacherBetaCsvCell_(value) {
+  value = value == null ? '' : String(value);
+  return '"' + value.replace(/"/g, '""') + '"';
+}
+
+function getTeacherBetaClassStatusCsv_(user, filters) {
+  if (!user || (user.role !== 'teacher' && user.role !== 'admin')) {
+    throw new Error('Class is available to teachers and admins only.');
+  }
+  var data = buildTeacherBetaClassStatus_(user, filters || {});
+  var rows = [[
+    'Record Type', 'Teacher', 'Design Class', 'Year Group', 'Student Name', 'Student Email',
+    'Homeroom', 'Student No.', 'Submitted', 'Status', 'Case Number', 'Machine', 'Material',
+    'Prototype Type', 'Submitted At', 'Updated At', 'Attempts', 'Class Issue', 'Teacher Action'
+  ]];
+  (data.classes || []).forEach(function(cls) {
+    (cls.students || []).forEach(function(student) {
+      var latest = student.latest || {};
+      rows.push([
+        'Roster student',
+        cls.teacher || '',
+        cls.class_no || '',
+        cls.year_group || '',
+        student.name || '',
+        student.email || '',
+        student.homeroom || '',
+        student.student_no || '',
+        student.submitted ? 'Yes' : 'No',
+        student.submitted ? (latest.status_label || latest.status || '') : 'Missing',
+        latest.case_number || '',
+        latest.machine ? (latest.machine === '3d' ? '3D Print' : 'Laser Cut') : '',
+        latest.material || '',
+        latest.prototype_label || '',
+        latest.created_at || '',
+        latest.updated_at || '',
+        latest.submitted_count || '',
+        latest.class_mismatch ? ('Entered class ' + (latest.design_class_no || '?') + '; roster is class ' + (latest.roster_class_no || '?')) : '',
+        student.action || ''
+      ]);
+    });
+    (cls.extra_submissions || []).forEach(function(extra) {
+      rows.push([
+        'Extra class record',
+        cls.teacher || '',
+        cls.class_no || '',
+        cls.year_group || '',
+        extra.student_name || '',
+        extra.student_email || '',
+        '', '',
+        'Yes',
+        extra.status_label || extra.status || '',
+        extra.case_number || '',
+        '',
+        extra.material || '',
+        '',
+        extra.created_at || '',
+        extra.updated_at || '',
+        '',
+        'Email not found in this uploaded class roster',
+        'Check spelling, school account, or class entry'
+      ]);
+    });
+  });
+  return '\ufeff' + rows.map(function(row) {
+    return row.map(teacherBetaCsvCell_).join(',');
+  }).join('\r\n');
 }
 
 function attachStudentFeedback_(rows) {
@@ -1536,7 +2464,7 @@ function attachStudentFeedback_(rows) {
 }
 
 function getIssueTemplateLabelMap_() {
-  return getIssueTemplatesForClient().reduce(function(map, row) {
+  return getIssueTemplates_().reduce(function(map, row) {
     var issueCode = String(row.issue_code || '').trim();
     if (!issueCode) return map;
     map[issueCode] = String(row.issue_label || issueCode).trim() || issueCode;
@@ -1544,19 +2472,30 @@ function getIssueTemplateLabelMap_() {
   }, {});
 }
 
-function getIssueTemplatesForClient() {
+function getIssueTemplates_() {
   return getRowsAsObjects_(APP.sheets.issueTemplates.name)
     .filter(r => String(r.active).toLowerCase() !== 'false')
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
 }
 
+function getIssueTemplatesForClient() {
+  requireQueueOperator_('load issue templates');
+  return getIssueTemplates_().map(function(row) {
+    return {
+      issue_code: row.issue_code || '',
+      issue_label: row.issue_label || '',
+      applies_to: row.applies_to || ''
+    };
+  });
+}
+
 function generateEmailDraft(submissionId, issueCodes, remarks) {
-  requireAdmin_();
+  requireQueueOperator_('draft student workflow emails');
 
   const submission = getSubmissionById_(submissionId);
   if (!submission) throw new Error('Submission not found.');
 
-  const allTemplates = getIssueTemplatesForClient();
+  const allTemplates = getIssueTemplates_();
   const codes = (issueCodes || '').split(',').map(s => s.trim()).filter(Boolean);
   const selectedTemplates = allTemplates.filter(t => codes.includes(t.issue_code));
 
@@ -1569,7 +2508,7 @@ function generateEmailDraft(submissionId, issueCodes, remarks) {
     : 'Design Technology - ' + (caseNo ? caseNo + ' - ' : '') + 'Submission Update - ' + submission.student_name;
 
   const issueHtml = selectedTemplates.map(t =>
-    '<li><strong>' + escapeHtml_(t.issue_label) + '</strong><br>' + (t.email_body_html || '') + '</li>'
+    '<li><strong>' + escapeHtml_(t.issue_label) + '</strong><br>' + sanitizeEmailTemplateHtml_(t.email_body_html || '') + '</li>'
   ).join('');
 
   const nextStep = selectedTemplates.length
@@ -1638,7 +2577,7 @@ function generateEmailDraft(submissionId, issueCodes, remarks) {
 }
 
 function generateTeacherUpdateDraft(submissionId, statusOverride, issueCodeOverride, remarksOverride) {
-  const actor = requireAdmin_();
+  const actor = requireQueueOperator_('draft teacher workflow emails');
   const submission = getSubmissionById_(submissionId);
   if (!submission) throw new Error('Submission not found.');
 
@@ -1715,6 +2654,7 @@ function getSpreadsheetUrl() {
   return getSpreadsheet_().getUrl();
 }
 
+
 /* ============================================================
    20_WorkflowEmailValidation.js
    ============================================================ */
@@ -1740,8 +2680,8 @@ function getAdminRows(filters) {
   if (teacherQuery) rows = rows.filter(r => String(r.design_teacher || '').toLowerCase().includes(teacherQuery));
   if (studentEmail) rows = rows.filter(r => String(r.student_email || '').toLowerCase().includes(studentEmail));
 
-  // Teacher view defaults to "my students only" unless explicitly turned off.
-  if (user.role === 'teacher' && String(filters.mine_only || 'true').toLowerCase() !== 'false') {
+  // Teacher view is always scoped server-side. Client filters cannot widen it.
+  if (user.role === 'teacher') {
     rows = rows.filter(r => isTeacherRecordMatch_(r, user));
   } else if (mineOnly) {
     rows = rows.filter(r => isTeacherRecordMatch_(r, user));
@@ -1752,7 +2692,7 @@ function getAdminRows(filters) {
 }
 
 function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
-  const user = requireAdmin_();
+  const user = requireQueueOperator_('change submission status');
   const validStatuses = Object.values(APP.status);
   const nextStatus = String(status || '').trim();
 
@@ -1779,7 +2719,7 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
   const nextRemarks = typeof remarks === 'undefined' || remarks === null ? '' : String(remarks).trim();
 
   if (nextIssueCode) {
-    const issueTemplates = getIssueTemplatesForClient();
+    const issueTemplates = getIssueTemplates_();
     const issueExists = issueTemplates.some(t => t.issue_code === nextIssueCode);
     if (!issueExists) throw new Error('Unknown issue code selected.');
   }
@@ -1787,6 +2727,8 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
   for (let r = 1; r < values.length; r++) {
     if (values[r][idCol] === submissionId) {
       const rowIndex = r + 1;
+      const currentRow = rowArrayToObject_(headers, values[r], rowIndex);
+      assertTeacherCanAccessSubmission_(currentRow, user);
       const oldStatus = statusCol !== -1 ? values[r][statusCol] : '';
       const oldIssueCode = issueCol !== -1 ? values[r][issueCol] : '';
       const resolvedIssueCode = issueProvided ? nextIssueCode : oldIssueCode;
@@ -1830,13 +2772,18 @@ function updateSubmissionStatus(submissionId, status, issueCode, remarks) {
 }
 
 function uploadBase64File(payload) {
-  const base64 = payload.base64;
-  const fileName = payload.fileName;
-  const mimeType = payload.mimeType || 'application/octet-stream';
-  const yearGroup = payload.yearGroup || 'General';
-  const bucket = payload.bucket || 'misc';
+  requireRequestIdentity_('upload files');
+  if (!payload || typeof payload !== 'object') throw new Error('Missing file payload.');
+  const base64 = String(payload.base64 || '');
+  const fileName = sanitizeUploadFileName_(payload.fileName);
+  const mimeType = sanitizeUploadMimeType_(payload.mimeType || 'application/octet-stream');
+  const yearGroup = sanitizeUploadYearGroup_(payload.yearGroup || 'General');
+  const bucket = sanitizeUploadBucket_(payload.bucket || 'misc');
 
   if (!base64 || !fileName) throw new Error('Missing file payload.');
+  if (base64.length > 36 * 1024 * 1024) {
+    throw new Error('File exceeds upload size limit. Please reduce the file size and try again.');
+  }
 
   let bytes;
   try {
@@ -2052,7 +2999,7 @@ function sendSubmissionConfirmation_(record) {
     '<ol>' +
     '<li>A technician will review your file.</li>' +
     '<li>You will receive an email when the status changes.</li>' +
-    '<li>Use the <strong>My Status</strong> page on the Dashboard to check progress at any time.</li>' +
+    '<li>Use the <strong>Lookup</strong> page for <strong>Status Lookup</strong> to check progress at any time, including the approx. active-workshop position and estimated pickup window.</li>' +
     '</ol>' +
     '<p>Save your <strong>case number</strong>. It is the quickest way for us to find your request when you ask for help.</p>' +
     '<p>Best regards,<br>Design Technology Technician Team</p>' +
@@ -2084,7 +3031,7 @@ function sendOtherRequestConfirmation_(record) {
     '<ol>' +
     '<li>A technician will review your request and file.</li>' +
     '<li>You will receive an email when the status changes.</li>' +
-    '<li>Use the <strong>My Status</strong> page on the Dashboard to check progress at any time.</li>' +
+    '<li>Use the <strong>Lookup</strong> page for <strong>Status Lookup</strong> to check progress at any time, including the approx. active-workshop position and estimated pickup window.</li>' +
     '</ol>' +
     '<p>Save your <strong>case number</strong>. It is the quickest way for us to find your request when you ask for help.</p>' +
     '<p>Best regards,<br>Design Technology Technician Team</p>' +
@@ -2194,11 +3141,11 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
   var studentBody = '<p>Dear ' + studentName + ',</p>' + emailCaseReferenceHtml_(caseNo);
 
   if (newStatus === APP.status.NEEDS_FIX) {
-    var allTemplates = getIssueTemplatesForClient();
+    var allTemplates = getIssueTemplates_();
     var codes = String(issueCode || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
     var selTpls = allTemplates.filter(function(t) { return codes.indexOf(t.issue_code) !== -1; });
     var issueHtml = selTpls.map(function(t) {
-      return '<li><strong>' + escapeHtml_(t.issue_label) + '</strong><br>' + (t.email_body_html || '') + '</li>';
+      return '<li><strong>' + escapeHtml_(t.issue_label) + '</strong><br>' + sanitizeEmailTemplateHtml_(t.email_body_html || '') + '</li>';
     }).join('');
     studentBody +=
       '<p>We reviewed your ' + escapeHtml_(machineName) + ' submission ' +
@@ -2332,19 +3279,22 @@ function validateSubmission_(payload) {
   });
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.student_email)) {
-    throw new Error('Student email format is invalid.');
+    throw new Error('Submitter email format is invalid.');
   }
+  assertAllowedEmailDomain_(payload.student_email, 'Submitter email');
+  enforceRequesterEmailAccess_(payload.student_email, 'Submitter email');
 
   if (!['laser', '3d'].includes(payload.machine)) {
     throw new Error('Machine must be laser or 3d.');
   }
 
-  if (!['low', 'hi', 'na', 'lo-fi', 'hi-fi'].includes(payload.prototype_fidelity)) {
-    throw new Error('Prototype type must be Low, Hi, or N/A.');
+  if (!['low', 'hi', 'final', 'final-product', 'final_product', 'na', 'lo-fi', 'hi-fi'].includes(payload.prototype_fidelity)) {
+    throw new Error('Prototype type must be Low, Hi, Final Product, or N/A.');
   }
 
   if (payload.prototype_fidelity === 'lo-fi') payload.prototype_fidelity = 'low';
   if (payload.prototype_fidelity === 'hi-fi') payload.prototype_fidelity = 'hi';
+  if (payload.prototype_fidelity === 'final-product' || payload.prototype_fidelity === 'final_product') payload.prototype_fidelity = 'final';
 
   var submissionControl = getSubmissionControlDecision_(payload.year_group, payload.design_class_no);
   if (submissionControl.blocked) {
@@ -2370,6 +3320,8 @@ function validateSubmission_(payload) {
   if (!workingExt) {
     throw new Error('Working file must include a valid extension.');
   }
+
+  assertAffinityExtensionCase_(payload.working_file.name);
 
   if (allowedExt.length && !allowedExt.includes(workingExt)) {
     throw new Error(`Wrong working file format. Allowed: ${allowedExt.join(', ')}`);
@@ -2455,6 +3407,7 @@ function formatPrototypeFidelityLabel_(value) {
   var normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'low') return 'Lo fi Prototype';
   if (normalized === 'hi') return 'Hi fi Prototype';
+  if (normalized === 'final' || normalized === 'final-product' || normalized === 'final_product') return 'Final Product';
   if (normalized === 'na') return 'N/A';
   if (normalized === 'lo-fi') return 'Lo fi Prototype';
   if (normalized === 'hi-fi') return 'Hi fi Prototype';
@@ -2656,10 +3609,21 @@ function attachSubmissionActivity_(rows, emailField) {
 }
 
 /**
- * Public endpoint: returns daily submission activity for an email.
+ * Public endpoint: returns daily submission activity only for the signed-in owner.
  */
 function getSubmissionActivity(email) {
-  var activity = getSubmissionActivityByEmail_(email);
+  requireRequestIdentity_('check submission activity');
+  var normalized = normalizeEmail_(email);
+  var user = getCurrentUser_();
+  if (!normalized || (!isOperationsUser_(user) && normalizeEmail_(user.email) !== normalized)) {
+    return {
+      counts: { total: 0, dt: 0, special: 0 },
+      last24_count: 0,
+      recent: [],
+      warning: ''
+    };
+  }
+  var activity = getSubmissionActivityByEmail_(normalized);
   var counts = activity.counts;
   var warn = '';
   if (counts.total >= 2) {
@@ -2673,10 +3637,23 @@ function getSubmissionActivity(email) {
   };
 }
 
+function getRawFileExtension_(fileName) {
+  const value = String(fileName || '').trim();
+  if (!value.includes('.')) return '';
+  return value.split('.').pop();
+}
+
 function getFileExtension_(fileName) {
-  const normalized = String(fileName || '').trim().toLowerCase();
-  if (!normalized.includes('.')) return '';
-  return normalized.split('.').pop();
+  const raw = getRawFileExtension_(fileName);
+  return raw ? raw.toLowerCase() : '';
+}
+
+function assertAffinityExtensionCase_(fileName) {
+  const raw = getRawFileExtension_(fileName);
+  const normalized = raw ? raw.toLowerCase() : '';
+  if ((normalized === 'af' || normalized === 'afdesign') && raw !== normalized) {
+    throw new Error('Affinity Designer working files must use lowercase .af or .afdesign. Rename the file and upload again.');
+  }
 }
 
 function getMatchingRule_(yearGroup, machine) {
@@ -2688,6 +3665,7 @@ function getMatchingRule_(yearGroup, machine) {
     String(r.machine || '').trim().toLowerCase() === targetMachine
   );
 }
+
 
 /* ============================================================
    30_DataAdminSetup.js
@@ -2718,9 +3696,22 @@ function getRootFolder_() {
 }
 
 function getSheet_(name) {
-  const sheet = getSpreadsheet_().getSheetByName(name);
+  const ss = getSpreadsheet_();
+  const sheetConfig = getSheetConfigByName_(name);
+  if (sheetConfig) return ensureSheet_(ss, sheetConfig.name, sheetConfig.headers);
+  const sheet = ss.getSheetByName(name);
   if (!sheet) throw new Error(`Sheet not found: ${name}`);
   return sheet;
+}
+
+function getSheetConfigByName_(name) {
+  var target = String(name || '').trim();
+  var keys = Object.keys(APP.sheets || {});
+  for (var i = 0; i < keys.length; i++) {
+    var cfg = APP.sheets[keys[i]];
+    if (cfg && cfg.name === target && cfg.headers) return cfg;
+  }
+  return null;
 }
 
 function acquireWorkflowLock_() {
@@ -2791,7 +3782,7 @@ function caseNumberMatches_(row, query) {
   query = String(query || '').trim().toUpperCase().replace(/\s+/g, '');
   if (!query) return false;
   var caseNo = formatCaseNumber_(row).toUpperCase();
-  if (caseNo.indexOf(query) !== -1) return true;
+  if (caseNo === query) return true;
   var prefixed = query.match(/^([AM])(\d+)$/);
   if (prefixed) return caseNo === (prefixed[1] + prefixed[2].padStart(3, '0'));
   var digits = query.replace(/\D/g, '');
@@ -2801,9 +3792,23 @@ function caseNumberMatches_(row, query) {
 }
 
 function writeCellByHeader_(sheet, headers, rowIndex, headerName, value) {
+  var rowNumber = Number(rowIndex);
+  if (!rowNumber || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber || rowNumber < 2) {
+    throw new Error('Invalid row index.');
+  }
   const col = headers.indexOf(headerName);
   if (col === -1) throw new Error(`Missing header: ${headerName}`);
-  sheet.getRange(rowIndex, col + 1).setValue(value);
+  if (rowNumber > sheet.getMaxRows()) throw new Error('Row index is outside the sheet.');
+  sheet.getRange(rowNumber, col + 1).setValue(value);
+}
+
+function rowArrayToObject_(headers, row, rowIndex) {
+  var obj = {};
+  (headers || []).forEach(function(header, i) {
+    obj[header] = (row || [])[i] || '';
+  });
+  obj._row_number = rowIndex || '';
+  return obj;
 }
 
 /* =========================
@@ -2853,7 +3858,6 @@ function getConfiguredUserOverride_(email) {
 function getCurrentUser_() {
   let email = '';
   try { email = Session.getActiveUser().getEmail() || ''; } catch(e) {}
-  try { if (!email) email = Session.getEffectiveUser().getEmail() || ''; } catch(e) {}
 
   if (!email) {
     return { email: '', name: '', role: 'student', isAdmin: false };
@@ -2889,6 +3893,234 @@ function requireSystemAdmin_() {
   const user = requireAdmin_();
   if (user.role !== 'admin') throw new Error('System admin access required.');
   return user;
+}
+
+function normalizeEmail_(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function assertAllowedEmailDomain_(email, label) {
+  var value = normalizeEmail_(email);
+  var allowed = normalizeEmailDomainList_(APP.allowedEmailDomains);
+  if (!value || !allowed.length) return;
+  var domain = value.split('@').pop();
+  if (allowed.indexOf(domain) === -1) {
+    throw new Error((label || 'Email') + ' must use an approved school domain: @student.example.edu or @example.edu.');
+  }
+}
+
+function normalizeEmailDomainList_(domains) {
+  return (domains || []).map(function(domain) {
+    return String(domain || '').trim().toLowerCase().replace(/^@/, '');
+  }).filter(Boolean);
+}
+
+function assertEmailDomainList_(email, domains, label, message) {
+  var value = normalizeEmail_(email);
+  var allowed = normalizeEmailDomainList_(domains);
+  if (!value || !allowed.length) return;
+  var domain = value.split('@').pop();
+  if (allowed.indexOf(domain) === -1) {
+    throw new Error(message || ((label || 'Email') + ' must use an approved school domain.'));
+  }
+}
+
+function assertStudentEmailDomain_(email, label) {
+  assertEmailDomainList_(
+    email,
+    APP.studentEmailDomains || ['student.example.edu'],
+    label || 'Student email',
+    (label || 'Student email') + ' must use the student school domain: @student.example.edu.'
+  );
+}
+
+function assertStaffEmailDomain_(email, label) {
+  assertEmailDomainList_(
+    email,
+    APP.staffEmailDomains || ['example.edu'],
+    label || 'Staff email',
+    (label || 'Staff email') + ' must use the staff school domain: @example.edu.'
+  );
+}
+
+function isOperationsUser_(user) {
+  user = user || getCurrentUser_();
+  return !!(user && user.isAdmin);
+}
+
+function isQueueOperator_(user) {
+  user = user || getCurrentUser_();
+  return !!(user && (user.role === 'admin' || user.role === 'technician'));
+}
+
+function requireQueueOperator_(purpose) {
+  var user = requireAdmin_();
+  if (!isQueueOperator_(user)) {
+    throw new Error('Teacher accounts can view linked learning records but cannot ' + (purpose || 'change workshop operations') + '.');
+  }
+  return user;
+}
+
+function assertTeacherCanAccessSubmission_(row, user) {
+  user = user || getCurrentUser_();
+  if (user.role === 'teacher' && !isTeacherRecordMatch_(row, user)) {
+    throw new Error('This submission is not linked to your teacher account.');
+  }
+}
+
+function assertTeacherCanAccessOtherRequest_(row, user) {
+  user = user || getCurrentUser_();
+  if (user.role !== 'teacher') return;
+  var myEmail = normalizeEmail_(user.email);
+  var linked = normalizeEmail_(row.teacher_in_charge_email) === myEmail ||
+    normalizeEmail_(row.approved_by_email) === myEmail;
+  if (!linked) throw new Error('This special request is not linked to your teacher account.');
+}
+
+function getRequestUserKey_() {
+  try {
+    return String(Session.getTemporaryActiveUserKey() || '').trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+function requireRequestIdentity_(purpose) {
+  var user = getCurrentUser_();
+  var userKey = getRequestUserKey_();
+  if (!normalizeEmail_(user.email) && !userKey) {
+    throw new Error('Please sign in with your school account to ' + (purpose || 'continue') + '.');
+  }
+  return { user: user, userKey: userKey };
+}
+
+function enforceRequesterEmailAccess_(email, label) {
+  var user = getCurrentUser_();
+  var activeEmail = normalizeEmail_(user.email);
+  var requestedEmail = normalizeEmail_(email);
+  if (!activeEmail || isOperationsUser_(user)) return;
+  if (requestedEmail && requestedEmail !== activeEmail) {
+    throw new Error((label || 'Email') + ' must match your signed-in school account.');
+  }
+}
+
+function rowOwnedByLookupUser_(row, ownerFields, user, userKey) {
+  row = row || {};
+  user = user || getCurrentUser_();
+  ownerFields = ownerFields || [];
+  var activeEmail = normalizeEmail_(user.email);
+  if (activeEmail) {
+    for (var i = 0; i < ownerFields.length; i++) {
+      if (normalizeEmail_(row[ownerFields[i]]) === activeEmail) return true;
+    }
+  }
+  var rowKey = String(row.submitter_key || '').trim();
+  if (rowKey && userKey && rowKey === userKey) return true;
+  return false;
+}
+
+function redactStudentLookupRow_(row) {
+  row = row || {};
+  var redacted = {
+    _source: row._source || '',
+    _row_number: row._row_number || '',
+    case_number: formatCaseNumber_(row),
+    status: row.status || '',
+    machine: row.machine || '',
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || row.created_at || '',
+    queue_active: row.queue_active === true,
+    queue_position: row.queue_position || '',
+    queue_total_active: row.queue_total_active || '',
+    queue_position_scope: row.queue_position_scope || '',
+    queue_position_updated_at: row.queue_position_updated_at || '',
+    queue_position_note: row.queue_position_note || '',
+    pickup_estimate_label: row.pickup_estimate_label || '',
+    pickup_estimate_window: row.pickup_estimate_window || '',
+    pickup_estimate_note: row.pickup_estimate_note || '',
+    pickup_estimate_school_days: row.pickup_estimate_school_days || '',
+    lookup_limited: true,
+    lookup_limited_reason: 'For privacy, sign in with the matching school account to view class, teacher, remarks, and submitted file links.'
+  };
+  if (row._source === 'other' || row.request_id || row.requester_email) {
+    redacted.project_name = 'Special Request';
+    redacted.request_type = '';
+    redacted.department_or_subject = '';
+  } else {
+    redacted.material = '';
+    redacted.year_group = '';
+    redacted.design_class_no = '';
+    redacted.design_teacher = '';
+    redacted.prototype_fidelity = '';
+  }
+  return redacted;
+}
+
+function stripStudentLookupInternalIds_(row) {
+  var safe = {};
+  Object.keys(row || {}).forEach(function(key) {
+    safe[key] = row[key];
+  });
+  safe.case_number = formatCaseNumber_(row);
+  delete safe.submission_id;
+  delete safe.request_id;
+  return safe;
+}
+
+function secureStudentLookupRows_(rows, ownerFields) {
+  rows = rows || [];
+  var user = getCurrentUser_();
+  if (isOperationsUser_(user)) return rows;
+  var userKey = getRequestUserKey_();
+  var hasVerifiedOwnerSignal = !!normalizeEmail_(user.email) || !!userKey;
+  return rows
+    .filter(function(row) {
+      if (rowOwnedByLookupUser_(row, ownerFields, user, userKey)) return true;
+      if (!normalizeEmail_(user.email) && !String(row.submitter_key || '').trim()) return true;
+      return !hasVerifiedOwnerSignal;
+    })
+    .map(function(row) {
+      return rowOwnedByLookupUser_(row, ownerFields, user, userKey)
+        ? stripStudentLookupInternalIds_(row)
+        : redactStudentLookupRow_(row);
+    });
+}
+
+function sanitizeUploadFileName_(fileName) {
+  var name = String(fileName || '').split(/[\\/]/).pop().trim();
+  name = name.replace(/[^\w.\- ()]/g, '_').replace(/_+/g, '_').slice(0, 140);
+  if (!name || name === '.' || name === '..') throw new Error('Uploaded file name is invalid.');
+  return name;
+}
+
+function sanitizeUploadMimeType_(mimeType) {
+  var value = String(mimeType || 'application/octet-stream').trim().slice(0, 120);
+  if (!/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(value)) return 'application/octet-stream';
+  return value;
+}
+
+function sanitizeUploadYearGroup_(yearGroup) {
+  var value = String(yearGroup || 'General').trim().toUpperCase();
+  if (value === 'OTHERREQ') return 'OtherReq';
+  if (value === 'GENERAL') return 'General';
+  if (!/^Y\d{1,2}$/.test(value)) return 'General';
+  return value;
+}
+
+function sanitizeUploadBucket_(bucket) {
+  var value = String(bucket || 'misc').trim().toLowerCase();
+  var allowed = { laser: true, '3d': true, preview: true, other: true, misc: true };
+  return allowed[value] ? value : 'misc';
+}
+
+function sanitizeEmailTemplateHtml_(html) {
+  var safe = String(html || '');
+  safe = safe.replace(/<\s*(script|style|iframe|object|embed|form|input|button|meta|link)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  safe = safe.replace(/<\s*(script|style|iframe|object|embed|form|input|button|meta|link)\b[^>]*\/?>/gi, '');
+  safe = safe.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  safe = safe.replace(/\s+(href|src)\s*=\s*("|')\s*javascript:[\s\S]*?\2/gi, ' $1="#"');
+  safe = safe.replace(/\s+(href|src)\s*=\s*javascript:[^\s>]+/gi, ' $1="#"');
+  return safe;
 }
 
 /* =========================
@@ -3013,6 +4245,7 @@ function seedIssueTemplates_(sheet) {
  * Safe to run multiple times — clears old rows first.
  */
 function reseedIssueTemplates() {
+  requireSystemAdmin_();
   const sheet = getSheet_(APP.sheets.issueTemplates.name);
   if (sheet.getLastRow() > 1) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
@@ -3030,6 +4263,134 @@ function seedUsers_(sheet) {
   sheet.getRange(2, 1, 1, 4).setValues([
     [email, name, 'admin', 'TRUE']
   ]);
+}
+
+function assertAdminDataObject_(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Invalid admin payload.');
+  }
+}
+
+function sanitizeAdminRowIndex_(sheet, rowIndex) {
+  var rowNumber = Number(rowIndex);
+  if (!rowNumber || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber || rowNumber < 2) {
+    throw new Error('Invalid row index.');
+  }
+  if (rowNumber > sheet.getLastRow()) throw new Error('Row index is outside existing data.');
+  return rowNumber;
+}
+
+function rejectUnknownAdminFields_(data, allowedHeaders) {
+  var allowed = {};
+  (allowedHeaders || []).forEach(function(header) { allowed[header] = true; });
+  Object.keys(data || {}).forEach(function(key) {
+    if (!allowed[key] && key !== '_row_number') throw new Error('Unsupported field: ' + key);
+  });
+}
+
+function cleanAdminText_(value, maxLen) {
+  return String(value || '').trim().slice(0, maxLen || 500);
+}
+
+function normalizeAdminFlag_(value) {
+  return isFalseValue_(value) ? 'FALSE' : 'TRUE';
+}
+
+function validateAdminEmail_(email, label) {
+  var value = normalizeEmail_(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw new Error((label || 'Email') + ' format is invalid.');
+  }
+  assertAllowedEmailDomain_(value, label);
+  return value;
+}
+
+function sanitizeAdminRole_(role) {
+  var value = String(role || 'student').trim().toLowerCase();
+  var allowed = { admin: true, teacher: true, technician: true, student: true };
+  if (!allowed[value]) throw new Error('Invalid user role.');
+  return value;
+}
+
+function sanitizeRuleExtensions_(value) {
+  var items = String(value || '')
+    .split(',')
+    .map(function(item) { return item.trim().toLowerCase(); })
+    .filter(Boolean)
+    .map(function(item) {
+      item = item.charAt(0) === '.' ? item : '.' + item;
+      if (!/^\.[a-z0-9]+$/.test(item)) throw new Error('Rule extensions must be comma-separated file extensions.');
+      return item;
+    });
+  return items.join(', ');
+}
+
+function sanitizeRuleNumber_(value, label) {
+  var raw = String(value || '').trim();
+  if (!raw) return '';
+  var num = Number(raw);
+  if (!isFinite(num) || num < 0 || num > 5000) throw new Error(label + ' must be a valid positive number.');
+  return String(num);
+}
+
+function sanitizeAdminRuleRecord_(data) {
+  assertAdminDataObject_(data);
+  rejectUnknownAdminFields_(data, APP.sheets.rules.headers);
+  var record = {};
+  if (Object.prototype.hasOwnProperty.call(data, 'year_group')) {
+    record.year_group = cleanAdminText_(data.year_group, 12).toUpperCase();
+    if (record.year_group && !/^Y\d{1,2}$/.test(record.year_group)) throw new Error('Rule year group must look like Y6, Y7, Y8, etc.');
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'machine')) {
+    record.machine = cleanAdminText_(data.machine, 20).toLowerCase();
+    if (record.machine && ['laser', '3d'].indexOf(record.machine) === -1) throw new Error('Rule machine must be laser or 3d.');
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'max_width')) record.max_width = sanitizeRuleNumber_(data.max_width, 'Max width');
+  if (Object.prototype.hasOwnProperty.call(data, 'max_height')) record.max_height = sanitizeRuleNumber_(data.max_height, 'Max height');
+  if (Object.prototype.hasOwnProperty.call(data, 'max_depth')) record.max_depth = sanitizeRuleNumber_(data.max_depth, 'Max depth');
+  if (Object.prototype.hasOwnProperty.call(data, 'units')) record.units = cleanAdminText_(data.units, 20);
+  if (Object.prototype.hasOwnProperty.call(data, 'materials')) record.materials = cleanAdminText_(data.materials, 500);
+  if (Object.prototype.hasOwnProperty.call(data, 'accepted_extensions')) record.accepted_extensions = sanitizeRuleExtensions_(data.accepted_extensions);
+  if (Object.prototype.hasOwnProperty.call(data, 'preview_required')) record.preview_required = normalizeAdminFlag_(data.preview_required);
+  if (Object.prototype.hasOwnProperty.call(data, 'notes')) record.notes = cleanAdminText_(data.notes, 1000);
+  if (Object.prototype.hasOwnProperty.call(data, 'active')) record.active = normalizeAdminFlag_(data.active);
+  if (!Object.keys(record).length) throw new Error('No rule fields were supplied.');
+  return record;
+}
+
+function sanitizeAdminUserRecord_(data) {
+  assertAdminDataObject_(data);
+  rejectUnknownAdminFields_(data, APP.sheets.users.headers);
+  var role = sanitizeAdminRole_(data.role);
+  var email = validateAdminEmail_(data.email, 'User email');
+  if (role !== 'student') assertStaffEmailDomain_(email, 'Staff user email');
+  return {
+    email: email,
+    name: cleanAdminText_(data.name, 120) || email.split('@')[0],
+    role: role,
+    active: normalizeAdminFlag_(data.active)
+  };
+}
+
+function assertUserChangeKeepsAdminAccess_(actingUser, pendingRowIndex, pendingRecord) {
+  var actingEmail = normalizeEmail_(actingUser && actingUser.email);
+  if (actingEmail && normalizeEmail_(pendingRecord.email) === actingEmail && (pendingRecord.role !== 'admin' || pendingRecord.active === 'FALSE')) {
+    throw new Error('You cannot remove your own active admin access.');
+  }
+
+  var rows = getRowsAsObjects_(APP.sheets.users.name);
+  var activeAdmins = (APP.adminEmailOverrides || []).filter(function(email) {
+    return !!normalizeEmail_(email);
+  }).length;
+  rows.forEach(function(row) {
+    var effective = Number(row._row_number) === Number(pendingRowIndex)
+      ? Object.assign({}, row, pendingRecord)
+      : row;
+    if (normalizeEmail_(effective.email) && String(effective.role || '').trim().toLowerCase() === 'admin' && String(effective.active || '').trim().toLowerCase() !== 'false') {
+      activeAdmins++;
+    }
+  });
+  if (activeAdmins < 1) throw new Error('At least one active admin account must remain.');
 }
 
 /* =========================
@@ -3126,8 +4487,10 @@ function saveAdminRule(rowIndex, data) {
   if (user.role !== 'admin') throw new Error('Only admins can edit rules.');
   const sheet = getSheet_(APP.sheets.rules.name);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-  Object.keys(data).forEach(function(key) {
-    writeCellByHeader_(sheet, headers, rowIndex, key, data[key]);
+  const safeRowIndex = sanitizeAdminRowIndex_(sheet, rowIndex);
+  const record = sanitizeAdminRuleRecord_(data);
+  Object.keys(record).forEach(function(key) {
+    writeCellByHeader_(sheet, headers, safeRowIndex, key, record[key]);
   });
   appendObject_(APP.sheets.auditLog.name, {
     timestamp: getAuditTimestamp_(),
@@ -3136,7 +4499,7 @@ function saveAdminRule(rowIndex, data) {
     action_type: 'edit_rule',
     old_status: '',
     new_status: '',
-    notes: 'Rule row ' + rowIndex + ' updated'
+    notes: 'Rule row ' + safeRowIndex + ' updated'
   });
   return { ok: true };
 }
@@ -3151,8 +4514,12 @@ function saveAdminUser(rowIndex, data) {
   if (user.role !== 'admin') throw new Error('Only admins can manage users.');
   const sheet = getSheet_(APP.sheets.users.name);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-  Object.keys(data).forEach(function(key) {
-    writeCellByHeader_(sheet, headers, rowIndex, key, data[key]);
+  const safeRowIndex = sanitizeAdminRowIndex_(sheet, rowIndex);
+  const current = rowArrayToObject_(headers, sheet.getRange(safeRowIndex, 1, 1, sheet.getLastColumn()).getDisplayValues()[0], safeRowIndex);
+  const record = sanitizeAdminUserRecord_(Object.assign({}, current, data || {}));
+  assertUserChangeKeepsAdminAccess_(user, safeRowIndex, record);
+  APP.sheets.users.headers.forEach(function(key) {
+    writeCellByHeader_(sheet, headers, safeRowIndex, key, record[key]);
   });
   appendObject_(APP.sheets.auditLog.name, {
     timestamp: getAuditTimestamp_(),
@@ -3161,7 +4528,7 @@ function saveAdminUser(rowIndex, data) {
     action_type: 'edit_user',
     old_status: '',
     new_status: '',
-    notes: 'User row ' + rowIndex + ': ' + (data.email || '') + ' role=' + (data.role || '')
+    notes: 'User row ' + safeRowIndex + ': ' + record.email + ' role=' + record.role
   });
   return { ok: true };
 }
@@ -3169,12 +4536,9 @@ function saveAdminUser(rowIndex, data) {
 function addAdminUser(data) {
   const user = requireAdmin_();
   if (user.role !== 'admin') throw new Error('Only admins can add users.');
-  appendObject_(APP.sheets.users.name, {
-    email: data.email || '',
-    name: data.name || '',
-    role: data.role || 'student',
-    active: data.active || 'TRUE'
-  });
+  const record = sanitizeAdminUserRecord_(data || {});
+  assertUserChangeKeepsAdminAccess_(user, null, record);
+  appendObject_(APP.sheets.users.name, record);
   appendObject_(APP.sheets.auditLog.name, {
     timestamp: getAuditTimestamp_(),
     submission_id: '',
@@ -3182,7 +4546,7 @@ function addAdminUser(data) {
     action_type: 'add_user',
     old_status: '',
     new_status: '',
-    notes: 'Added user: ' + (data.email || '')
+    notes: 'Added user: ' + record.email + ' role=' + record.role
   });
   return { ok: true };
 }
@@ -3204,6 +4568,7 @@ function getAdminIssueRows() {
   return getRowsAsObjects_(APP.sheets.issueTemplates.name);
 }
 
+
 /* ============================================================
    80_UiShell.js
    ============================================================ */
@@ -3217,47 +4582,67 @@ function renderPage_(page, boot) {
   var role = u.role || 'guest';
   var isAdmin = u.isAdmin;
   var isSystemAdmin = role === 'admin';
+  var isTeacherBetaUser = role === 'teacher' || role === 'admin';
   var userChip = u.email
     ? '<div class="user-chip"><span class="user-avatar">' + escapeHtml_((u.name || u.email).charAt(0).toUpperCase()) + '</span><span class="user-info"><span class="user-name">' + escapeHtml_(u.name || u.email.split('@')[0]) + '</span><span class="user-role role-' + escapeHtml_(role) + '">' + escapeHtml_(role) + '</span></span></div>'
     : '<div class="user-chip"><span class="user-name muted-chip">Not signed in</span></div>';
 
+  function navLink_(target, label, options) {
+    options = options || {};
+    var isActive = page === target;
+    var id = options.id || target;
+    var icon = options.icon || String(label || '').slice(0, 2).toUpperCase();
+    var title = options.title || label;
+    return '<a href="?page=' + escapeHtml_(target) + '" id="nav-' + escapeHtml_(id) + '" class="tab-btn' + (options.special ? ' tab-btn--special' : '') + (isActive ? ' active' : '') + '" title="' + escapeHtml_(title) + '"' + (isActive ? ' aria-current="page"' : '') + ' onclick="switchPage(&#39;' + escapeHtml_(target) + '&#39;); return false;"><span class="tab-icon" aria-hidden="true">' + escapeHtml_(icon) + '</span><span class="tab-label">' + escapeHtml_(label) + '</span></a>';
+  }
+
   /* Role-adaptive nav */
   var navItems = '';
   if (role === 'student' || role === 'guest') {
-    navItems =
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> DT Submit</a>' +
-      '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> My Status</a>' +
-      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
-      '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
+    navItems = [
+      navLink_('submit', 'Submit', { icon: '📄', title: 'DT Submit' }),
+      navLink_('status', 'Lookup', { icon: '🔍', title: 'Status Lookup' }),
+      navLink_('queue', 'Queue', { icon: '📈', title: 'Queue Status' }),
+      navLink_('machines', 'Machines', { icon: '🛠', title: 'Machines Guide' }),
+      navLink_('other', 'Special', { icon: '⭐', title: 'Special Request', special: true }),
+      navLink_('help', 'Help', { icon: '?', title: 'Help' })
+    ].join('');
   } else if (role === 'teacher') {
-    navItems =
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> DT Submit</a>' +
-      '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Student Status</a>' +
-      '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128203;</span> My Students</a>' +
-      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
-      '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
+    navItems = [
+      navLink_('submit', 'Submit', { icon: '📄', title: 'DT Submit' }),
+      navLink_('status', 'Lookup', { icon: '🔍', title: 'Student Status Lookup' }),
+      navLink_('teacherbeta', 'Class', { icon: '📋', id: 'teacherbeta', title: 'Class' }),
+      navLink_('queue', 'Queue', { icon: '📈', title: 'Queue Status' }),
+      navLink_('admin', 'Students', { icon: '👥', title: 'My Students' }),
+      navLink_('machines', 'Machines', { icon: '🛠' }),
+      navLink_('other', 'Special', { icon: '⭐', title: 'Special Request', special: true }),
+      navLink_('help', 'Help', { icon: '?', title: 'Help' })
+    ].join('');
   } else if (role === 'technician') {
-    navItems =
-      '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128736;</span> Queue</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
-      '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Lookup</a>' +
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
-      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
-      '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
+    navItems = [
+      navLink_('admin', 'Queue', { icon: '📥', title: 'Workshop Queue' }),
+      navLink_('other', 'Special', { icon: '⭐', title: 'Special Request', special: true }),
+      navLink_('queue', 'Queue Status', { icon: '📈' }),
+      navLink_('status', 'Lookup', { icon: '🔍' }),
+      navLink_('submit', 'Submit', { icon: '📄' }),
+      navLink_('machines', 'Machines', { icon: '🛠' }),
+      navLink_('help', 'Help', { icon: '?', title: 'Help' })
+    ].join('');
   } else {
     /* admin — full nav */
-    navItems =
-      '<a href="?page=admin" id="nav-admin" class="tab-btn ' + (page === 'admin' ? 'active' : '') + '" onclick="switchPage(\'admin\'); return false;"><span class="tab-icon">&#128736;</span> Dashboard</a>' +
-      '<a href="?page=submit" id="nav-submit" class="tab-btn ' + (page === 'submit' ? 'active' : '') + '" onclick="switchPage(\'submit\'); return false;"><span class="tab-icon">&#128196;</span> Submit</a>' +
-      '<a href="?page=other" id="nav-other" class="tab-btn tab-btn--special ' + (page === 'other' ? 'active' : '') + '" onclick="switchPage(\'other\'); return false;"><span class="tab-icon">&#11088;</span> Special Request</a>' +
-      '<a href="?page=status" id="nav-status" class="tab-btn ' + (page === 'status' ? 'active' : '') + '" onclick="switchPage(\'status\'); return false;"><span class="tab-icon">&#128270;</span> Lookup</a>' +
-      '<a href="?page=rules" id="nav-rules" class="tab-btn ' + (page === 'rules' ? 'active' : '') + '" onclick="switchPage(\'rules\'); return false;"><span class="tab-icon">&#9881;</span> Rules</a>' +
-      '<a href="?page=users" id="nav-users" class="tab-btn ' + (page === 'users' ? 'active' : '') + '" onclick="switchPage(\'users\'); return false;"><span class="tab-icon">&#128101;</span> Users</a>' +
-      '<a href="?page=audit" id="nav-audit" class="tab-btn ' + (page === 'audit' ? 'active' : '') + '" onclick="switchPage(\'audit\'); return false;"><span class="tab-icon">&#128220;</span> Audit</a>' +
-      '<a href="?page=machines" id="nav-machines" class="tab-btn ' + (page === 'machines' ? 'active' : '') + '" onclick="switchPage(\'machines\'); return false;"><span class="tab-icon">&#128736;</span> Machines</a>' +
-      '<a href="?page=help" id="nav-help" class="tab-btn ' + (page === 'help' ? 'active' : '') + '" onclick="switchPage(\'help\'); return false;"><span class="tab-icon">&#10067;</span> Help</a>';
+    navItems = [
+      navLink_('admin', 'Dashboard', { icon: '🧭' }),
+      navLink_('submit', 'Submit', { icon: '📄' }),
+      navLink_('other', 'Special', { icon: '⭐', title: 'Special Request', special: true }),
+      navLink_('queue', 'Queue', { icon: '📈', title: 'Queue Status' }),
+      navLink_('status', 'Lookup', { icon: '🔍' }),
+      navLink_('teacherbeta', 'Class', { icon: '📋', id: 'teacherbeta', title: 'Class' }),
+      navLink_('rules', 'Rules', { icon: '⚙' }),
+      navLink_('users', 'Users', { icon: '👥' }),
+      navLink_('audit', 'Audit', { icon: '🧾' }),
+      navLink_('machines', 'Machines', { icon: '🛠' }),
+      navLink_('help', 'Help', { icon: '?', title: 'Help' })
+    ].join('');
   }
 
   /* System-admin pages rendered empty for teacher/technician/student roles. */
@@ -3309,11 +4694,11 @@ function renderPage_(page, boot) {
     /* ---------- SHELL ---------- */
     .skip-link { position: fixed; left: 12px; top: 12px; transform: translateY(-140%); background: #fff; color: var(--navy); border: 2px solid var(--blue); border-radius: 8px; padding: 8px 12px; font-weight: 800; z-index: 1000; box-shadow: var(--shadow-lg); }
     .skip-link:focus { transform: translateY(0); outline: none; }
-    .shell { max-width: 1200px; margin: 0 auto; padding: 0 16px 40px; }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 0 16px 40px; }
     .header { background: var(--navy); color: #fff; padding: 0 16px; position: sticky; top: 0; z-index: 100; }
-    .header-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+    .header-inner { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
     .logo { font-weight: 800; font-size: 16px; letter-spacing: -.3px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
-    .logo-icon { font-size: 20px; }
+    .logo-icon { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 0; }
     .user-chip { display: flex; align-items: center; gap: 8px; font-size: 12px; }
     .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--maroon); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
     .user-info { display: flex; flex-direction: column; line-height: 1.3; }
@@ -3322,16 +4707,22 @@ function renderPage_(page, boot) {
     .muted-chip { opacity: .5; font-size: 12px; }
 
     /* ---------- NAV ---------- */
-    .tab-bar { display: flex; gap: 2px; padding: 0 16px; background: var(--navy); overflow-x: auto; max-width: 1200px; margin: 0 auto; }
-    .tab-btn { color: rgba(255,255,255,.6); font-size: 13px; font-weight: 600; padding: 10px 16px; border-bottom: 3px solid transparent; transition: var(--transition); white-space: nowrap; text-decoration: none; display: flex; align-items: center; gap: 6px; }
-    .tab-btn:hover { color: #fff; text-decoration: none; background: rgba(255,255,255,.05); }
-    .tab-btn.active { color: #fff; border-bottom-color: var(--rose); }
-    .tab-btn--special { color: #fbbf24; text-shadow: 0 0 8px rgba(251,191,36,.2); }
-    .tab-btn--special:hover { color: #fde68a; background: rgba(251,191,36,.12); text-shadow: 0 0 10px rgba(251,191,36,.35); }
-    .tab-btn--special.active { color: #fde68a; border-bottom-color: #f59e0b; text-shadow: 0 0 10px rgba(251,191,36,.3); }
-    .tab-icon { font-size: 15px; }
-    .tab-bar-wrap { position: relative; background: var(--navy); }
-    .tab-bar-wrap::before, .tab-bar-wrap::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24px; z-index: 2; pointer-events: none; transition: opacity .2s; opacity: 0; }
+    .tab-bar { display: flex; flex-wrap: nowrap; justify-content: flex-start; align-items: center; gap: 6px; padding: 8px 16px; background: var(--navy); overflow-x: visible; width: max-content; min-width: 100%; max-width: 1280px; margin: 0 auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+    .tab-bar::-webkit-scrollbar { height: 6px; }
+    .tab-bar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; }
+    .tab-btn { color: rgba(255,255,255,.74); font-size: 12px; line-height: 1.2; font-weight: 800; padding: 8px 11px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; transition: var(--transition); white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; min-height: 38px; flex: 0 0 auto; }
+    .tab-btn:hover { color: #fff; text-decoration: none; background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); }
+    .tab-btn.active { color: #fff; background: rgba(255,255,255,.1); border-color: rgba(232,86,109,.72); box-shadow: inset 0 -2px 0 var(--rose); }
+    .tab-btn--special { color: #fcd34d; }
+    .tab-btn--special:hover { color: #fde68a; background: rgba(251,191,36,.12); }
+    .tab-btn--special.active { color: #fde68a; border-color: rgba(245,158,11,.7); box-shadow: inset 0 -2px 0 #f59e0b; }
+    .tab-icon { min-width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px; background: rgba(255,255,255,.08); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; letter-spacing: 0; line-height: 1; }
+    .tab-btn.active .tab-icon { background: rgba(255,255,255,.16); }
+    .tab-label { display: inline-block; }
+    .tab-bar-wrap { position: sticky; top: 56px; z-index: 95; background: var(--navy); overflow-x: auto; overflow-y: hidden; border-top: 1px solid rgba(255,255,255,.06); box-shadow: 0 6px 14px rgba(15,23,42,.12); scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+    .tab-bar-wrap::-webkit-scrollbar { height: 5px; }
+    .tab-bar-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 999px; }
+    .tab-bar-wrap::before, .tab-bar-wrap::after { content: ''; position: absolute; top: 0; bottom: 0; width: 28px; z-index: 2; pointer-events: none; transition: opacity .2s; opacity: 0; }
     .tab-bar-wrap::before { left: 0; background: linear-gradient(90deg, var(--navy) 30%, transparent); }
     .tab-bar-wrap::after { right: 0; background: linear-gradient(-90deg, var(--navy) 30%, transparent); }
     .tab-bar-wrap.scroll-right::after { opacity: 1; }
@@ -3503,7 +4894,7 @@ function renderPage_(page, boot) {
     .path-card--primary .path-badge { background: var(--maroon); color: #fff; }
     .path-card--secondary { background: linear-gradient(135deg, #eef2ff 0%, #fff 100%); }
     .path-card--secondary .path-badge { background: var(--navy-lt); color: #fff; }
-    .path-card-icon { font-size: 36px; margin-bottom: 8px; line-height: 1; }
+    .path-card-icon { width: 44px; height: 44px; border-radius: 12px; margin-bottom: 8px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; background: rgba(59,130,246,.1); color: var(--blue); font-size: 26px; font-weight: 900; letter-spacing: 0; }
     .path-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 3px 10px; border-radius: 10px; margin-bottom: 8px; }
     .path-card-title { display: block; font-size: 15px; font-weight: 800; margin: 0 0 6px; color: var(--navy); line-height: 1.25; }
     .path-card-copy { display: block; font-size: 12px; color: var(--slate); line-height: 1.5; }
@@ -3663,12 +5054,38 @@ function renderPage_(page, boot) {
     .status-queue-metric { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 11px; }
     .status-queue-metric .num { font-size: 20px; font-weight: 800; color: var(--navy); line-height: 1; }
     .status-queue-metric .lbl { font-size: 10px; font-weight: 800; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .35px; margin-top: 5px; }
+    .status-position-panel { margin-top: 12px; background: #f8fbff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 13px 14px; }
+    .status-position-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .status-position-label { font-size: 10px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: .35px; }
+    .status-position-main { margin-top: 3px; display: flex; align-items: baseline; gap: 7px; color: var(--navy); }
+    .status-position-main strong { font-size: 22px; line-height: 1; }
+    .status-position-main span { font-size: 12px; font-weight: 800; color: var(--slate); }
+    .status-position-note { margin-top: 7px; color: var(--slate); font-size: 12px; line-height: 1.45; max-width: 820px; }
+    .status-position-chip { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; }
+    .status-position-meter { position: relative; height: 9px; margin-top: 11px; border-radius: 999px; background: #dbeafe; box-shadow: inset 0 0 0 1px rgba(15,23,42,.06); }
+    .status-position-meter::after { content: ''; position: absolute; top: 50%; left: var(--position-pct, 0%); width: 18px; height: 18px; border-radius: 999px; background: #fff; border: 3px solid #1d4ed8; transform: translate(-50%, -50%); box-shadow: 0 2px 8px rgba(15,23,42,.16); }
+    .status-position-scale { display: flex; justify-content: space-between; margin-top: 5px; color: var(--slate-lt); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
+    .status-pickup-estimate { margin-top: 11px; border-top: 1px solid #dbeafe; padding-top: 11px; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: 10px; align-items: start; }
+    .status-pickup-label { font-size: 10px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: .35px; }
+    .status-pickup-window { margin-top: 3px; font-size: 14px; font-weight: 800; color: var(--navy); line-height: 1.35; }
+    .status-pickup-days { display: inline-flex; align-items: center; margin-top: 5px; border-radius: 999px; padding: 4px 8px; background: #e0f2fe; color: #075985; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .25px; }
+    .status-pickup-note { color: var(--slate); font-size: 12px; line-height: 1.45; }
+    @media (max-width: 640px) { .status-pickup-estimate { grid-template-columns: 1fr; } }
+    .status-position-panel--paused { background: #fffbeb; border-color: #fde68a; }
+    .status-position-panel--paused .status-position-label, .status-position-panel--paused .status-position-chip { color: #92400e; }
+    .status-position-panel--paused .status-position-chip { background: #fef3c7; }
+    .status-position-panel--closed { background: #f8fafc; border-color: #dbe3ef; }
+    .status-position-panel--closed .status-position-label, .status-position-panel--closed .status-position-chip { color: var(--slate); }
+    .status-position-panel--closed .status-position-chip { background: #e2e8f0; }
     .status-workload-card { margin-top: 10px; }
     .status-workload-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
     .status-health-panel, .status-trend-panel { min-width: 0; background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
     .status-workload-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .status-workload-kicker { font-size: 10px; font-weight: 800; color: var(--slate-lt); text-transform: uppercase; letter-spacing: .35px; }
     .status-workload-title { margin-top: 2px; font-size: 13px; font-weight: 800; color: var(--navy); }
+    .status-workload-count { margin-top: 7px; display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #7f1d1d; border-radius: 10px; padding: 6px 9px; font-size: 11px; font-weight: 800; line-height: 1; }
+    .status-workload-count strong { font-size: 16px; color: #991b1b; }
+    .status-workload-count span { color: #7f1d1d; }
     .status-workload-state { flex: 0 0 auto; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; background: #dbeafe; color: #1d4ed8; }
     .status-workload-state--calm { background: #dcfce7; color: #166534; }
     .status-workload-state--active { background: #dbeafe; color: #1d4ed8; }
@@ -3700,6 +5117,10 @@ function renderPage_(page, boot) {
     .status-workload-foot { margin-top: 9px; color: var(--slate-lt); font-size: 11px; line-height: 1.4; }
     .status-workload-alert { margin-top: 11px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; border-radius: 10px; padding: 9px 10px; font-size: 11px; line-height: 1.45; }
     .status-workload-alert strong { color: #9a3412; }
+    .status-queue-panel--standalone { margin: 0; }
+    .queue-student-grid { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .queue-student-card { margin-bottom: 0; }
+    .queue-machine-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
     .status-trend-panel { margin-top: 0; padding: 12px; }
     .status-trend-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
     .status-trend-title { font-size: 12px; font-weight: 800; color: var(--navy); line-height: 1.25; }
@@ -3717,6 +5138,8 @@ function renderPage_(page, boot) {
     .status-trend-summary strong { color: var(--navy); }
     @media (max-width: 880px) {
       .status-workload-layout { grid-template-columns: 1fr; }
+      .queue-student-grid { grid-template-columns: 1fr; }
+      .queue-machine-status { grid-template-columns: 1fr; }
     }
     .status-stage { margin-top: 12px; background: #f8fafc; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--slate); line-height: 1.5; }
     .status-stage strong { color: var(--navy); }
@@ -3770,6 +5193,48 @@ function renderPage_(page, boot) {
     .admin-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .admin-hero .btn-ghost { color: #fff; border-color: rgba(255,255,255,.24); background: rgba(255,255,255,.06); }
     .admin-hero .btn-ghost:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.34); }
+    .teacher-beta-hero { background: #0f172a; color: #fff; border-radius: var(--radius); padding: 28px; margin-top: 20px; box-shadow: var(--shadow-lg); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
+    .teacher-beta-kicker { font-size: 12px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #86efac; margin-bottom: 6px; }
+    .teacher-beta-title { font-size: 30px; font-weight: 800; line-height: 1.12; margin: 0 0 10px; }
+    .teacher-beta-copy { color: #d1d5db; font-size: 15px; line-height: 1.62; max-width: 860px; }
+    .teacher-beta-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .teacher-beta-actions .btn { min-height: 42px; font-size: 14px; padding: 10px 16px; }
+    .teacher-beta-hero .btn-ghost { color: #fff; border-color: rgba(255,255,255,.24); background: rgba(255,255,255,.06); }
+    .teacher-beta-toolbar { display: grid; grid-template-columns: 190px 220px minmax(260px, 1fr) auto auto; gap: 14px; align-items: end; }
+    .teacher-beta-search-field { min-width: 0; }
+    .teacher-beta-toolbar .field label { font-size: 13px; color: var(--slate); }
+    .teacher-beta-toolbar input, .teacher-beta-toolbar select { min-height: 44px; padding: 11px 14px; font-size: 14px; }
+    .teacher-beta-check { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 14px; font-weight: 700; color: var(--slate); white-space: nowrap; }
+    .teacher-beta-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin-top: 16px; }
+    .teacher-beta-stat { border: 1px solid var(--card-border); background: #f8fafc; border-radius: 12px; padding: 13px 12px; min-height: 74px; }
+    .teacher-beta-stat strong { display: block; color: var(--navy); font-size: 26px; line-height: 1; }
+    .teacher-beta-stat span { display: block; margin-top: 7px; color: var(--slate-lt); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
+    .teacher-beta-results { margin-top: 16px; }
+    .teacher-beta-class { border: 1px solid var(--card-border); border-radius: 12px; background: #fff; margin-top: 16px; overflow: hidden; }
+    .teacher-beta-class-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 18px 20px; background: #f8fafc; border-bottom: 1px solid var(--card-border); }
+    .teacher-beta-class-title { font-size: 17px; font-weight: 800; color: var(--navy); }
+    .teacher-beta-class-sub { margin-top: 3px; color: var(--slate-lt); font-size: 13px; }
+    .teacher-beta-progress { width: 220px; max-width: 100%; display: grid; gap: 7px; }
+    .teacher-beta-progress-track { height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+    .teacher-beta-progress-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--green)); }
+    .teacher-beta-progress-text { font-size: 12px; color: var(--slate); font-weight: 800; text-align: right; }
+    .teacher-beta-mini { color: var(--slate-lt); font-size: 12px; margin-top: 6px; }
+    .teacher-beta-mini span { display: inline-flex; border: 1px solid var(--card-border); border-radius: 999px; padding: 4px 9px; margin: 4px 5px 0 0; color: var(--slate); background: #fff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .22px; }
+    .teacher-beta-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .teacher-beta-table th { text-align: left; color: var(--slate-lt); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; padding: 12px 14px; background: #fbfdff; border-bottom: 1px solid var(--card-border); }
+    .teacher-beta-table td { padding: 14px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+    .teacher-beta-table tr:last-child td { border-bottom: 0; }
+    .teacher-beta-row--missing td { background: #fff8f8; }
+    .teacher-beta-row--needs_fix td { background: #fffbeb; }
+    .teacher-beta-row--completed td { background: #f7fef9; }
+    .teacher-beta-row--class-mismatch td:first-child { box-shadow: inset 4px 0 0 #f59e0b; }
+    .teacher-beta-student { font-size: 15px; font-weight: 800; color: var(--navy); line-height: 1.28; }
+    .teacher-beta-email { margin-top: 4px; color: var(--slate-lt); font-size: 12px; line-height: 1.35; word-break: break-word; }
+    .teacher-beta-case { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; padding: 4px 9px; font-size: 12px; font-weight: 800; }
+    .teacher-beta-action { color: var(--slate); line-height: 1.45; font-size: 13px; }
+    .teacher-beta-empty { padding: 16px; }
+    .teacher-beta-extra { margin: 12px 16px 16px; }
+    .pill-missing { background: #fee2e2; color: #991b1b; }
     .admin-role-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px; margin-top: 10px; }
     .admin-role-step { background: #fff; border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; align-items: flex-start; gap: 9px; min-width: 0; box-shadow: var(--shadow); }
     .admin-role-step-num { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; background: var(--navy); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
@@ -3812,11 +5277,14 @@ function renderPage_(page, boot) {
     .filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 16px; padding: 14px; background: var(--bg); border-radius: var(--radius-sm); }
     .filter-bar .field { flex: 1 1 140px; min-width: 120px; }
     .filter-bar .field.filter-wide { flex: 2 1 240px; }
+    .filter-bar .field.filter-source { flex: .9 1 128px; }
+    .filter-bar .field.filter-sort { flex: 1.2 1 176px; }
     .filter-bar .field label { font-size: 11px; }
     .filter-bar input, .filter-bar select { font-size: 12px; padding: 7px 10px; }
     .filter-check-field { flex: 1 1 150px; }
     .filter-check { position: relative; width: 100%; }
-    .filter-check summary { list-style: none; min-height: 34px; border: 2px solid var(--card-border); border-radius: var(--radius-sm); background: #fff; padding: 7px 28px 7px 10px; font-size: 12px; font-weight: 700; color: var(--navy); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+    .filter-check summary { list-style: none; appearance: none; -webkit-appearance: none; min-height: 34px; border: 2px solid var(--card-border); border-radius: var(--radius-sm); background: #fff; padding: 7px 28px 7px 10px; font-size: 12px; font-weight: 700; color: var(--navy); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+    .filter-check summary::marker { content: ""; }
     .filter-check summary::-webkit-details-marker { display: none; }
     .filter-check summary::after { content: ""; position: absolute; right: 10px; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--slate); border-bottom: 2px solid var(--slate); transform: translateY(-60%) rotate(45deg); }
     .filter-check[open] summary { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,.08); }
@@ -3853,6 +5321,7 @@ function renderPage_(page, boot) {
     .pill-source-special { background: #fef3c7; color: #92400e; font-size: 10px; }
     .pill-prototype-low { background: #dcfce7; color: #166534; font-size: 10px; }
     .pill-prototype-hi { background: #fee2e2; color: #991b1b; font-size: 10px; }
+    .pill-prototype-final { background: #e0f2fe; color: #075985; font-size: 10px; }
     .pill-prototype-na { background: #e2e8f0; color: #475569; font-size: 10px; }
     .pill-repeat { background: #fef3c7; color: #92400e; font-size: 10px; }
     .pill-repeat-strong { background: #fee2e2; color: #991b1b; font-size: 10px; }
@@ -4147,14 +5616,15 @@ function renderPage_(page, boot) {
     body.modal-open { overflow: hidden; }
     .content { padding-top: 6px; }
     .header { background: #111827; box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 8px 24px rgba(15,23,42,.14); }
-    .header-inner { height: 60px; }
+    .header-inner { height: 60px; max-width: 1440px; }
     .logo { letter-spacing: 0; }
     .logo-icon { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; }
     .user-chip { max-width: 280px; min-width: 0; }
     .user-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tab-bar-wrap { position: sticky; top: 60px; z-index: 95; box-shadow: 0 6px 18px rgba(15,23,42,.08); }
-    .tab-bar { scrollbar-width: thin; }
-    .tab-btn { border-radius: 8px 8px 0 0; outline: none; }
+    .tab-bar { scrollbar-width: none; }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-btn { outline: none; }
     .tab-btn:focus-visible, .btn:focus-visible, .lane-btn:focus-visible, .file-zone:focus-visible, .field-tip:focus-visible { outline: 3px solid rgba(59,130,246,.24); outline-offset: 2px; }
     .card { border-color: #dbe3ef; box-shadow: 0 10px 28px rgba(15,23,42,.055); border-radius: 10px; }
     .section-title { letter-spacing: 0; }
@@ -4178,7 +5648,7 @@ function renderPage_(page, boot) {
     .home-panel { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
     .home-panel-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .45px; color: #bfdbfe; }
     .home-panel-row { display: flex; gap: 10px; align-items: flex-start; color: #e5e7eb; font-size: 12px; line-height: 1.45; }
-    .home-panel-icon { width: 24px; height: 24px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .home-panel-icon { width: 24px; height: 24px; border-radius: 8px; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 900; letter-spacing: 0; }
     .workflow-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
     .workflow-step { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 13px 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 0; box-shadow: var(--shadow); }
     .workflow-num { width: 24px; height: 24px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
@@ -4244,7 +5714,9 @@ function renderPage_(page, boot) {
       .user-chip { flex-shrink: 0; min-width: 0; }
       .user-info { display: none; }
       .user-avatar { width: 28px; height: 28px; }
-      .tab-btn { padding: 8px 12px; font-size: 12px; }
+      .tab-bar { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; padding: 6px 10px; }
+      .tab-bar-wrap::before, .tab-bar-wrap::after { display: block; }
+      .tab-btn { padding: 8px 10px; font-size: 12px; }
       .tab-btn--special { text-shadow: none; }
       .card { padding: 16px; }
       .home-hero { grid-template-columns: 1fr; padding: 20px 16px; margin-top: 14px; }
@@ -4273,6 +5745,12 @@ function renderPage_(page, boot) {
       .admin-hero-title { font-size: 20px; }
       .admin-hero-actions { justify-content: stretch; }
       .admin-hero-actions .btn { flex: 1 1 100%; }
+      .teacher-beta-table, .teacher-beta-table thead, .teacher-beta-table tbody, .teacher-beta-table tr, .teacher-beta-table th, .teacher-beta-table td { display: block; width: 100%; }
+      .teacher-beta-table thead { display: none; }
+      .teacher-beta-table tbody { display: grid; gap: 10px; }
+      .teacher-beta-table tr { border: 1px solid var(--card-border); border-radius: 12px; padding: 8px 10px; background: #fff; }
+      .teacher-beta-table td { border-bottom: 0; padding: 7px 0; }
+      .teacher-beta-table td::before { content: attr(data-label); display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; color: var(--slate-lt); margin-bottom: 2px; }
       .admin-workboard { grid-template-columns: 1fr; }
       .admin-insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .admin-insight { min-height: 86px; padding: 12px; }
@@ -4317,6 +5795,9 @@ function renderPage_(page, boot) {
     @media (max-width: 980px) {
       .admin-hero { grid-template-columns: 1fr; }
       .admin-hero-actions { justify-content: flex-start; }
+      .teacher-beta-hero { grid-template-columns: 1fr; }
+      .teacher-beta-actions { justify-content: flex-start; }
+      .teacher-beta-toolbar { grid-template-columns: 1fr; align-items: stretch; }
       .admin-workboard { grid-template-columns: 1fr; }
       .admin-insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .submit-workspace { grid-template-columns: 1fr; }
@@ -4324,6 +5805,298 @@ function renderPage_(page, boot) {
     }
     @media (max-width: 480px) { .admin-insight-grid { grid-template-columns: 1fr; } }
     @media (max-width: 860px) { .machine-page-grid { grid-template-columns: 1fr; } }
+
+    /* ---------- FIGMA-STYLE SYSTEM REFINEMENT PASS ---------- */
+    .shell, .header-inner, .tab-bar, .site-footer { max-width: 1280px; }
+    .logo-icon, .tab-icon, .home-panel-icon, .status-help-icon, .admin-insight-icon, .request-note-icon {
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+    }
+    .logo-icon { font-size: 15px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+    .tab-bar { gap: 7px; padding: 8px 18px; }
+    .tab-btn { min-height: 40px; border-radius: 11px; background: rgba(255,255,255,.035); }
+    .tab-icon { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
+    .tab-btn.active .tab-icon { background: rgba(255,255,255,.2); }
+    .tab-btn--special .tab-icon { background: rgba(245,158,11,.16); }
+    .tab-btn:active, .btn:active, .lane-btn:active, .path-card:active { transform: translateY(0); }
+
+    .card, .teacher-beta-class, .status-health-panel, .status-trend-panel, .status-search-panel,
+    .form-section, .submit-helper-rail, .admin-health-panel, .status-help-card, .request-note {
+      border-color: #d7e0ec;
+    }
+    .card { background: rgba(255,255,255,.98); }
+    .section-title { line-height: 1.25; }
+    .section-sub { max-width: 960px; }
+    .btn { border-radius: 9px; font-weight: 800; }
+    .btn-ghost:hover { color: var(--navy); }
+    .btn-primary:focus-visible { box-shadow: 0 0 0 4px rgba(155,44,63,.16), 0 8px 16px rgba(155,44,63,.14); }
+    input:not([type=checkbox]):not([type=radio]):hover, select:hover, textarea:hover {
+      border-color: #cbd5e1;
+    }
+    input:not([type=checkbox]):not([type=radio])::placeholder, textarea::placeholder { color: #9aa8ba; }
+    select { appearance: auto; -webkit-appearance: menulist; -moz-appearance: auto; background-color: #fff; background-image: none; padding-right: 12px; }
+
+    .home-hero, .page-hero, .admin-hero, .teacher-beta-hero {
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .home-hero p, .page-hero p, .admin-hero-sub, .teacher-beta-copy { color: #d6dee9; }
+    .home-hero-actions .btn, .page-hero-actions .btn, .teacher-beta-actions .btn, .admin-hero-actions .btn {
+      min-height: 42px;
+    }
+    .workflow-step, .request-note, .admin-role-step, .newcomer-card {
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .workflow-step:hover, .request-note:hover, .admin-role-step:hover, .newcomer-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(15,23,42,.06);
+      border-color: #cbd5e1;
+    }
+
+    .teacher-beta-toolbar, .filter-bar {
+      background: #f8fafc;
+      border: 1px solid #dbe3ef;
+      border-radius: 12px;
+    }
+    .teacher-beta-toolbar { padding: 14px; }
+    .teacher-beta-check input { width: 16px; height: 16px; }
+    .teacher-beta-stat, .summary-card, .stat-card, .status-queue-metric {
+      background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+    }
+    .teacher-beta-table th, thead th, .config-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafc;
+      box-shadow: 0 1px 0 var(--card-border);
+    }
+    .teacher-beta-table tbody tr, .config-table tbody tr, tbody tr {
+      transition: background .16s ease, box-shadow .16s ease;
+    }
+    .teacher-beta-table tbody tr:hover td, .config-table tbody tr:hover td {
+      background-color: #f8fbff;
+    }
+    .teacher-beta-row--completed:hover td { background-color: #ecfdf5; }
+    .teacher-beta-row--missing:hover td { background-color: #fff1f2; }
+    .teacher-beta-row--needs_fix:hover td { background-color: #fef3c7; }
+    .teacher-beta-email, .queue-meta-aux, .sub { color: #718096; }
+
+    .filter-check summary:focus-visible, .filter-check-option:focus-within {
+      outline: 3px solid rgba(59,130,246,.18);
+      outline-offset: 2px;
+    }
+    .filter-check-menu {
+      border-color: #cbd5e1;
+      box-shadow: 0 18px 38px rgba(15,23,42,.16);
+    }
+    .filter-check-option { min-height: 34px; }
+    .filter-check-option input { accent-color: var(--maroon); }
+    .filter-check-option span { overflow: hidden; text-overflow: ellipsis; }
+
+    .queue-table tbody td { box-shadow: 0 1px 0 rgba(15,23,42,.02); }
+    .queue-name, .teacher-beta-student { letter-spacing: 0; }
+    .queue-case-line { align-items: center; }
+    .queue-review-btn, .queue-label-btn { min-height: 36px; }
+    .case-badge, .teacher-beta-case { box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
+
+    .drawer { width: min(520px, 92vw); box-shadow: -18px 0 40px rgba(15,23,42,.22); }
+    .drawer-body { display: grid; gap: 12px; background: #f8fafc; }
+    .drawer-section { background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; margin-bottom: 0; }
+    .drawer-section-title { border-bottom-color: #edf2f7; }
+    .drawer-field .val { line-height: 1.45; word-break: break-word; }
+    .drawer-actions { box-shadow: 0 -10px 20px rgba(15,23,42,.06); }
+    .modal { box-shadow: 0 24px 60px rgba(15,23,42,.24); }
+
+    .status-workload-layout { align-items: stretch; }
+    .status-health-panel, .status-trend-panel { box-shadow: 0 8px 22px rgba(15,23,42,.04); }
+    .status-trend-chart { height: 168px; }
+    .status-position-panel { box-shadow: 0 8px 18px rgba(59,130,246,.06); }
+    .status-help-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .status-help-card:hover { transform: translateY(-1px); border-color: #cbd5e1; box-shadow: 0 10px 22px rgba(15,23,42,.055); }
+
+    .config-table { border-collapse: separate; border-spacing: 0; }
+    .config-table th:first-child { border-top-left-radius: 10px; }
+    .config-table th:last-child { border-top-right-radius: 10px; }
+    .config-table td { background: #fff; }
+
+    @media (max-width: 1180px) {
+      .tab-bar { padding-left: 12px; padding-right: 12px; }
+      .tab-btn { padding-left: 9px; padding-right: 9px; font-size: 11.5px; gap: 6px; }
+      .tab-icon { min-width: 21px; height: 21px; flex-basis: 21px; font-size: 13px; }
+      .tab-label { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+    }
+    @media (max-width: 1080px) {
+      .tab-bar { gap: 5px; padding: 7px 10px; }
+      .tab-btn { min-height: 36px; padding: 7px 6px; font-size: 10.5px; gap: 4px; border-radius: 9px; }
+      .tab-icon { min-width: 18px; height: 18px; flex-basis: 18px; font-size: 12px; border-radius: 6px; }
+      .tab-label { max-width: 54px; }
+    }
+    @media (max-width: 760px) {
+      .tab-label { max-width: none; }
+      .teacher-beta-toolbar, .filter-bar { padding: 12px; }
+      .status-trend-chart { height: 150px; }
+    }
+
+    /* ---------- FIGMA READABILITY SCALE PASS ---------- */
+    html { font-size: 15px; }
+    body { color: #172033; }
+    .shell, .header-inner, .tab-bar, .site-footer { max-width: 1280px; }
+    .shell { padding-left: 16px; padding-right: 16px; }
+    .header-inner { height: 62px; }
+    .logo { font-size: 18px; }
+    .logo-icon { width: 32px; height: 32px; font-size: 17px; }
+    .user-chip { font-size: 13px; }
+    .user-avatar { width: 34px; height: 34px; font-size: 14px; }
+    .user-role { font-size: 11px; }
+
+    .tab-bar { gap: 8px; padding: 10px 20px; justify-content: center; }
+    .tab-btn { min-height: 44px; padding: 10px 13px; font-size: 13px; border-radius: 12px; gap: 8px; }
+    .tab-icon { min-width: 25px; height: 25px; flex-basis: 25px; font-size: 15px; border-radius: 8px; }
+    .tab-label { line-height: 1.2; }
+
+    .card { padding: 28px; margin-top: 22px; }
+    .section-title { font-size: 22px; }
+    .section-sub { font-size: 15px; color: #64748b; line-height: 1.55; }
+    .form-section-title { font-size: 17px; }
+    .field label, .filter-bar .field label, .teacher-beta-toolbar .field label { font-size: 13px; font-weight: 800; }
+    .field .helper, .hint { font-size: 12.5px; color: #64748b; }
+    input:not([type=checkbox]):not([type=radio]), select, textarea { min-height: 44px; font-size: 15px; padding: 11px 14px; }
+    .btn { min-height: 42px; font-size: 14px; padding: 10px 18px; }
+    .btn-sm { min-height: 36px; font-size: 13px; padding: 7px 13px; }
+    .alert, .disclaimer-box { font-size: 14px; line-height: 1.55; }
+
+    .home-hero, .page-hero, .admin-hero, .teacher-beta-hero { padding: 30px; }
+    .home-hero h1 { font-size: 34px; }
+    .page-hero h1, .admin-hero-title { font-size: 32px; }
+    .teacher-beta-title { font-size: 34px; }
+    .home-hero p, .page-hero p, .admin-hero-sub, .teacher-beta-copy { font-size: 16px; line-height: 1.62; max-width: 940px; }
+    .home-panel-title, .workflow-step strong { font-size: 14px; }
+    .workflow-step span:last-child { font-size: 13px; }
+
+    .status-search-panel { padding: 18px; }
+    .status-search-panel input { font-size: 15px; }
+    .status-empty-copy, .status-help-copy { font-size: 14px; }
+    .status-workload-title, .status-queue-title { font-size: 15px; }
+    .status-workload-kicker { font-size: 11px; }
+    .status-workload-count { font-size: 12px; }
+    .status-workload-count strong { font-size: 18px; }
+    .status-workload-state, .status-trend-pill { font-size: 11px; }
+    .status-workload-scale, .status-trend-summary { font-size: 11.5px; }
+    .status-queue-note, .status-workload-foot, .status-workload-alert, .status-position-note, .status-pickup-note { font-size: 13px; }
+    .status-trend-title { font-size: 14px; }
+    .status-trend-note { font-size: 11.5px; }
+    .status-trend-chart { height: 188px; }
+    .status-trend-label { font-size: 10px; }
+    .status-workload-lane-label { font-size: 12.5px; }
+    .status-workload-lane-note { font-size: 11.5px; }
+    .status-next-value { font-size: 14.5px; }
+    .status-next-note, .status-action-list, .status-stage { font-size: 13px; }
+
+    .teacher-beta-stat strong, .summary-card .num, .stat-num { font-size: 28px; }
+    .teacher-beta-stat span, .summary-card .lbl, .stat-label { font-size: 11.5px; }
+    .teacher-beta-class-title { font-size: 20px; }
+    .teacher-beta-class-sub, .teacher-beta-action { font-size: 14px; }
+    .teacher-beta-table, table { font-size: 15px; }
+    .teacher-beta-table th, thead th { font-size: 12px; }
+    .teacher-beta-student { font-size: 16px; }
+    .teacher-beta-email { font-size: 13px; }
+
+    .admin-role-step-title, .admin-health-title, .queue-toolbar-title { font-size: 15px; }
+    .admin-role-step-copy, .admin-health-copy, .admin-health-row, .queue-toolbar-sub { font-size: 13px; }
+    .admin-section-label, .admin-insight-label { font-size: 12px; }
+    .admin-insight-value { font-size: 30px; }
+    .admin-insight-note { font-size: 12.5px; }
+
+    .filter-bar { gap: 12px; padding: 16px; border-radius: 14px; }
+    .filter-bar input, .filter-bar select, .filter-check summary { min-height: 40px; font-size: 13.5px; padding-top: 9px; padding-bottom: 9px; }
+    .filter-bar input, .filter-bar select, .filter-check summary, .teacher-beta-toolbar input, .teacher-beta-toolbar select {
+      border-width: 1.5px;
+      background-color: #fff;
+      box-shadow: inset 0 1px 0 rgba(15,23,42,.025);
+    }
+    .filter-bar select, .teacher-beta-toolbar select {
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      -moz-appearance: none !important;
+      background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%) !important;
+      background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50% !important;
+      background-repeat: no-repeat !important;
+      background-size: 5px 5px, 5px 5px !important;
+      padding-right: 34px;
+    }
+    .filter-check summary:hover, .filter-bar select:hover, .teacher-beta-toolbar select:hover { border-color: #b8c5d8; }
+    .filter-check summary::after { transition: transform .16s ease, border-color .16s ease; }
+    .filter-check[open] summary::after { transform: translateY(-35%) rotate(225deg); }
+    .filter-check-option { font-size: 13px; min-height: 38px; }
+    tbody td { padding: 12px 14px; }
+    .queue-table { border-spacing: 0 8px; }
+    .queue-table thead th { font-size: 11.5px; padding-bottom: 6px; }
+    .queue-table tbody td { padding: 14px 13px; }
+    .queue-name { font-size: 16px; line-height: 1.25; }
+    .queue-meta, .queue-next-owner, .queue-status-note, .queue-time-main { font-size: 12.5px; }
+    .queue-meta-aux, .queue-context-sub, .queue-status-aux, .queue-time-sub, .queue-risk-note { font-size: 11.5px; }
+    .queue-context-main { font-size: 14px; }
+    .case-badge { min-width: 58px; font-size: 12px; padding: 4px 9px; }
+    .pill, .queue-risk-pill { font-size: 11px; padding: 4px 9px; }
+    .stat-card { min-height: 86px; padding: 15px 10px; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+    .stat-card .stat-num, .stat-card .stat-num.pill {
+      display: block !important;
+      min-width: 0 !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      font-size: 36px !important;
+      line-height: .95 !important;
+      font-weight: 900 !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+    .stat-card .stat-num.pill-submitted { color: #1d4ed8; }
+    .stat-card .stat-num.pill-needs_fix { color: #92400e; }
+    .stat-card .stat-num.pill-approved { color: #065f46; }
+    .stat-card .stat-num.pill-in_queue { color: #5b21b6; }
+    .stat-card .stat-num.pill-in_production { color: #c2410c; }
+    .stat-card .stat-num.pill-completed { color: #15803d; }
+    .stat-card .stat-num.pill-rejected { color: #be123c; }
+    .stat-card .stat-label { font-size: 12px; font-weight: 800; }
+    .admin-insight { min-height: 108px; }
+    .admin-insight-value { font-size: 38px; font-weight: 900; }
+    .admin-insight-note { font-size: 13px; }
+    .queue-review-btn, .queue-label-btn { width: 96px; min-width: 96px; min-height: 40px; }
+
+    .drawer { width: min(580px, 94vw); }
+    .drawer-head h3, .modal-head h3 { font-size: 18px; }
+    .drawer-section-title { font-size: 13px; }
+    .drawer-field label { font-size: 12px; }
+    .drawer-field .val, .email-body, .email-meta input { font-size: 14px; }
+    .drawer-list li { font-size: 13px; }
+    .help-card h4, .help-section-title { font-size: 17px; }
+    .help-card p, .help-card li, .help-section p, .help-section li { font-size: 14px; }
+
+    @media (max-width: 1180px) {
+      .shell { padding-left: 16px; padding-right: 16px; }
+      .tab-btn { min-height: 40px; font-size: 12px; padding: 8px 9px; gap: 6px; }
+      .tab-icon { min-width: 22px; height: 22px; flex-basis: 22px; font-size: 14px; }
+      .tab-label { max-width: none; }
+      .home-hero h1 { font-size: 30px; }
+      .page-hero h1, .admin-hero-title, .teacher-beta-title { font-size: 28px; }
+    }
+    @media (max-width: 1080px) {
+      .tab-bar { gap: 6px; padding: 8px 10px; justify-content: center; }
+      .tab-btn { min-height: 38px; padding: 8px 7px; font-size: 11.5px; gap: 5px; }
+      .tab-icon { min-width: 20px; height: 20px; flex-basis: 20px; font-size: 13px; border-radius: 7px; }
+      .tab-label { max-width: none; }
+      .card { padding: 22px; }
+    }
+    @media (max-width: 760px) {
+      html { font-size: 14px; }
+      .shell { padding-left: 12px; padding-right: 12px; }
+      .home-hero, .page-hero, .admin-hero, .teacher-beta-hero { padding: 20px 16px; }
+      .home-hero h1, .page-hero h1, .admin-hero-title, .teacher-beta-title { font-size: 24px; }
+      .home-hero p, .page-hero p, .admin-hero-sub, .teacher-beta-copy { font-size: 14px; }
+      .card { padding: 18px; }
+      .status-trend-chart { height: 160px; }
+    }
   </style>
 </head>
 <body class="role-${escapeHtml_(role)}">
@@ -4333,7 +6106,7 @@ function renderPage_(page, boot) {
 
   <header class="header">
     <div class="header-inner">
-      <div class="logo"><span class="logo-icon">&#128736;</span> ${escapeHtml_(boot.appName)}` + (isAdmin ? `<span class="role-badge role-badge-${escapeHtml_(role)}">${escapeHtml_(role)}</span>` : '') + `</div>
+      <div class="logo"><span class="logo-icon" aria-hidden="true">🛠</span> ${escapeHtml_(boot.appName)}` + (isAdmin ? `<span class="role-badge role-badge-${escapeHtml_(role)}">${escapeHtml_(role)}</span>` : '') + `</div>
       ` + userChip + `
     </div>
   </header>
@@ -4344,6 +6117,8 @@ function renderPage_(page, boot) {
       <div id="page-submit" style="display:${page === 'submit' ? 'block' : 'none'}">${renderSubmitPage_()}</div>
       <div id="page-other"  style="display:${page === 'other'  ? 'block' : 'none'}">${renderOtherRequestPage_(boot)}</div>
       <div id="page-status" style="display:${page === 'status' ? 'block' : 'none'}">${renderStatusPage_(boot.currentUser)}</div>
+      <div id="page-queue" style="display:${page === 'queue' ? 'block' : 'none'}">${renderStudentQueuePage_()}</div>
+      <div id="page-teacherbeta" style="display:${page === 'teacherbeta' ? 'block' : 'none'}">${isTeacherBetaUser ? renderTeacherBetaPage_(boot.currentUser) : '<div class="card"><div class="section-title">&#128274; Access Restricted</div><p>Class is available to teacher accounts only.</p></div>'}</div>
       ` + (isAdmin ? `<div id="page-admin"  style="display:${page === 'admin'  ? 'block' : 'none'}">${renderAdminPage_(boot.currentUser, boot)}</div>` : `<div id="page-admin" style="display:none"><div class="card"><div class="section-title">&#128274; Access Restricted</div><p>You do not have permission to view this page.</p></div></div>`) + `
       <div id="page-machines" style="display:${page === 'machines' ? 'block' : 'none'}">${renderMachinesPage_()}</div>
       <div id="page-help"   style="display:${page === 'help'   ? 'block' : 'none'}">${renderHelpPage_()}</div>
@@ -4405,6 +6180,13 @@ function renderPage_(page, boot) {
     var QUEUE_HEAVY_THRESHOLD = Math.max(QUEUE_BUSY_THRESHOLD + 1, Number(QUEUE_POLICY.activeHeavyThreshold || 30));
     var LASER_CAPACITY_NOTICE = QUEUE_POLICY.laserCapacityNotice || {};
 
+    function currentUserEmail_() {
+      return String((BOOT.currentUser && BOOT.currentUser.email) || '').trim();
+    }
+    function isApprovedSchoolEmail_(email) {
+      return /^[^\\s@]+@(student\\.)?vsa\\.edu\\.hk$/i.test(String(email || '').trim());
+    }
+
     function queueLoadState_(load) {
       load = Math.max(0, Number(load || 0));
       if (load > QUEUE_HEAVY_THRESHOLD) return { key: 'heavy', label: 'Heavy', fill: 'status-workload-fill--heavy' };
@@ -4453,6 +6235,7 @@ function renderPage_(page, boot) {
       var normalized = String(value || '').trim().toLowerCase();
       if (normalized === 'low' || normalized === 'lo-fi') return 'Lo fi Prototype';
       if (normalized === 'hi' || normalized === 'hi-fi') return 'Hi fi Prototype';
+      if (normalized === 'final' || normalized === 'final-product' || normalized === 'final_product') return 'Final Product';
       if (normalized === 'na') return 'N/A';
       return '';
     }
@@ -4468,6 +6251,9 @@ function renderPage_(page, boot) {
       }
       if (normalized === 'hi' || normalized === 'hi-fi') {
         return '<span class="pill pill-prototype-hi" title="Prototype Type">HI FI</span>';
+      }
+      if (normalized === 'final' || normalized === 'final-product' || normalized === 'final_product') {
+        return '<span class="pill pill-prototype-final" title="Prototype Type">FINAL</span>';
       }
       if (normalized === 'na') {
         return '<span class="pill pill-prototype-na" title="Prototype Type">N/A</span>';
@@ -4873,15 +6659,39 @@ function renderPage_(page, boot) {
         summary.textContent = checked.length + ' selected';
       }
     }
+    function closeCheckboxFilter_(id) {
+      var panel = document.getElementById(id + 'Panel');
+      if (panel) panel.open = false;
+    }
+    function closeAllCheckboxFilters_() {
+      document.querySelectorAll('.filter-check[open]').forEach(function(panel) {
+        panel.open = false;
+      });
+    }
+    function closeOtherCheckboxFilters_(id) {
+      document.querySelectorAll('.filter-check[id$="Panel"]').forEach(function(panel) {
+        if (panel.id !== id + 'Panel') panel.open = false;
+      });
+    }
     function initCheckboxFilter_(id) {
       updateCheckboxFilterSummary_(id);
+      var panel = document.getElementById(id + 'Panel');
+      if (panel && panel.dataset.filterPanelInit !== 'true') {
+        panel.dataset.filterPanelInit = 'true';
+        panel.addEventListener('toggle', function() {
+          if (panel.open) closeOtherCheckboxFilters_(id);
+        });
+      }
       document.querySelectorAll('[data-filter-group="' + id + '"] input[type=checkbox]').forEach(function(input) {
+        if (input.dataset.filterInit === 'true') return;
+        input.dataset.filterInit = 'true';
         input.addEventListener('change', function() {
           _activeQueueLane = '';
           updateCheckboxFilterSummary_(id);
           updateLaneActive_();
           updateStatActive_();
           loadAdminRows();
+          window.setTimeout(function() { closeCheckboxFilter_(id); }, 80);
         });
       });
     }
@@ -5020,9 +6830,10 @@ function renderPage_(page, boot) {
     }
 
     /* ---------- NAV ---------- */
-    var _pages = ['submit','other','status','admin','machines','help','rules','users','audit'];
+    var _pages = ['submit','other','status','queue','teacherbeta','admin','machines','help','rules','users','audit'];
     var _adminPages = ['admin','rules','users','audit'];
     var _systemAdminPages = ['rules','users','audit'];
+    var _teacherBetaPages = ['teacherbeta'];
     var _init = {};
     function refreshOverlayLock_() {
       var emailOverlay = document.getElementById('emailOverlay');
@@ -5065,6 +6876,10 @@ function renderPage_(page, boot) {
         showToast('Only system admins can use that page.','error');
         p = BOOT.currentUser.isAdmin ? 'admin' : 'submit';
       }
+      if (_teacherBetaPages.indexOf(p) !== -1 && BOOT.currentUser.role !== 'teacher' && BOOT.currentUser.role !== 'admin') {
+        showToast('Class is available to teacher accounts only.','error');
+        p = BOOT.currentUser.isAdmin ? 'admin' : 'submit';
+      }
       /* Role guard: block students/guests from admin-only pages */
       if (!BOOT.currentUser.isAdmin && _adminPages.indexOf(p) !== -1) {
         showToast('You do not have permission to view that page.','error');
@@ -5087,6 +6902,8 @@ function renderPage_(page, boot) {
       if (p === 'submit') initSubmitPage();
       if (p === 'other')  initOtherPage();
       if (p === 'status') initStatusPage();
+      if (p === 'queue')  initQueuePage();
+      if (p === 'teacherbeta') initTeacherBetaPage();
       if (p === 'admin')  initAdminPage();
       if (p === 'rules')  initRulesPage();
       if (p === 'users')  initUsersPage();
@@ -5147,17 +6964,410 @@ function renderPage_(page, boot) {
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
+    /* ---------- CLASS SUBMISSION ---------- */
+    var _teacherBetaData = null;
+    function initTeacherBetaPage() {
+      var classSel = document.getElementById('teacherBetaClass');
+      if (!classSel) return;
+      var teacherSel = document.getElementById('teacherBetaTeacher');
+      if (classSel.dataset.bound !== '1') {
+        classSel.dataset.bound = '1';
+        classSel.addEventListener('change', function() { loadTeacherBetaStatus_(true); });
+        var search = document.getElementById('teacherBetaSearch');
+        if (search) search.addEventListener('input', function() { debounce_('teacherBetaSearch', renderTeacherBetaStatus_, 180); });
+        var missingOnly = document.getElementById('teacherBetaMissingOnly');
+        if (missingOnly) missingOnly.addEventListener('change', renderTeacherBetaStatus_);
+      }
+      if (teacherSel && teacherSel.dataset.bound !== '1') {
+        teacherSel.dataset.bound = '1';
+        teacherSel.addEventListener('change', function() {
+          updateTeacherBetaClassOptions_();
+          loadTeacherBetaStatus_(true);
+        });
+      }
+      updateTeacherBetaClassOptions_();
+      if (!_teacherBetaData) loadTeacherBetaStatus_(false);
+      else renderTeacherBetaStatus_();
+    }
+
+    function loadTeacherBetaStatus_(force) {
+      var results = document.getElementById('teacherBetaResults');
+      if (!results) return;
+      var classNo = ((document.getElementById('teacherBetaClass') || {}).value || '').trim();
+      var teacherKey = teacherBetaSelectedTeacher_();
+      setTeacherBetaDownloadReady_(false);
+      setMsg('teacherBetaMsg', force ? 'Refreshing from spreadsheet...' : 'Loading class submission status...', 'muted');
+      results.innerHTML = '<div class="queue-skeleton" aria-label="Loading class submission data"></div>';
+      var requestDone = false;
+      var timeoutId = setTimeout(function() {
+        if (requestDone) return;
+        results.innerHTML = '<div class="queue-empty alert alert-warning"><span class="alert-icon">&#9888;</span><span>Class data is taking longer than usual. Try Refresh, or narrow the teacher/class filter and try again.</span></div>';
+        setMsg('teacherBetaMsg', 'Still waiting for class status.', 'muted');
+      }, 15000);
+      google.script.run
+        .withSuccessHandler(function(data) {
+          requestDone = true;
+          clearTimeout(timeoutId);
+          _teacherBetaData = data || { classes: [] };
+          renderTeacherBetaStatus_();
+          var stamp = _teacherBetaData.generated_at ? formatDisplayTs(_teacherBetaData.generated_at) : 'now';
+          setMsg('teacherBetaMsg', 'Checked ' + stamp + '.', 'muted');
+        })
+        .withFailureHandler(function(err) {
+          requestDone = true;
+          clearTimeout(timeoutId);
+          _teacherBetaData = null;
+          setTeacherBetaDownloadReady_(false);
+          results.innerHTML = '<div class="queue-empty alert alert-error"><span class="alert-icon">&#9888;</span><span>' + esc((err && err.message) || err || 'Could not load class submission data.') + '</span></div>';
+          setMsg('teacherBetaMsg', 'Could not load class status.', 'error');
+        })
+        .getTeacherBetaClassStatus({ class_no: classNo, teacher_key: teacherKey });
+    }
+
+    function setTeacherBetaDownloadReady_(ready) {
+      var btn = document.getElementById('teacherBetaDownloadBtn');
+      if (btn) btn.disabled = false;
+    }
+
+    function teacherBetaSelectedTeacher_() {
+      return String(((document.getElementById('teacherBetaTeacher') || {}).value || '')).trim().toLowerCase();
+    }
+
+    function updateTeacherBetaClassOptions_() {
+      var teacherKey = teacherBetaSelectedTeacher_();
+      var classSel = document.getElementById('teacherBetaClass');
+      if (!classSel) return;
+      var selectedIsVisible = !classSel.value;
+      Array.prototype.forEach.call(classSel.options || [], function(option, index) {
+        if (index === 0) {
+          option.hidden = false;
+          option.disabled = false;
+          return;
+        }
+        var optionTeacher = String(option.getAttribute('data-teacher-key') || '').trim().toLowerCase();
+        var visible = !teacherKey || optionTeacher === teacherKey;
+        option.hidden = !visible;
+        option.disabled = !visible;
+        if (visible && option.value === classSel.value) selectedIsVisible = true;
+      });
+      if (!selectedIsVisible) classSel.value = '';
+    }
+
+    function teacherBetaSearchQuery_() {
+      return String(((document.getElementById('teacherBetaSearch') || {}).value || '')).trim().toLowerCase();
+    }
+
+    function teacherBetaMissingOnly_() {
+      var el = document.getElementById('teacherBetaMissingOnly');
+      return !!(el && el.checked);
+    }
+
+    function teacherBetaStudentMatches_(student, query, missingOnly) {
+      if (missingOnly && student.submitted) return false;
+      if (!query) return true;
+      var latest = student.latest || {};
+      var hay = [
+        student.name, student.email, student.homeroom, student.student_no,
+        student.action, latest.case_number, latest.status, latest.status_label,
+        latest.machine, MACHINE_LABELS[latest.machine] || latest.machine,
+        latest.material, latest.prototype_label, latest.design_class_no,
+        latest.roster_class_no, latest.class_mismatch ? 'class typo class mismatch' : ''
+      ].join(' ').toLowerCase();
+      return hay.indexOf(query) !== -1;
+    }
+
+    function teacherBetaExtraMatches_(extra, query, missingOnly) {
+      if (missingOnly) return false;
+      if (!query) return true;
+      var hay = [
+        extra.student_name, extra.student_email, extra.case_number,
+        extra.status, extra.status_label, extra.material
+      ].join(' ').toLowerCase();
+      return hay.indexOf(query) !== -1;
+    }
+
+    function getTeacherBetaVisibleReport_() {
+      var query = teacherBetaSearchQuery_();
+      var missingOnly = teacherBetaMissingOnly_();
+      var visibleClasses = [];
+      var totals = { classes: 0, expected: 0, submitted: 0, missing: 0, needs_fix: 0, completed: 0, class_mismatches: 0, extras: 0 };
+      (_teacherBetaData.classes || []).forEach(function(cls) {
+        var students = (cls.students || []).filter(function(student) {
+          return teacherBetaStudentMatches_(student, query, missingOnly);
+        });
+        var extras = (cls.extra_submissions || []).filter(function(extra) {
+          return teacherBetaExtraMatches_(extra, query, missingOnly);
+        });
+        if (students.length || extras.length || (!query && !missingOnly)) {
+          visibleClasses.push({ cls: cls, students: students, extras: extras });
+          totals.classes += 1;
+          totals.expected += students.length;
+          students.forEach(function(student) {
+            if (student.submitted) totals.submitted += 1;
+            else totals.missing += 1;
+            if (student.latest && student.latest.status === 'needs_fix') totals.needs_fix += 1;
+            if (student.latest && student.latest.status === 'completed') totals.completed += 1;
+            if (student.latest && student.latest.class_mismatch) totals.class_mismatches += 1;
+          });
+          totals.extras += extras.length;
+        }
+      });
+      return { query: query, missingOnly: missingOnly, visibleClasses: visibleClasses, totals: totals };
+    }
+
+    function renderTeacherBetaStatus_() {
+      var summaryEl = document.getElementById('teacherBetaSummary');
+      var resultsEl = document.getElementById('teacherBetaResults');
+      if (!summaryEl || !resultsEl || !_teacherBetaData) return;
+      var report = getTeacherBetaVisibleReport_();
+      var visibleClasses = report.visibleClasses;
+      var totals = report.totals;
+      var query = report.query;
+      var missingOnly = report.missingOnly;
+
+      summaryEl.innerHTML =
+        '<div class="teacher-beta-summary">' +
+          teacherBetaStatHtml_(totals.classes, 'Visible classes') +
+          teacherBetaStatHtml_(totals.expected, missingOnly || query ? 'Visible students' : 'Roster students') +
+          teacherBetaStatHtml_(totals.submitted, 'Submitted') +
+          teacherBetaStatHtml_(totals.missing, 'Missing') +
+          teacherBetaStatHtml_(totals.needs_fix, 'Needs fix') +
+          teacherBetaStatHtml_(totals.completed, 'Completed') +
+          teacherBetaStatHtml_(totals.class_mismatches, 'Class typos') +
+          teacherBetaStatHtml_(totals.extras, 'Extra records') +
+        '</div>';
+
+      if (!visibleClasses.length) {
+        setTeacherBetaDownloadReady_(false);
+        resultsEl.innerHTML = '<div class="queue-empty alert alert-neutral"><span class="alert-icon">&#128269;</span><span>No students match the current class filters.</span></div>';
+        return;
+      }
+      setTeacherBetaDownloadReady_(true);
+      resultsEl.innerHTML = visibleClasses.map(function(item) {
+        return renderTeacherBetaClass_(item.cls, item.students, item.extras);
+      }).join('');
+    }
+
+    function teacherBetaStatHtml_(value, label) {
+      return '<div class="teacher-beta-stat"><strong>' + esc(teacherBetaNum_(value)) + '</strong><span>' + esc(label) + '</span></div>';
+    }
+
+    function teacherBetaNum_(value) {
+      var num = Number(value || 0);
+      if (isFinite(num)) return String(num);
+      return String(value || '0');
+    }
+
+    function renderTeacherBetaClass_(cls, students, extras) {
+      var summary = cls.summary || {};
+      var pct = Number(summary.percent_submitted || 0);
+      var tableHtml = students.length
+        ? '<div class="tbl-wrap"><table class="teacher-beta-table"><thead><tr><th>Student</th><th>Homeroom</th><th>Status</th><th>Latest case</th><th>Details</th><th>Teacher action</th></tr></thead><tbody>' +
+          students.map(renderTeacherBetaStudentRow_).join('') +
+          '</tbody></table></div>'
+        : '<div class="teacher-beta-empty alert alert-neutral"><span class="alert-icon">&#128269;</span><span>No roster students match the current filter for this class.</span></div>';
+      var extraHtml = extras.length ? renderTeacherBetaExtras_(extras) : '';
+      return '<section class="teacher-beta-class">' +
+        '<div class="teacher-beta-class-head">' +
+          '<div>' +
+            '<div class="teacher-beta-class-title">' + esc(cls.label || ('Class ' + (cls.class_no || ''))) + '</div>' +
+            '<div class="teacher-beta-class-sub">' + esc(cls.teacher || 'Teacher') + ' - ' + esc(cls.year_group || '') + ' design class</div>' +
+            '<div class="teacher-beta-mini">' +
+              '<span>' + esc(teacherBetaNum_(summary.expected)) + ' expected</span>' +
+              '<span>' + esc(teacherBetaNum_(summary.submitted)) + ' submitted</span>' +
+              '<span>' + esc(teacherBetaNum_(summary.missing)) + ' missing</span>' +
+              '<span>' + esc(teacherBetaNum_(summary.needs_fix)) + ' needs fix</span>' +
+              '<span>' + esc(teacherBetaNum_(summary.completed)) + ' completed</span>' +
+              (Number(summary.class_mismatches || 0) ? '<span>' + esc(teacherBetaNum_(summary.class_mismatches)) + ' class typo</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="teacher-beta-progress" aria-label="Class submitted percentage">' +
+            '<div class="teacher-beta-progress-track"><span class="teacher-beta-progress-fill" style="width:' + Math.max(0, Math.min(100, pct)) + '%"></span></div>' +
+            '<div class="teacher-beta-progress-text">' + esc(pct) + '% submitted</div>' +
+          '</div>' +
+        '</div>' +
+        tableHtml + extraHtml +
+      '</section>';
+    }
+
+    function renderTeacherBetaStudentRow_(student) {
+      var latest = student.latest || {};
+      var statusHtml = student.submitted ? statusPill(latest.status) : '<span class="pill pill-missing">MISSING</span>';
+      var rowClass = student.submitted ? ('teacher-beta-row teacher-beta-row--' + esc(latest.status || 'submitted') + (latest.class_mismatch ? ' teacher-beta-row--class-mismatch' : '')) : 'teacher-beta-row teacher-beta-row--missing';
+      var caseHtml = student.submitted && latest.case_number ? '<span class="teacher-beta-case">' + esc(latest.case_number) + '</span>' : '<span class="tc-muted">Not submitted</span>';
+      var details = [];
+      if (latest.created_at) details.push('Submitted ' + formatDisplayTs(latest.created_at));
+      if (latest.machine) details.push(MACHINE_LABELS[latest.machine] || latest.machine);
+      if (latest.material) details.push(latest.material);
+      if (latest.prototype_label) details.push(latest.prototype_label);
+      if (Number(latest.submitted_count || 0) > 1) details.push(latest.submitted_count + ' attempts');
+      if (latest.class_mismatch) details.push('Entered class ' + (latest.design_class_no || '?') + '; roster is class ' + (latest.roster_class_no || '?'));
+      if (!details.length) details.push('No dashboard submission matched this roster email.');
+      return '<tr class="' + rowClass + '">' +
+        '<td data-label="Student"><div class="teacher-beta-student">' + esc(student.name || '') + '</div><div class="teacher-beta-email">' + esc(student.email || '') + '</div></td>' +
+        '<td data-label="Homeroom">' + esc(student.homeroom || '') + (student.student_no ? '<div class="teacher-beta-email">No. ' + esc(student.student_no) + '</div>' : '') + '</td>' +
+        '<td data-label="Status">' + statusHtml + '</td>' +
+        '<td data-label="Latest case">' + caseHtml + '</td>' +
+        '<td data-label="Details"><div class="teacher-beta-action">' + esc(details.join(' - ')) + '</div></td>' +
+        '<td data-label="Teacher action"><div class="teacher-beta-action">' + esc(student.action || '') + '</div></td>' +
+      '</tr>';
+    }
+
+    function renderTeacherBetaExtras_(extras) {
+      var rows = extras.map(function(extra) {
+        return '<tr>' +
+          '<td data-label="Student"><div class="teacher-beta-student">' + esc(extra.student_name || 'Unnamed submission') + '</div><div class="teacher-beta-email">' + esc(extra.student_email || '') + '</div></td>' +
+          '<td data-label="Status">' + statusPill(extra.status) + '</td>' +
+          '<td data-label="Case"><span class="teacher-beta-case">' + esc(extra.case_number || '') + '</span></td>' +
+          '<td data-label="Details">' + esc([extra.material, extra.created_at ? formatDisplayTs(extra.created_at) : ''].filter(Boolean).join(' - ')) + '</td>' +
+        '</tr>';
+      }).join('');
+      return '<div class="teacher-beta-extra">' +
+        '<div class="alert alert-warning" style="margin-bottom:10px;"><span class="alert-icon">&#9888;</span><span><strong>Extra class records:</strong> these submissions use this design class number but the email is not in the uploaded beta roster. Check spelling, school account, or class entry.</span></div>' +
+        '<div class="tbl-wrap"><table class="teacher-beta-table"><thead><tr><th>Student</th><th>Status</th><th>Case</th><th>Details</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '</div>';
+    }
+
+    function teacherBetaCsvCell_(value) {
+      value = value == null ? '' : String(value);
+      return '"' + value.replace(/"/g, '""') + '"';
+    }
+
+    function teacherBetaDownloadName_() {
+      var teacher = ((document.getElementById('teacherBetaTeacher') || {}).selectedOptions || [])[0];
+      var cls = ((document.getElementById('teacherBetaClass') || {}).value || '').trim();
+      var bits = ['class-submission-status'];
+      if (teacher && teacher.value) bits.push(String(teacher.textContent || 'teacher'));
+      if (cls) bits.push('class-' + cls);
+      bits.push(new Date().toISOString().slice(0, 10));
+      return bits.join('-').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '.csv';
+    }
+
+    function downloadTeacherBetaSpreadsheet_() {
+      if (!_teacherBetaData) {
+        var baseUrl = String((BOOT && BOOT.baseUrl) || '').trim();
+        if (baseUrl) {
+          var params = ['action=teacher_class_csv'];
+          var teacherKey = teacherBetaSelectedTeacher_();
+          var classNo = ((document.getElementById('teacherBetaClass') || {}).value || '').trim();
+          if (teacherKey) params.push('teacher_key=' + encodeURIComponent(teacherKey));
+          if (classNo) params.push('class_no=' + encodeURIComponent(classNo));
+          window.open(baseUrl + '?' + params.join('&'), '_blank');
+          showToast('Opening class spreadsheet export.');
+          return;
+        }
+        showToast('Load class submission data first, then download.', 'error');
+        return;
+      }
+      var report = getTeacherBetaVisibleReport_();
+      var rows = [[
+        'Record Type', 'Teacher', 'Design Class', 'Year Group', 'Student Name', 'Student Email',
+        'Homeroom', 'Student No.', 'Submitted', 'Status', 'Case Number', 'Machine', 'Material',
+        'Prototype Type', 'Submitted At', 'Updated At', 'Attempts', 'Class Issue', 'Teacher Action'
+      ]];
+      report.visibleClasses.forEach(function(item) {
+        var cls = item.cls || {};
+        (item.students || []).forEach(function(student) {
+          var latest = student.latest || {};
+          rows.push([
+            'Roster student',
+            cls.teacher || '',
+            cls.class_no || '',
+            cls.year_group || '',
+            student.name || '',
+            student.email || '',
+            student.homeroom || '',
+            student.student_no || '',
+            student.submitted ? 'Yes' : 'No',
+            student.submitted ? (latest.status_label || latest.status || '') : 'Missing',
+            latest.case_number || '',
+            latest.machine ? (MACHINE_LABELS[latest.machine] || latest.machine) : '',
+            latest.material || '',
+            latest.prototype_label || '',
+            latest.created_at ? formatDisplayTs(latest.created_at) : '',
+            latest.updated_at ? formatDisplayTs(latest.updated_at) : '',
+            latest.submitted_count || '',
+            latest.class_mismatch ? ('Entered class ' + (latest.design_class_no || '?') + '; roster is class ' + (latest.roster_class_no || '?')) : '',
+            student.action || ''
+          ]);
+        });
+        (item.extras || []).forEach(function(extra) {
+          rows.push([
+            'Extra class record',
+            cls.teacher || '',
+            cls.class_no || '',
+            cls.year_group || '',
+            extra.student_name || '',
+            extra.student_email || '',
+            '', '',
+            'Yes',
+            extra.status_label || extra.status || '',
+            extra.case_number || '',
+            '',
+            extra.material || '',
+            '',
+            extra.created_at ? formatDisplayTs(extra.created_at) : '',
+            extra.updated_at ? formatDisplayTs(extra.updated_at) : '',
+            '',
+            'Email not found in this uploaded class roster',
+            'Check spelling, school account, or class entry'
+          ]);
+        });
+      });
+      if (rows.length <= 1) {
+        showToast('No class rows match the current filters.', 'error');
+        return;
+      }
+      var csv = rows.map(function(row) { return row.map(teacherBetaCsvCell_).join(','); }).join('\\r\\n');
+      var filename = teacherBetaDownloadName_();
+      var blob = new Blob(['\\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 0);
+      showToast((rows.length - 1) + ' class status row' + (rows.length === 2 ? '' : 's') + ' downloaded.');
+    }
+
+    function copyTeacherBetaMissing_() {
+      if (!_teacherBetaData) {
+        showToast('Load class submission data first.', 'error');
+        return;
+      }
+      var query = teacherBetaSearchQuery_();
+      var emails = [];
+      (_teacherBetaData.classes || []).forEach(function(cls) {
+        (cls.students || []).forEach(function(student) {
+          if (!student.submitted && teacherBetaStudentMatches_(student, query, true) && student.email) emails.push(student.email);
+        });
+      });
+      emails = emails.filter(function(email, idx) { return emails.indexOf(email) === idx; });
+      if (!emails.length) {
+        showToast('No missing student emails in the current view.', 'error');
+        return;
+      }
+      writeClipboard_(emails.join('; '), emails.length + ' missing student email' + (emails.length === 1 ? '' : 's') + ' copied.');
+    }
+
     function laserCapacitySeenKey_() {
       return 'laserCapacityNoticeSeen:' + String(LASER_CAPACITY_NOTICE.version || 'current');
     }
 
-    function shouldShowStudentLaserCapacityNotice_() {
+    function shouldShowStudentLaserCapacityNotice_(force) {
       var role = String((BOOT.currentUser && BOOT.currentUser.role) || 'guest');
-      if (role !== 'student' && role !== 'guest') return false;
+      if (!force && role !== 'student' && role !== 'guest') return false;
       if (!LASER_CAPACITY_NOTICE || LASER_CAPACITY_NOTICE.active === false) return false;
-      try {
-        if (sessionStorage.getItem(laserCapacitySeenKey_()) === '1') return false;
-      } catch(e) {}
+      if (!force) {
+        try {
+          if (sessionStorage.getItem(laserCapacitySeenKey_()) === '1') return false;
+        } catch(e) {}
+      }
       return true;
     }
 
@@ -5170,8 +7380,11 @@ function renderPage_(page, boot) {
       refreshOverlayLock_();
     }
 
-    function showStudentLaserCapacityNotice_() {
-      if (!shouldShowStudentLaserCapacityNotice_()) return;
+    function showStudentLaserCapacityNotice_(force) {
+      if (!shouldShowStudentLaserCapacityNotice_(force)) {
+        if (force) showToast('No active student popup is configured right now.', 'error');
+        return;
+      }
       if (document.getElementById('laserCapacityOverlay')) return;
       var summary = LASER_CAPACITY_NOTICE.summary || 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.';
       var detail = LASER_CAPACITY_NOTICE.detail || 'Please avoid duplicate submissions and check Status for updates.';
@@ -5424,6 +7637,9 @@ function renderPage_(page, boot) {
       try {
         var raw = store.getItem(key);
         var saved = raw ? JSON.parse(raw) : null;
+        if (saved && saved.data && typeof opts.sanitizeDraftData === 'function') {
+          saved.data = opts.sanitizeDraftData(saved.data) || {};
+        }
         if (saved && saved.data && draftHasMeaning_(saved.data)) {
           setDraftBar_(bar, 'restore', 'Saved draft found from ' + draftTimeLabel_(saved.savedAt) + '. Restoring will fill text and choices only; files must be reattached.', '<button type="button" class="btn btn-primary btn-sm draft-restore-btn">Restore Draft</button><button type="button" class="btn btn-ghost btn-sm draft-discard-btn">Discard</button>');
           var restore = bar.querySelector('.draft-restore-btn');
@@ -5490,10 +7706,21 @@ function renderPage_(page, boot) {
       });
       yearSel.innerHTML = '<option value="">\\u2014 Select year \\u2014</option>' + years.map(function(y) { return '<option value="' + esc(y) + '">' + esc(y) + '</option>'; }).join('');
 
-      /* Pre-fill student email if logged in */
+      /* Pre-fill submitter email only for signed-in approved school accounts. */
       var emailInput = form.querySelector('[name="student_email"]');
-      if (emailInput && BOOT.currentUser.email && !emailInput.value) emailInput.value = BOOT.currentUser.email;
-      setupDraftAutosave_(form, 'submit', { label: 'DT submission draft' });
+      var signedInEmail = currentUserEmail_();
+      if (emailInput && signedInEmail && isApprovedSchoolEmail_(signedInEmail) && !emailInput.value) {
+        emailInput.value = signedInEmail;
+      }
+      setupDraftAutosave_(form, 'submit', {
+        label: 'DT submission draft',
+        sanitizeDraftData: function(data) {
+          var clean = {};
+          Object.keys(data || {}).forEach(function(key) { clean[key] = data[key]; });
+          if (clean.student_email && !isApprovedSchoolEmail_(clean.student_email)) clean.student_email = '';
+          return clean;
+        }
+      });
 
       /* Wire activity lookup on email */
       if (emailInput) {
@@ -5694,7 +7921,11 @@ function renderPage_(page, boot) {
         if (previewReqMark) previewReqMark.style.display = previewReq ? 'inline' : 'none';
         if (previewFileHint) previewFileHint.textContent = previewReq ? 'PNG, JPG, or JPEG preview required for this selected rule.' : 'PNG, JPG, or JPEG accepted. Optional for this selected rule.';
         var dims = [rule.max_width, rule.max_height, rule.max_depth].filter(function(v){ return String(v)!=='0' && v!==''; });
-        var ext = String(rule.accepted_extensions||'').split(',').map(function(s){ return s.trim().toUpperCase(); }).filter(Boolean);
+        var ext = String(rule.accepted_extensions||'').split(',').map(function(s){
+          var clean = s.trim().toLowerCase();
+          if (clean.charAt(0) === '.') clean = clean.slice(1);
+          return clean ? '.' + clean : '';
+        }).filter(Boolean);
         var chips = [];
         if (dims.length) chips.push('\\ud83d\\udccf Max: ' + dims.join(' \\u00d7 ') + ' ' + esc(rule.units||''));
         if (ext.length) chips.push('\\ud83d\\udcc4 ' + ext.join(', '));
@@ -5745,13 +7976,21 @@ function renderPage_(page, boot) {
           return;
         }
         var selectedWorkingFile = workingInput.files[0];
-        var selectedExtMatch = /\.([^.]+)$/.exec(String((selectedWorkingFile && selectedWorkingFile.name) || '').toLowerCase());
-        var selectedExt = selectedExtMatch ? selectedExtMatch[1] : '';
+        var selectedRawExtMatch = /\.([^.]+)$/.exec(String((selectedWorkingFile && selectedWorkingFile.name) || ''));
+        var selectedRawExt = selectedRawExtMatch ? selectedRawExtMatch[1] : '';
+        var selectedExt = selectedRawExt.toLowerCase();
         var allowedExts = String((activeRule && activeRule.accepted_extensions) || '').split(',').map(function(x) {
-          return String(x || '').trim().toLowerCase().replace(/^\\./, '');
+          var clean = String(x || '').trim().toLowerCase();
+          return clean.charAt(0) === '.' ? clean.slice(1) : clean;
         }).filter(Boolean);
+        if ((selectedExt === 'af' || selectedExt === 'afdesign') && selectedRawExt !== selectedExt) {
+          setMsg('submitMsg', 'Affinity Designer files must use lowercase .af or .afdesign. Rename the file and upload again.', 'error');
+          var affinityCaseZone = document.getElementById('zone_workingFile');
+          if (affinityCaseZone) affinityCaseZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         if (allowedExts.length && allowedExts.indexOf(selectedExt) === -1) {
-          setMsg('submitMsg', 'This working file type is not allowed for the selected year and machine. Allowed: ' + allowedExts.map(function(x) { return '.' + x; }).join(', ') + '.', 'error');
+          setMsg('submitMsg', 'This working file type is not allowed for the selected year and machine. Please choose the correct working file and upload again.', 'error');
           var wrongZone = document.getElementById('zone_workingFile');
           if (wrongZone) wrongZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
@@ -5841,9 +8080,21 @@ function renderPage_(page, boot) {
         return (size / 1024 / 1024).toFixed(size > 10 * 1024 * 1024 ? 0 : 1) + ' MB';
       }
 
-      function fileExt_(name) {
-        var m = /\.([^.]+)$/.exec(String(name || '').toLowerCase());
+      function rawFileExt_(name) {
+        var m = /\.([^.]+)$/.exec(String(name || ''));
         return m ? m[1] : '';
+      }
+      function fileExt_(name) {
+        return rawFileExt_(name).toLowerCase();
+      }
+      function affinityExtensionCaseBad_(name) {
+        var raw = rawFileExt_(name);
+        var ext = raw.toLowerCase();
+        return (ext === 'af' || ext === 'afdesign') && raw !== ext;
+      }
+      function normalizeExtToken_(value) {
+        var clean = String(value || '').trim().toLowerCase();
+        return clean.charAt(0) === '.' ? clean.slice(1) : clean;
       }
 
       function acceptedExts_() {
@@ -5853,34 +8104,40 @@ function renderPage_(page, boot) {
           var machine = (document.getElementById('machine') || {}).value || '';
           var rule = (BOOT.rules || []).find(function(r) { return r.year_group === year && r.machine === machine; });
           if (rule && rule.accepted_extensions) accept = String(rule.accepted_extensions || '');
+        } else if (inputId === 'otherWorkingFile') {
+          var otherMachine = (document.getElementById('otherMachine') || {}).value || '';
+          accept = otherMachine === '3d' ? 'stl' : 'af,afdesign,svg,dxf';
         }
         return accept.split(',').map(function(part) {
-          return String(part || '').trim().toLowerCase().replace(/^\./, '');
+          return normalizeExtToken_(part);
         }).filter(function(part) { return part && part !== 'image/*'; });
       }
 
       function renderFileFeedback_(file) {
         if (!feedback) return;
         if (!file) { feedback.innerHTML = ''; return; }
-        var ext = fileExt_(file.name);
-        var badges = [];
+        var rawExt = rawFileExt_(file.name);
+        var ext = rawExt.toLowerCase();
+        var affinityCaseBad = affinityExtensionCaseBad_(file.name);
         var isPreview = inputId === 'previewFile' || inputId === 'otherPreviewFile';
         var accepted = acceptedExts_();
-        var extOk = isPreview ? String(file.type || '').indexOf('image/') === 0 : (!accepted.length || accepted.indexOf(ext) !== -1);
-        badges.push('<span class="file-badge ' + (extOk ? 'file-badge--ok' : 'file-badge--bad') + '">' + (ext ? '.' + esc(ext).toUpperCase() : 'No extension') + '</span>');
-        badges.push('<span class="file-badge">' + esc(fileSizeLabel_(file.size || 0)) + '</span>');
+        var extOk = isPreview ? String(file.type || '').indexOf('image/') === 0 : ((!accepted.length || accepted.indexOf(ext) !== -1) && !affinityCaseBad);
+        var badges = [];
         if (isPreview) {
-          badges.push('<span class="file-badge ' + (extOk ? 'file-badge--ok' : 'file-badge--warn') + '">' + (extOk ? 'Preview image' : 'Use PNG/JPG preview') + '</span>');
-        } else if (inputId === 'workingFile') {
-          var machine = (document.getElementById('machine') || {}).value || '';
-          var machineHint = machine === '3d'
-            ? (ext === 'stl' ? 'STL working file' : '3D needs STL')
-            : (['af','afdesign','svg','dxf'].indexOf(ext) !== -1 ? 'Editable vector file' : 'Laser needs editable vector');
-          badges.push('<span class="file-badge ' + (extOk ? 'file-badge--ok' : 'file-badge--bad') + '">' + esc(machineHint) + '</span>');
+          badges.push('<span class="file-badge ' + (extOk ? 'file-badge--ok' : 'file-badge--bad') + '">' + (extOk ? 'Preview ready' : 'Use PNG/JPG preview') + '</span>');
+        } else {
+          var machine = inputId === 'otherWorkingFile'
+            ? ((document.getElementById('otherMachine') || {}).value || '')
+            : ((document.getElementById('machine') || {}).value || '');
+          if (affinityCaseBad) {
+            badges.push('<span class="file-badge file-badge--bad">Rename to lowercase .af or .afdesign</span>');
+          } else if (extOk) {
+            badges.push('<span class="file-badge file-badge--ok">Ready to submit</span>');
+          } else {
+            badges.push('<span class="file-badge file-badge--bad">' + esc(machine === '3d' ? 'Use an STL file' : 'Use an editable vector file') + '</span>');
+          }
         }
-        if (!extOk && accepted.length) {
-          badges.push('<span class="file-badge file-badge--warn">Allowed: ' + esc(accepted.map(function(x) { return '.' + x; }).join(' ')) + '</span>');
-        }
+        badges.push('<span class="file-badge">' + esc(fileSizeLabel_(file.size || 0)) + '</span>');
         feedback.innerHTML = badges.join('');
       }
 
@@ -6062,9 +8319,16 @@ function renderPage_(page, boot) {
           return;
         }
         var otherFile = otherWorkingInput.files[0];
-        var otherExtMatch = /\.([^.]+)$/.exec(String((otherFile && otherFile.name) || '').toLowerCase());
-        var otherExt = otherExtMatch ? otherExtMatch[1] : '';
+        var otherRawExtMatch = /\.([^.]+)$/.exec(String((otherFile && otherFile.name) || ''));
+        var otherRawExt = otherRawExtMatch ? otherRawExtMatch[1] : '';
+        var otherExt = otherRawExt.toLowerCase();
         var otherAllowed = machineSel && machineSel.value === '3d' ? ['stl'] : ['af','afdesign','svg','dxf'];
+        if ((otherExt === 'af' || otherExt === 'afdesign') && otherRawExt !== otherExt) {
+          setMsg('otherSubmitMsg', 'Affinity Designer files must use lowercase .af or .afdesign. Rename the file and upload again.', 'error');
+          var otherAffinityCaseZone = document.getElementById('zone_otherWorkingFile');
+          if (otherAffinityCaseZone) otherAffinityCaseZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         if (otherAllowed.indexOf(otherExt) === -1) {
           setMsg('otherSubmitMsg', 'This working file type does not match the selected machine. ' + (machineSel && machineSel.value === '3d' ? '3D print requests need .stl.' : 'Laser requests need .af, .afdesign, .svg, or .dxf.'), 'error');
           var otherWrongZone = document.getElementById('zone_otherWorkingFile');
@@ -6158,6 +8422,10 @@ function renderPage_(page, boot) {
       }
     }
 
+    function initQueuePage() {
+      loadStatusQueueSnapshot_();
+    }
+
     function buildTimeline(status) {
       var steps = [{key:'submitted',label:'Submitted'},{key:'approved',label:'Approved'},{key:'in_queue',label:'In Queue'},{key:'in_production',label:'In Production'},{key:'completed',label:'Completed'}];
       if (status === 'rejected') return '<div class="status-timeline"><span class="tl-step warn"><span class="tl-dot"></span>Rejected</span></div>';
@@ -6197,6 +8465,53 @@ function renderPage_(page, boot) {
       if (s === 'completed') return 'This is complete and no longer part of active queue workload.';
       if (s === 'rejected') return 'This is not active in the queue. Read the remarks and speak with your teacher if needed.';
       return 'Check the latest status and remarks for next steps.';
+    }
+
+    function renderStatusQueuePosition_(r) {
+      var status = String((r && r.status) || '');
+      var activeStatuses = ['submitted','approved','in_queue','in_production'];
+      var active = activeStatuses.indexOf(status) !== -1 || r.queue_active === true;
+      var position = Number(r.queue_position || 0);
+      var total = Number(r.queue_total_active || 0);
+      var note = r.queue_position_note || 'This is a planning guide only, not an exact promise of turnaround.';
+      function pickupEstimateHtml_() {
+        if (!r.pickup_estimate_window) return '';
+        return '<div class="status-pickup-estimate">' +
+          '<div><div class="status-pickup-label">' + esc(r.pickup_estimate_label || 'Estimated pickup') + '</div><div class="status-pickup-window">' + esc(r.pickup_estimate_window) + '</div>' +
+          (r.pickup_estimate_school_days ? '<div class="status-pickup-days">' + esc(r.pickup_estimate_school_days) + '</div>' : '') + '</div>' +
+          '<div class="status-pickup-note">' + esc(r.pickup_estimate_note || 'Planning estimate only. Wait for the completed status or technician message before collecting.') + '</div>' +
+        '</div>';
+      }
+      if (active && position > 0 && total > 0) {
+        var ahead = Math.max(0, position - 1);
+        var pct = total > 1 ? Math.round(((position - 1) / (total - 1)) * 100) : 0;
+        pct = Math.max(0, Math.min(100, pct));
+        var aheadText = ahead
+          ? 'About ' + ahead + ' active job' + (ahead === 1 ? '' : 's') + ' are ahead of this case or already being made. '
+          : 'This case is at the front of the active workshop list. ';
+        return '<div class="status-position-panel" aria-label="Approximate active-workshop position ' + esc(String(position)) + ' of ' + esc(String(total)) + '">' +
+          '<div class="status-position-head"><div><div class="status-position-label">Approx. active-workshop position</div><div class="status-position-main"><strong>' + esc(String(position)) + '</strong><span>of ' + esc(String(total)) + ' active jobs</span></div></div><span class="status-position-chip">Guide only</span></div>' +
+          '<div class="status-position-meter" style="--position-pct:' + pct + '%;" aria-hidden="true"></div>' +
+          '<div class="status-position-scale" aria-hidden="true"><span>Front</span><span>Later</span></div>' +
+          '<div class="status-position-note">' + esc(aheadText + note) + '</div>' +
+          pickupEstimateHtml_() +
+        '</div>';
+      }
+      if (status === 'needs_fix') {
+        return '<div class="status-position-panel status-position-panel--paused">' +
+          '<div class="status-position-head"><div><div class="status-position-label">Queue position</div><div class="status-position-main"><strong>Paused</strong><span>waiting for revision</span></div></div><span class="status-position-chip">Action needed</span></div>' +
+          '<div class="status-position-note">' + esc(note) + '</div>' +
+          pickupEstimateHtml_() +
+        '</div>';
+      }
+      if (status === 'completed' || status === 'rejected') {
+        return '<div class="status-position-panel status-position-panel--closed">' +
+          '<div class="status-position-head"><div><div class="status-position-label">Queue position</div><div class="status-position-main"><strong>Closed</strong><span>not in active queue</span></div></div><span class="status-position-chip">No active wait</span></div>' +
+          '<div class="status-position-note">' + esc(note) + '</div>' +
+          pickupEstimateHtml_() +
+        '</div>';
+      }
+      return '';
     }
 
     function statusStageLabel_(status) {
@@ -6274,6 +8589,9 @@ function renderPage_(page, boot) {
     }
 
     function renderStatusFileActions_(r) {
+      if (r.lookup_limited) {
+        return '<div class="status-file-actions"><span class="status-file-note">' + esc(r.lookup_limited_reason || 'Sign in with the matching school account to view submitted file links.') + '</span></div>';
+      }
       var links = [];
       if (r.working_file_url) links.push('<a class="btn btn-ghost btn-sm" href="' + esc(r.working_file_url) + '" target="_blank" rel="noopener">&#128196; Open Working File</a>');
       if (r.preview_file_url) links.push('<a class="btn btn-ghost btn-sm" href="' + esc(r.preview_file_url) + '" target="_blank" rel="noopener">&#128444; Open Preview</a>');
@@ -6300,20 +8618,6 @@ function renderPage_(page, boot) {
       return '<div class="status-id-actions">' +
         '<button type="button" class="btn btn-primary btn-sm" data-copy-id="' + esc(caseNo) + '" onclick="copyStatusId_(this.dataset.copyId)">&#128203; Copy Case Number</button>' +
         '<span class="status-file-note">Quote the case number when asking a teacher or technician about this job.</span></div>';
-    }
-
-    function renderStatusQueuePanel_(rows) {
-      var c = summarizeStatusRows_(rows);
-      return '<div class="status-queue-panel" id="statusQueuePanel">' +
-        '<div class="status-queue-head"><div><div class="status-queue-title">&#128200; Queue context for this lookup</div><div class="status-queue-note">Submitted, Approved, In Queue, and In Production all count as active queue workload. Needs Fix is separated because the next action is student revision.</div></div><span class="pill pill-submitted" id="statusQueueHealthPill">LOADING</span></div>' +
-        '<div class="status-queue-grid">' +
-          '<div class="status-queue-metric"><div class="num">' + c.queue + '</div><div class="lbl">Your Active Queue Items</div></div>' +
-          '<div class="status-queue-metric"><div class="num">' + c.review + '</div><div class="lbl">Waiting Review</div></div>' +
-          '<div class="status-queue-metric"><div class="num">' + (c.approved_ready + c.in_queue) + '</div><div class="lbl">Production Wait</div></div>' +
-          '<div class="status-queue-metric"><div class="num">' + c.needs_fix + '</div><div class="lbl">Needs Your Revision</div></div>' +
-        '</div>' +
-        '<div class="status-workload-card" id="statusQueueGlobal" aria-live="polite">Loading workload view...</div>' +
-      '</div>';
     }
 
     function statusLoadState_(load) {
@@ -6401,6 +8705,8 @@ function renderPage_(page, boot) {
       var c = snapshot.counts;
       var load = Number(c.active_queue || 0);
       var state = statusLoadState_(load);
+      var revealThreshold = Number((snapshot.thresholds || {}).student_count_reveal || 50);
+      var revealQueueCount = load > revealThreshold;
       var waitingReview = Number(c.waiting_review || 0);
       var readyWait = Number(c.approved_ready || 0) + Number(c.in_queue || 0);
       var inProduction = Number(c.in_production || 0);
@@ -6418,14 +8724,29 @@ function renderPage_(page, boot) {
       var capacityHtml = notice && notice.active !== false
         ? '<div class="status-workload-alert"><strong>Laser capacity update:</strong> ' + esc(notice.summary || 'One laser cutter is currently offline. Only one laser cutter is running.') + '</div>'
         : '';
+      var machineCards = document.getElementById('queueMachineStatusCards');
+      if (machineCards) {
+        var laserCopy = notice && notice.active !== false
+          ? (notice.summary || 'One laser cutter is currently offline. Laser jobs may move more slowly than usual.')
+          : 'Laser cutting is running under normal workshop capacity. Technician review and queue order still apply.';
+        var printCopy = load > QUEUE_HEAVY_THRESHOLD
+          ? '3D printing is part of a heavy workshop workload. Print time, model size, and technician checks affect scheduling.'
+          : '3D printing is running. Jobs are scheduled after file review, printability checks, and available machine time.';
+        machineCards.innerHTML =
+          '<div class="status-help-card"><div class="status-help-icon">&#128293;</div><div class="status-help-title">Laser cutting</div><div class="status-help-copy">' + esc(laserCopy) + '</div></div>' +
+          '<div class="status-help-card"><div class="status-help-icon">&#9881;</div><div class="status-help-title">3D printing</div><div class="status-help-copy">' + esc(printCopy) + '</div></div>';
+      }
       var trendHtml = renderStatusRequestTrend_(snapshot.daily_request_timeline);
       if (pill) {
         pill.textContent = state.label.toUpperCase();
         pill.className = 'pill pill-submitted';
       }
-      target.setAttribute('aria-label', 'Whole-workshop workload is ' + state.label.toLowerCase() + '. This is workload context, not a turnaround promise.');
+      target.setAttribute('aria-label', 'Whole-workshop workload is ' + state.label.toLowerCase() + (revealQueueCount ? ', with ' + load + ' active queue items.' : '.') + ' This is workload context, not a turnaround promise.');
+      var queueCountHtml = revealQueueCount
+        ? '<div class="status-workload-count" aria-label="Current active queue count"><strong>' + esc(String(load)) + '</strong><span>active queue items</span></div>'
+        : '';
       var healthHtml = '<div class="status-health-panel"><div class="status-workload-head">' +
-          '<div><div class="status-workload-kicker">Whole-workshop workload</div><div class="status-workload-title">Current queue pressure for planning</div></div>' +
+          '<div><div class="status-workload-kicker">Whole-workshop workload</div><div class="status-workload-title">Current queue pressure for planning</div>' + queueCountHtml + '</div>' +
           '<span class="status-workload-state status-workload-state--' + state.key + '">' + esc(state.label) + '</span>' +
         '</div>' +
         '<div class="status-workload-bar" aria-hidden="true"><div class="status-workload-fill ' + state.fill + '" style="width:' + loadPct + '%;"></div></div>' +
@@ -6469,10 +8790,10 @@ function renderPage_(page, boot) {
     function statusEmptyStateHtml_() {
       var student = isStudentStatusView_();
       var copy = student
-        ? 'Enter your school email to see all your submissions, or paste a case number to look up one entry.'
+        ? 'Enter your school email to see all your submissions, or paste a case number such as M720 or A015 to look up one entry.'
         : 'Enter an email to see related submissions, or paste a case number, Submission ID, or Request ID to look up one entry.';
       var title = student ? 'Enter Email or Case Number' : 'Enter Email or ID';
-      var help = student ? 'Use your school email or case number.' : 'Use an email, case number, Submission ID, or Request ID.';
+      var help = student ? 'Use your school email or the case number from your receipt.' : 'Use an email, case number, Submission ID, or Request ID.';
       return '<div id="statusEmptyState" class="status-empty-state"><div class="status-empty-icon">&#128269;</div><p class="status-empty-title">No search yet</p><p class="status-empty-copy">' + copy + '</p><div class="status-help-grid"><div class="status-help-card"><div class="status-help-icon">&#128232;</div><div class="status-help-title">' + title + '</div><div class="status-help-copy">' + help + '</div></div><div class="status-help-card"><div class="status-help-icon">&#128270;</div><div class="status-help-title">Search Both Paths</div><div class="status-help-copy">DT submissions and special requests are checked together.</div></div><div class="status-help-card"><div class="status-help-icon">&#128200;</div><div class="status-help-title">Track Next Step</div><div class="status-help-copy">Read the timeline, remarks, and any revision request.</div></div></div></div>';
     }
 
@@ -6537,6 +8858,9 @@ function renderPage_(page, boot) {
               (r.admin_remarks ? '<div style="margin-top:6px;white-space:pre-wrap;"><strong>Remarks:</strong> ' + esc(r.admin_remarks) + '</div>' : '') +
             '</div>';
           }
+          if (r.lookup_limited) {
+            extra += '<div class="alert alert-info" style="margin-top:10px;"><span class="alert-icon">&#8505;</span><span>' + esc(r.lookup_limited_reason || 'For privacy, only limited status information is shown.') + '</span></div>';
+          }
           var sourceTag = '<span style="margin-left:6px;">' + sourcePill(r._source) + '</span>';
           var titleLabel = r._source === 'other'
             ? esc(r.project_name||'Special Request') + ' \\u2013 ' + esc(MACHINE_LABELS[r.machine]||r.machine)
@@ -6566,6 +8890,7 @@ function renderPage_(page, boot) {
             '<div class="progress-meta"><span>Progress: ' + progress + '%</span><span>Owner: ' + esc(owner) + '</span></div>' +
             buildTimeline(r.status) +
             '<div class="status-stage"><strong>Queue meaning:</strong> ' + esc(statusQueueMeaning_(r.status)) + '</div>' +
+            renderStatusQueuePosition_(r) +
             renderStatusNextPanel_(r) +
             renderStatusActionPanel_(r) +
             '<div class="sub-card-body">' + detailFields + '</div>' +
@@ -6573,14 +8898,14 @@ function renderPage_(page, boot) {
             '<div class="status-file-title">&#128193; Submitted files and evidence</div>' +
             renderStatusFileActions_(r) + extra + '</div>';
         }
-        var statusHtml = renderStatusSummary_(all) + renderStatusQueuePanel_(all);
+        var statusHtml = renderStatusSummary_(all) +
+          '<div class="alert alert-info status-activity-banner"><span class="alert-icon">&#128200;</span><span><strong>Need workshop workload context?</strong> Open <button type="button" class="btn btn-ghost btn-sm" onclick="switchPage(&#39;queue&#39;)" style="margin-left:6px;">Queue Status</button> for the queue graph and machine capacity view.</span></div>';
         var topActivity = all[0] && all[0]._activity ? all[0]._activity : null;
         if (topActivity && (Number(topActivity.counts.total || 0) >= 2 || Number(topActivity.last24_count || 0) >= 2)) {
           statusHtml += '<div class="alert alert-info status-activity-banner"><span class="alert-icon">&#128202;</span><span><strong>Recent activity for this requester:</strong> ' + Number(topActivity.counts.total || 0) + ' request(s) today and ' + Number(topActivity.last24_count || 0) + ' in the last 24 hours. Review the latest record carefully before resubmitting or chasing the queue.</span></div>';
         }
         statusHtml += all.map(renderCard).join('');
         el.innerHTML = statusHtml;
-        loadStatusQueueSnapshot_();
       }
       function onError(err) { if (!hadError) { hadError = true; setMsg('statusMsg', err.message||String(err), 'error'); if (statusBtn) { statusBtn.disabled = false; statusBtn.innerHTML = '&#128270; Check Status'; } } }
       google.script.run.withSuccessHandler(function(rows){ dtRows = rows; dtDone = true; merge(); }).withFailureHandler(onError).getStudentStatuses(q);
@@ -6683,6 +9008,10 @@ function renderPage_(page, boot) {
     function adminRenderChunkSize_() {
       return window.innerWidth < 700 ? 35 : 80;
     }
+    function currentUserCanOperateQueue_() {
+      var role = (BOOT.currentUser || {}).role;
+      return role === 'admin' || role === 'technician';
+    }
     function renderQueueRowHtml_(r, idx) {
       var caseNo = requestCaseNumber_(r);
       var caseHtml = '<div class="queue-case-line"><span class="case-badge">' + esc(caseNo) + '</span></div>';
@@ -6701,9 +9030,10 @@ function renderPage_(page, boot) {
       var contextCell = '<td class="queue-cell-context" data-label="Job"><div class="queue-context"><div class="queue-context-top">' + sourcePill(r._source) + (prototypeLabel ? prototypePill(r.prototype_fidelity) : '') + '</div><div class="queue-context-main">' + machineLabel + '</div><div class="queue-context-sub">' + materialLabel + (dims.length ? ' · ' + dimsLabel : '') + '</div>' + (prototypeLabel ? '<div class="queue-context-sub">Prototype: ' + esc(prototypeLabel) + '</div>' : '') + (r._source === 'other' && r.project_purpose ? '<div class="queue-context-sub">' + esc(r.project_purpose) + '</div>' : '') + '</div></td>';
       var statusCell = '<td class="queue-cell-status" data-label="Status"><div class="queue-status-block">' + statusPill(r.status) + '<div class="queue-mini-progress" title="Workflow progress"><span style="width:' + progress + '%"></span></div><div class="queue-next-owner">' + esc(statusOwner(r.status)) + '</div><div class="queue-status-note">' + esc(statusActionHint(r.status)) + '</div>' + (statusNote ? '<div class="queue-status-aux">' + esc(statusNote) + '</div>' : '') + '</div></td>';
       var metaCell = '<td class="queue-cell-meta" data-label="Queue Context"><div class="queue-meta-block"><div><div class="queue-time-main">Submitted ' + esc(submittedMeta || 'recently') + '</div><div class="queue-time-sub">' + esc(formatDisplayTs(r.created_at)) + '</div>' + (updatedMeta && r.updated_at && r.updated_at !== r.created_at ? '<div class="queue-time-sub">Updated ' + esc(updatedMeta) + '</div>' : '') + '</div>' + queueRiskBlock(r._activity) + '</div></td>';
+      var canOperate = currentUserCanOperateQueue_();
       var actionCell = '<td class="queue-cell-action" data-label="Action"><div class="queue-action-stack">' +
         '<button type="button" class="' + queueReviewButtonClass(r) + '" onclick="openDrawer(' + idx + ')">' + ((r.status === 'completed' || r.status === 'rejected') ? 'View' : 'Review') + '</button>' +
-        '<button type="button" class="btn btn-ghost btn-sm queue-label-btn" onclick="printQueueLabel_(' + idx + ')">&#128424; Label</button>' +
+        (canOperate ? '<button type="button" class="btn btn-ghost btn-sm queue-label-btn" onclick="printQueueLabel_(' + idx + ')">&#128424; Label</button>' : '') +
         '</div></td>';
       var rowClass = ['queue-row', queueRowStateClass(r.status), queueSourceClass(r._source), queueAttentionClass(r)].join(' ').trim();
       return '<tr class="' + rowClass + '">' + requesterCell + contextCell + statusCell + metaCell + actionCell + '</tr>';
@@ -6718,12 +9048,14 @@ function renderPage_(page, boot) {
         : (r.design_class_no || r.year_group || '');
       var teacher = isOther ? (r.teacher_in_charge || r.design_teacher || '') : (r.design_teacher || '');
       var machine = MACHINE_LABELS[r.machine] || r.machine || '';
+      var material = r.material || '';
       var id = r.submission_id || r.request_id || '';
       return {
         caseNo: requestCaseNumber_(r),
         name: name || 'Unnamed requester',
         classText: classText || 'No class',
         teacher: teacher || 'No teacher',
+        material: material || 'No material',
         machine: machine || 'Machine',
         id: id || '',
         source: isOther ? 'Special Request' : 'DT Submission'
@@ -6742,15 +9074,16 @@ function renderPage_(page, boot) {
           '@page{size:90mm 29mm;margin:0;}' +
           'html,body{margin:0;padding:0;}' +
           'body{font-family:Arial,Helvetica,sans-serif;color:#111;}' +
-          '.label-sheet{box-sizing:border-box;width:90mm;height:29mm;padding:1.9mm 3mm;overflow:hidden;display:flex;align-items:center;}' +
+          '.label-sheet{box-sizing:border-box;width:90mm;height:29mm;padding:1.55mm 3mm;overflow:hidden;display:flex;align-items:center;}' +
           '.label{width:100%;min-width:0;}' +
           '.label-top{display:flex;align-items:center;justify-content:space-between;gap:2mm;}' +
           '.label-case{font-size:12pt;font-weight:900;line-height:1;letter-spacing:.2mm;font-family:Arial,Helvetica,sans-serif;white-space:nowrap;}' +
-          '.label-name{margin-top:1mm;font-size:12.2pt;font-weight:800;line-height:1.04;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+          '.label-name{margin-top:.8mm;font-size:11.5pt;font-weight:800;line-height:1.02;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
           '.label-machine{flex:0 0 auto;border:1px solid #111;border-radius:1mm;padding:.55mm 1.15mm;font-size:7.5pt;font-weight:800;line-height:1;text-transform:uppercase;white-space:nowrap;}' +
-          '.label-row{margin-top:1.15mm;display:flex;gap:2.3mm;font-size:8.3pt;font-weight:700;line-height:1.08;white-space:nowrap;overflow:hidden;}' +
+          '.label-row{margin-top:.9mm;display:flex;gap:2.3mm;font-size:7.9pt;font-weight:700;line-height:1.06;white-space:nowrap;overflow:hidden;}' +
           '.label-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;}' +
-          '.label-id{margin-top:1mm;font-size:6.8pt;line-height:1;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+          '.label-material{font-size:8.1pt;font-weight:800;}' +
+          '.label-id{margin-top:.7mm;font-size:6.4pt;line-height:1;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
           '.print-toolbar{display:none;}' +
           '@media screen{body{width:auto;min-height:100vh;background:#f1f5f9;display:grid;place-items:start center;padding:16px;box-sizing:border-box;}.label-sheet{background:#fff;border:1px dashed #64748b;box-shadow:0 12px 30px rgba(15,23,42,.16);}.print-toolbar{display:flex;gap:8px;margin-top:14px;justify-content:center}.print-toolbar button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;font:700 12px Arial;cursor:pointer}.print-toolbar button.primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}}' +
           '@media print{.print-toolbar{display:none!important;}}' +
@@ -6760,6 +9093,7 @@ function renderPage_(page, boot) {
               '<div class="label-top"><div class="label-case">' + esc(data.caseNo || 'M---') + '</div><div class="label-machine">' + esc(data.machine) + '</div></div>' +
               '<div class="label-name">' + esc(data.name) + '</div>' +
               '<div class="label-row"><span>Class: ' + esc(data.classText) + '</span><span>Teacher: ' + esc(data.teacher) + '</span></div>' +
+              '<div class="label-row label-material"><span>Material: ' + esc(data.material) + '</span></div>' +
               '<div class="label-id">' + esc(data.caseNo || 'M---') + ' · ' + esc(data.source) + (data.id ? ' · ' + esc(data.id) : '') + '</div>' +
             '</div>' +
           '</div>' +
@@ -6969,8 +9303,9 @@ function renderPage_(page, boot) {
       var isOther = r._source === 'other';
       document.getElementById('drawerTitle').textContent = isOther ? 'Review Special Request: ' + (r.project_name || 'Untitled') : 'Review: ' + (r.student_name || 'Submission');
       var isTech = BOOT.currentUser.role === 'technician';
+      var canOperate = currentUserCanOperateQueue_();
       var techStatuses = ['approved','in_queue','in_production','completed'];
-      var visibleStatuses = isTech ? techStatuses : BOOT.statuses;
+      var visibleStatuses = canOperate ? (isTech ? techStatuses : BOOT.statuses) : [r.status];
       var issues = getIssueOptionsForMachine(r.machine);
       var dims = [r.width,r.height,r.depth].filter(function(v){ return v && String(v)!=='0'; });
       var activity = r._activity || {};
@@ -7020,6 +9355,14 @@ function renderPage_(page, boot) {
           '<div class="drawer-field"><label>Prototype</label><div class="val">' + esc(formatPrototypeFidelityLabel_(r.prototype_fidelity) || '—') + '</div></div></div>';
       }
 
+      var actionSection = canOperate
+        ? '<div class="drawer-section"><div class="drawer-section-title">Review Actions</div>' +
+          '<div class="drawer-field"><label>Set Status</label><select id="drawer_status" onchange="syncDrawerActionCue_()">' + visibleStatuses.map(function(s){ return '<option value="' + s + '"' + (s===r.status?' selected':'') + '>' + (STATUS_LABELS[s]||s) + '</option>'; }).join('') + '</select></div>' +
+          '<div class="review-flag review-flag--info" id="drawerActionCue"><strong>Next step:</strong> ' + esc(statusActionHint(r.status)) + '</div>' +
+          (isTech ? '' : '<div class="drawer-field"><label>Issue (optional)</label><select id="drawer_issue"><option value="">\\u2014 No issue \\u2014</option>' + issues.map(function(t){ return '<option value="' + esc(t.issue_code) + '"' + (t.issue_code===r.issue_code?' selected':'') + '>' + esc(t.issue_label) + '</option>'; }).join('') + '</select></div>') +
+          '<div class="drawer-field"><label>Remarks (student-visible)</label><textarea id="drawer_remarks" rows="3" placeholder="Notes visible to the requester\\u2026">' + esc(r.admin_remarks||'') + '</textarea></div></div>'
+        : '<div class="drawer-section"><div class="drawer-section-title">Teacher View</div><div class="review-flag review-flag--info"><strong>Read-only:</strong> Teachers can review linked student evidence and learning context. Workshop approval, queue movement, production status, and labels remain technician/admin actions.</div></div>';
+
       var body = summarySection + detailSection +
         '<div class="drawer-section"><div class="drawer-section-title">Fabrication</div>' +
         '<div class="drawer-field"><label>Machine</label><div class="val">' + esc(MACHINE_LABELS[r.machine]||r.machine) + '</div></div>' +
@@ -7027,24 +9370,21 @@ function renderPage_(page, boot) {
         (dims.length ? '<div class="drawer-field"><label>Dimensions</label><div class="val">' + dims.join('\\u00d7') + ' ' + esc(r.units||'') + '</div></div>' : '') +
         (isOther && r.quantity ? '<div class="drawer-field"><label>Quantity</label><div class="val">' + esc(String(r.quantity)) + '</div></div>' : '') +
         '<div class="drawer-field"><label>Current Status</label><div class="val">' + statusPill(r.status) + '</div></div>' +
-        (r.working_file_url ? '<div class="drawer-field"><label>Working File</label><div class="val"><a href="' + r.working_file_url + '" target="_blank">\\ud83d\\udcc4 ' + esc(r.working_file_name||'Download') + '</a></div></div>' : '') +
-        (r.preview_file_url ? '<div class="drawer-field"><label>Preview</label><div class="val"><a href="' + r.preview_file_url + '" target="_blank">\\ud83d\\uddbc\\ufe0f View Preview</a></div><img src="https://drive.google.com/thumbnail?id=' + esc(r.preview_file_id) + '&sz=w400" alt="Preview" style="margin-top:6px;max-width:100%;border-radius:6px;border:1px solid var(--card-border);" onerror="this.style.display=\\'none\\'"></div>' : '') +
+        (r.working_file_url ? '<div class="drawer-field"><label>Working File</label><div class="val"><a href="' + esc(r.working_file_url) + '" target="_blank" rel="noopener">\\ud83d\\udcc4 ' + esc(r.working_file_name||'Download') + '</a></div></div>' : '') +
+        (r.preview_file_url ? '<div class="drawer-field"><label>Preview</label><div class="val"><a href="' + esc(r.preview_file_url) + '" target="_blank" rel="noopener">\\ud83d\\uddbc\\ufe0f View Preview</a></div><img src="https://drive.google.com/thumbnail?id=' + esc(r.preview_file_id) + '&sz=w400" alt="Preview" style="margin-top:6px;max-width:100%;border-radius:6px;border:1px solid var(--card-border);" onerror="this.style.display=\\'none\\'"></div>' : '') +
         (isOther && r.additional_requirements ? '<div class="drawer-field"><label>Notes</label><div class="val">' + esc(r.additional_requirements) + '</div></div>' : '') +
         '<div class="drawer-field"><label>Submitted</label><div class="val">' + esc(formatDisplayTs(r.created_at)) + '</div></div>' +
         '<div class="drawer-field"><label>ID</label><div class="val" style="font-family:monospace;font-size:11px;word-break:break-all;">' + esc(r.submission_id || r.request_id) + '</div></div></div>' +
-        '<div class="drawer-section"><div class="drawer-section-title">Review Actions</div>' +
-        '<div class="drawer-field"><label>Set Status</label><select id="drawer_status" onchange="syncDrawerActionCue_()">' + visibleStatuses.map(function(s){ return '<option value="' + s + '"' + (s===r.status?' selected':'') + '>' + (STATUS_LABELS[s]||s) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="review-flag review-flag--info" id="drawerActionCue"><strong>Next step:</strong> ' + esc(statusActionHint(r.status)) + '</div>' +
-        (isTech ? '' : '<div class="drawer-field"><label>Issue (optional)</label><select id="drawer_issue"><option value="">\\u2014 No issue \\u2014</option>' + issues.map(function(t){ return '<option value="' + esc(t.issue_code) + '"' + (t.issue_code===r.issue_code?' selected':'') + '>' + esc(t.issue_label) + '</option>'; }).join('') + '</select></div>') +
-        '<div class="drawer-field"><label>Remarks (student-visible)</label><textarea id="drawer_remarks" rows="3" placeholder="Notes visible to the requester\\u2026">' + esc(r.admin_remarks||'') + '</textarea></div></div>';
+        actionSection;
 
       document.getElementById('drawerBody').innerHTML = body;
       var saveId = esc(r.submission_id || r.request_id);
-      document.getElementById('drawerActions').innerHTML =
-        '<button class="btn btn-primary btn-sm" onclick="saveFromDrawer(\\'' + saveId + '\\')">Save Changes</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="printQueueLabelById_(\\'' + saveId + '\\')">&#128424; Print Label</button>' +
-        (isOther ? '' : '<button class="btn btn-ghost btn-sm" onclick="draftEmail(\\'' + saveId + '\\')">\\u2709 Draft Email</button>') +
-        (isTech || BOOT.currentUser.role === 'admin' ? '<button class="btn btn-ghost btn-sm" onclick="reportTeacher(\\'' + saveId + '\\')">\\ud83d\\udce2 Notify Teacher</button>' : '') +
+      document.getElementById('drawerActions').innerHTML = (canOperate
+        ? '<button class="btn btn-primary btn-sm" onclick="saveFromDrawer(\\'' + saveId + '\\')">Save Changes</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="printQueueLabelById_(\\'' + saveId + '\\')">&#128424; Print Label</button>' +
+          (isOther ? '' : '<button class="btn btn-ghost btn-sm" onclick="draftEmail(\\'' + saveId + '\\')">\\u2709 Draft Email</button>') +
+          (isTech || BOOT.currentUser.role === 'admin' ? '<button class="btn btn-ghost btn-sm" onclick="reportTeacher(\\'' + saveId + '\\')">\\ud83d\\udce2 Notify Teacher</button>' : '')
+        : '') +
         '<button class="btn btn-ghost btn-sm" onclick="closeDrawer()">Close</button>';
 
       overlay.classList.add('show');
@@ -7163,7 +9503,7 @@ function renderPage_(page, boot) {
       /* Swap body class */
       document.body.className = document.body.className.replace(/role-\\w+/g, 'role-student');
       /* Show only student-visible pages */
-      var studentPages = ['submit','status','machines','other','help'];
+        var studentPages = ['submit','status','queue','machines','other','help'];
       _pages.forEach(function(n) {
         var nav = document.getElementById('nav-' + n);
         if (!nav) return;
@@ -7173,9 +9513,10 @@ function renderPage_(page, boot) {
       var banner = document.createElement('div');
       banner.id = 'studentPreviewBanner';
       banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:#fbbf24;color:#78350f;text-align:center;padding:6px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;';
-      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
+      banner.innerHTML = '\\ud83d\\udc41 Student View Preview &mdash; This is what students see. <button onclick=\"showStudentLaserCapacityNotice_(true)\" style=\"background:#fff7ed;color:#7c2d12;border:1px solid rgba(120,53,15,.24);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;\">Show Student Popup</button><button onclick=\"previewStudentView()\" style=\"background:#78350f;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;\">Exit Preview</button>';
       document.body.prepend(banner);
       switchPage('submit');
+      setTimeout(function() { showStudentLaserCapacityNotice_(true); }, 350);
       showToast('Now viewing as student. Admin pages are hidden.','success');
     }
 
@@ -7199,7 +9540,7 @@ function renderPage_(page, boot) {
         '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle" tabindex="-1">' +
           '<div class="modal-head"><h3 id="emailModalTitle">&#9993; Email Draft</h3><button class="modal-close" onclick="closeEmailModal_()" aria-label="Close email draft">&times;</button></div>' +
           '<div class="email-meta">' +
-            '<div class="field"><label>To</label><input id="emailTo" type="email" value="' + esc(d.to || '') + '" placeholder="recipient@example.edu"></div>' +
+            '<div class="field"><label>To</label><input id="emailTo" type="email" value="' + esc(d.to || '') + '" placeholder="recipient@student.example.edu or recipient@example.edu"></div>' +
             '<div class="field"><label>Subject</label><input id="emailSubject" type="text" value="' + esc(d.subject || '') + '"></div>' +
           '</div>' + warn +
           '<div class="email-preview"><div class="email-preview-head"><h4>Email Body</h4><div class="email-preview-note">You can edit this draft before copying or opening it in your mail app. Mail links use plain text; Copy Rich HTML keeps formatting where the browser allows it.</div></div><div class="email-body" id="emailBody" contenteditable="true" role="textbox" aria-label="Editable email body">' + (d.body_html||'') + '</div></div>' +
@@ -7517,8 +9858,18 @@ function renderPage_(page, boot) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
 
+    document.addEventListener('click', function(e) {
+      if (e.target.closest && e.target.closest('.filter-check')) return;
+      closeAllCheckboxFilters_();
+    });
+
     document.addEventListener('keydown', function(e) {
       if (e.key !== 'Escape') return;
+      var openFilters = document.querySelectorAll('.filter-check[open]');
+      if (openFilters.length) {
+        closeAllCheckboxFilters_();
+        return;
+      }
       var emailOverlay = document.getElementById('emailOverlay');
       if (emailOverlay) {
         closeEmailModal_();
@@ -7594,6 +9945,7 @@ function renderPage_(page, boot) {
 </html>
 `;
 }
+
 
 /* ============================================================
    90_UiPages.js
@@ -7681,16 +10033,16 @@ function renderSubmitPage_() {
       <h1>Submit fabrication files with fewer mistakes.</h1>
       <p>Use this dashboard for DT coursework laser cutting and 3D printing. It checks the basic rules, sends the file to the workshop queue, and gives you a status trail after technician review.</p>
       <div class="home-hero-actions">
-        <button type="button" class="btn btn-primary" onclick="scrollToId_('submitForm')">&#128221; Start DT Submission</button>
-        <button type="button" class="btn btn-ghost" onclick="switchPage('status')">&#128270; Check Status</button>
-        <button type="button" class="btn btn-ghost" onclick="switchPage('other')">&#11088; Special Request</button>
+        <button type="button" class="btn btn-primary" onclick="scrollToId_('submitForm')">Start DT Submission</button>
+        <button type="button" class="btn btn-ghost" onclick="switchPage('status')">Check Status</button>
+        <button type="button" class="btn btn-ghost" onclick="switchPage('other')">Special Request</button>
       </div>
     </div>
     <div class="home-panel">
       <div class="home-panel-title">Before you upload</div>
-      <div class="home-panel-row"><span class="home-panel-icon">&#128293;</span><span>Laser jobs need editable vector files, not screenshots or pixel images.</span></div>
-      <div class="home-panel-row"><span class="home-panel-icon">&#9881;</span><span>3D print jobs need an STL and a dimension screenshot.</span></div>
-      <div class="home-panel-row"><span class="home-panel-icon">&#9200;</span><span>Submission does not mean same-day production. Every job is reviewed first.</span></div>
+      <div class="home-panel-row"><span class="home-panel-icon">🔥</span><span>Laser jobs need editable vector files, not screenshots or pixel images.</span></div>
+      <div class="home-panel-row"><span class="home-panel-icon">⚙</span><span>3D print jobs need an STL and a dimension screenshot.</span></div>
+      <div class="home-panel-row"><span class="home-panel-icon">⏱</span><span>Submission does not mean same-day production. Every job is reviewed first.</span></div>
     </div>
   </div>
 
@@ -7698,23 +10050,23 @@ function renderSubmitPage_() {
     <div class="workflow-step"><span class="workflow-num">1</span><span><strong>Prepare</strong><span>Check file type, size, and preview.</span></span></div>
     <div class="workflow-step"><span class="workflow-num">2</span><span><strong>Submit</strong><span>Upload one working file per request.</span></span></div>
     <div class="workflow-step"><span class="workflow-num">3</span><span><strong>Review</strong><span>Technician checks readiness and notes fixes.</span></span></div>
-    <div class="workflow-step"><span class="workflow-num">4</span><span><strong>Track</strong><span>Use your ID or email on My Status.</span></span></div>
+    <div class="workflow-step"><span class="workflow-num">4</span><span><strong>Track</strong><span>Use your case number or school email on Lookup.</span></span></div>
   </div>
 
   <div class="card">
-    <div class="section-title">&#128196; DT Coursework Submission</div>
+    <div class="section-title">DT Coursework Submission</div>
     <div class="section-sub">Submit your Design &amp; Technology laser cutting or 3D printing working file for a lo-fi or hi-fi prototype. Fill in the form below.</div>
 
     <div class="path-selector path-selector--compact" aria-label="Choose fabrication pathway">
       <button type="button" class="path-card path-card--primary" onclick="scrollToId_('submitForm')" aria-label="Use DT coursework submission pathway">
         <span class="path-badge">DT coursework</span>
-        <span class="path-card-icon">&#128221;</span>
+        <span class="path-card-icon">📄</span>
         <span class="path-card-title">Class project or prototype</span>
         <span class="path-card-copy">Use this for normal DT laser cutting or 3D printing work.</span>
       </button>
       <button type="button" class="path-card path-card--secondary" onclick="switchPage('other')" aria-label="Use special request pathway">
         <span class="path-badge">Special request</span>
-        <span class="path-card-icon">&#11088;</span>
+        <span class="path-card-icon">⭐</span>
         <span class="path-card-title">Club, event, competition, or another subject</span>
         <span class="path-card-copy">Use this when a teacher or sponsor is approving work outside normal DT coursework.</span>
       </button>
@@ -7725,7 +10077,7 @@ function renderSubmitPage_() {
     <div class="submit-workspace">
       <div class="submit-main-column">
     <div class="guide-card">
-      <div class="guide-title">&#128221; Guided Submission Steps</div>
+      <div class="guide-title">Guided Submission Steps</div>
       <div class="submit-stepper" id="submitStepper" aria-label="Submission step progress">
         <div class="submit-stepper-item" id="submitStepper1"><span class="submit-stepper-num">1</span><span><strong>Who are you?</strong><small>Student details</small></span></div>
         <div class="submit-stepper-item" id="submitStepper2"><span class="submit-stepper-num">2</span><span><strong>What are you making?</strong><small>Year, machine, material</small></span></div>
@@ -7755,8 +10107,8 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="studentID@student.example.edu" required>
-              <div class="helper">Use your school email address.</div>
+              <input type="email" name="student_email" placeholder="studentID@student.example.edu or teacher@example.edu" required>
+              <div class="helper">Use a school email: students use @student.example.edu; teachers and staff use @example.edu.</div>
             </div>
             <div class="field">
               <label>Full Name <span class="req">*</span></label>
@@ -7773,17 +10125,17 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
-                <option value="Teacher A">Teacher A</option>
                 <option value="Teacher B">Teacher B</option>
-                <option value="Technician">Technician</option>
-                <option value="Teacher C">Teacher C</option>
                 <option value="Teacher D">Teacher D</option>
+                <option value="DT technician">DT technician</option>
+                <option value="Teacher C">Teacher C</option>
                 <option value="Teacher E">Teacher E</option>
-                <option value="Teacher F">Teacher F</option>
                 <option value="Teacher G">Teacher G</option>
+                <option value="Teacher A">Teacher A</option>
+                <option value="Admin User">Admin User</option>
+                <option value="Teacher F">Teacher F</option>
                 <option value="Teacher H">Teacher H</option>
                 <option value="Teacher I">Teacher I</option>
-                <option value="Teacher J">Teacher J</option>
               </select>
             </div>
             <div class="field">
@@ -7798,9 +10150,10 @@ function renderSubmitPage_() {
                 <option value="">&mdash; Select prototype type &mdash;</option>
                 <option value="low">Lo fi Prototype</option>
                 <option value="hi">Hi fi Prototype</option>
+                <option value="final">Final Product</option>
                 <option value="na">N/A</option>
               </select>
-              <div class="helper">Choose Lo fi Prototype, Hi fi Prototype, or N/A if this does not apply.</div>
+              <div class="helper">Choose Lo fi Prototype, Hi fi Prototype, Final Product, or N/A if this does not apply.</div>
             </div>
           </div>
         </div>
@@ -8079,8 +10432,8 @@ function renderOtherRequestPage_(boot) {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="your-email@example.edu" required>
-              <div class="helper">Use your school email address.</div>
+              <input type="email" name="requester_email" placeholder="your-email@student.example.edu or your-email@example.edu" required>
+              <div class="helper">Students use @student.example.edu. Staff use @example.edu.</div>
             </div>
             <div class="field">
               <label>Full Name <span class="req">*</span></label>
@@ -8370,19 +10723,19 @@ function renderOtherRequestPage_(boot) {
 
 function renderStatusPage_(user) {
   var isStudentView = !user || !user.isAdmin;
-  var title = isStudentView ? '&#128270; My Submission Status' : '&#128270; Submission Lookup';
+  var title = isStudentView ? 'My Submission Status' : 'Submission Lookup';
   var sub = isStudentView
-    ? 'Enter your school email or case number to check progress, submitted files, feedback, and what to do next. Your results will load automatically.'
+    ? 'Enter your school email or case number to check progress, submitted files, feedback, queue position, and what to do next. Your results will load automatically.'
     : 'Look up any submission by student email, case number, Submission ID, or Request ID.';
-  var lookupPlaceholder = isStudentView ? 'Email or case number' : 'Email, case number, Submission ID, or Request ID';
+  var lookupPlaceholder = isStudentView ? 'Email or case number, e.g. M720 or A015' : 'Email, case number, Submission ID, or Request ID';
   var lookupHint = isStudentView
-    ? 'Students should use their school email or case number. Quote the case number when asking a teacher or technician for help.'
+    ? 'Students can search using their school email or the case number from the confirmation email. M numbers are DT submissions; A numbers are Special Requests.'
     : 'Students can use their school email or case number. Teachers, technicians, and admins can paste an exact ID when following up with a learner or sponsor.';
   var emptyCopy = isStudentView
-    ? 'Enter your school email to see all your submissions, or paste a case number to look up one entry.'
+    ? 'Enter your school email to see all your submissions, or paste a case number such as M720 or A015 to look up one entry.'
     : 'Enter your school email to see all your submissions, or paste a case number, Submission ID, or Request ID to look up one entry.';
   var emptyHelpTitle = isStudentView ? 'Enter Email or Case Number' : 'Enter Email or ID';
-  var emptyHelpCopy = isStudentView ? 'Use your school email or case number.' : 'Use your school email, case number, Submission ID, or Request ID.';
+  var emptyHelpCopy = isStudentView ? 'Use your school email or the case number from your receipt.' : 'Use your school email, case number, Submission ID, or Request ID.';
   return `
   <div class="page-hero page-hero--status">
     <div>
@@ -8390,23 +10743,24 @@ function renderStatusPage_(user) {
       <h1>${title}</h1>
       <p>${sub} Status information shows where the request sits in the human review and workshop process.</p>
     </div>
-    <div class="page-hero-actions">
-      <button type="button" class="btn btn-primary" onclick="focusStatusSearch_()">&#128270; Search Now</button>
-      <button type="button" class="btn btn-ghost" onclick="switchPage('submit')">&#128221; New DT Submission</button>
-      <button type="button" class="btn btn-ghost" onclick="switchPage('other')">&#128301; Special Request</button>
+	    <div class="page-hero-actions">
+	      <button type="button" class="btn btn-primary" onclick="focusStatusSearch_()">Search Now</button>
+	      <button type="button" class="btn btn-ghost" onclick="switchPage('queue')">Queue Status</button>
+	      <button type="button" class="btn btn-ghost" onclick="switchPage('submit')">New DT Submission</button>
+	      <button type="button" class="btn btn-ghost" onclick="switchPage('other')">Special Request</button>
     </div>
   </div>
 
   <div class="card">
-    <div class="section-title">&#128269; Status Lookup</div>
+    <div class="section-title">Status Lookup</div>
     <div class="section-sub">Search both DT submissions and special fabrication requests from one place. Each result shows the current stage, next action, file links, and any technician feedback.</div>
 
-    ` + renderDisclaimerBox_('&#9200; Turnaround Time Notice', APP.uiText.turnaroundStatusNotice) + `
+    ` + renderDisclaimerBox_('Turnaround Time Notice', APP.uiText.turnaroundStatusNotice) + `
 
     <div class="status-search-panel">
       <div class="status-search-row">
         <input id="statusQuery" type="text" placeholder="${lookupPlaceholder}" aria-label="${lookupPlaceholder}">
-        <button id="statusSearchBtn" class="btn btn-primary" onclick="loadStatuses()" style="white-space:nowrap;">&#128270; Check Status</button>
+        <button id="statusSearchBtn" class="btn btn-primary" onclick="loadStatuses()" style="white-space:nowrap;">Check Status</button>
         <button class="btn btn-ghost" onclick="clearStatusSearch_()" style="white-space:nowrap;">Clear</button>
       </div>
       <div class="status-search-hint">
@@ -8431,13 +10785,142 @@ function renderStatusPage_(user) {
             <div class="status-help-title">Search Both Paths</div>
             <div class="status-help-copy">DT submissions and special requests are checked together.</div>
           </div>
-          <div class="status-help-card">
-            <div class="status-help-icon">&#128200;</div>
-            <div class="status-help-title">Track Next Step</div>
-            <div class="status-help-copy">Read the timeline, remarks, and any revision request.</div>
-          </div>
+	          <div class="status-help-card">
+	            <div class="status-help-icon">&#128200;</div>
+	            <div class="status-help-title">Workshop Queue</div>
+	            <div class="status-help-copy">Open Queue Status to see workload, machine capacity, and recent request activity.</div>
+	          </div>
+	        </div>
+	      </div>
+    </div>
+  </div>
+	  `;
+	}
+
+function renderStudentQueuePage_() {
+  return `
+  <div class="page-hero page-hero--status">
+    <div>
+      <div class="page-hero-kicker">Workshop visibility</div>
+      <h1>Queue &amp; Machine Status</h1>
+      <p>Use this page to understand the current workshop workload, recent request activity, and machine capacity before you submit or chase a job. This page shows aggregate demo-safe information only.</p>
+    </div>
+    <div class="page-hero-actions">
+      <button type="button" class="btn btn-primary" onclick="loadStatusQueueSnapshot_()">Refresh Queue</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('status')">Check My Case</button>
+      <button type="button" class="btn btn-ghost" onclick="switchPage('machines')">Machines Guide</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="status-queue-panel status-queue-panel--standalone" id="statusQueuePanel">
+      <div class="status-queue-head">
+        <div>
+          <div class="status-queue-title">Whole-workshop queue</div>
+          <div class="status-queue-note">Submitted, Approved, In Queue, and In Production all count as active workload. Needs Fix waits for student revision and is not a promise of turnaround time.</div>
         </div>
+        <span class="pill pill-submitted" id="statusQueueHealthPill">LOADING</span>
       </div>
+      <div class="status-workload-card" id="statusQueueGlobal" aria-live="polite">Loading workload view...</div>
+    </div>
+  </div>
+
+  <div class="queue-student-grid">
+    <div class="card queue-student-card">
+      <div class="section-title">Machine status</div>
+      <div class="section-sub">Machine status is shown as student-safe guidance, not a booking promise.</div>
+      <div class="queue-machine-status" id="queueMachineStatusCards">
+        <div class="status-help-card"><div class="status-help-icon">&#128293;</div><div class="status-help-title">Laser cutting</div><div class="status-help-copy">Loading current capacity notice...</div></div>
+        <div class="status-help-card"><div class="status-help-icon">&#9881;</div><div class="status-help-title">3D printing</div><div class="status-help-copy">Loading current queue context...</div></div>
+      </div>
+    </div>
+
+    <div class="card queue-student-card">
+      <div class="section-title">What the stages mean</div>
+      <div class="status-help-grid">
+        <div class="status-help-card"><div class="status-help-icon">&#128229;</div><div class="status-help-title">Submitted</div><div class="status-help-copy">Your file is waiting for human technician review.</div></div>
+        <div class="status-help-card"><div class="status-help-icon">&#9989;</div><div class="status-help-title">Approved / Queue</div><div class="status-help-copy">The file passed review and is waiting for a production slot.</div></div>
+        <div class="status-help-card"><div class="status-help-icon">&#128295;</div><div class="status-help-title">In production</div><div class="status-help-copy">The workshop is fabricating or preparing the job.</div></div>
+        <div class="status-help-card"><div class="status-help-icon">&#8635;</div><div class="status-help-title">Needs Fix</div><div class="status-help-copy">Read technician feedback, revise the file, and submit the corrected version.</div></div>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderTeacherBetaPage_(user) {
+  user = user || {};
+  if (user.role !== 'teacher' && user.role !== 'admin') {
+    return `
+    <div class="card">
+      <div class="section-title">Class</div>
+      <div class="alert alert-error"><span class="alert-icon">&#128274;</span><span>Class is available to teacher accounts only.</span></div>
+    </div>`;
+  }
+  var classes = (APP.teacherBetaClasses || []).filter(function(cls) {
+    if (user.role === 'admin') return true;
+    return normalizeEmail_(cls.teacher_email) === normalizeEmail_(user.email) ||
+      String(cls.teacher || '').trim().toLowerCase() === String(user.name || '').trim().toLowerCase();
+  });
+  var teacherMap = {};
+  classes.forEach(function(cls) {
+    var key = normalizeEmail_(cls.teacher_email) || String(cls.teacher || '').trim().toLowerCase();
+    if (!key || teacherMap[key]) return;
+    teacherMap[key] = {
+      key: key,
+      teacher: cls.teacher || cls.teacher_email || 'Teacher',
+      teacher_email: normalizeEmail_(cls.teacher_email)
+    };
+  });
+  var teacherOptions = Object.keys(teacherMap).map(function(key) { return teacherMap[key]; }).sort(function(a, b) {
+    return String(a.teacher || '').localeCompare(String(b.teacher || ''));
+  }).map(function(teacher) {
+    return '<option value="' + escapeHtml_(teacher.key || '') + '">' + escapeHtml_(teacher.teacher || 'Teacher') + '</option>';
+  }).join('');
+  var classOptions = classes.map(function(cls) {
+    var teacherKey = normalizeEmail_(cls.teacher_email) || String(cls.teacher || '').trim().toLowerCase();
+    return '<option value="' + escapeHtml_(cls.class_no || '') + '" data-teacher-key="' + escapeHtml_(teacherKey) + '">' + escapeHtml_(cls.label || ('Class ' + cls.class_no)) + '</option>';
+  }).join('');
+  return `
+  <div class="teacher-beta-hero">
+    <div>
+      <div class="teacher-beta-kicker">Teacher tools</div>
+      <h2 class="teacher-beta-title">Class Submission</h2>
+      <p class="teacher-beta-copy">Track which students in a design class have submitted fabrication work, who still needs a reminder, and which cases need teacher follow-up. Filter by teacher first to narrow the class list, or choose a class directly.</p>
+    </div>
+    <div class="teacher-beta-actions">
+      <button type="button" class="btn btn-primary btn-sm" onclick="loadTeacherBetaStatus_(true)">Refresh</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="teacherBetaDownloadBtn" onclick="downloadTeacherBetaSpreadsheet_()">Download Spreadsheet</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="copyTeacherBetaMissing_()">Copy Missing Emails</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="teacher-beta-toolbar">
+      <div class="field">
+        <label>Teacher</label>
+        <select id="teacherBetaTeacher">
+          <option value="">All teachers</option>
+          ${teacherOptions}
+        </select>
+      </div>
+      <div class="field">
+        <label>Design Class</label>
+        <select id="teacherBetaClass">
+          <option value="">All tracked classes</option>
+          ${classOptions}
+        </select>
+      </div>
+      <div class="field teacher-beta-search-field">
+        <label>Search student</label>
+        <input type="search" id="teacherBetaSearch" placeholder="Name, email, case number, status">
+      </div>
+      <label class="teacher-beta-check"><input type="checkbox" id="teacherBetaMissingOnly"> Missing only</label>
+      <div id="teacherBetaMsg" class="inline-msg tc-muted"></div>
+    </div>
+    <div id="teacherBetaSummary"></div>
+    <div id="teacherBetaResults" class="teacher-beta-results">
+      <div class="queue-empty alert alert-neutral"><span class="alert-icon">&#128269;</span><span>Loading class submission data...</span></div>
     </div>
   </div>
   `;
@@ -8593,12 +11076,12 @@ function renderAdminPage_(user, boot) {
 
     <div class="filter-bar">
       <div class="field filter-wide"><label>Search Queue</label><input type="text" id="filterQuick" placeholder="Name, email, ID, teacher, material, project"></div>
-      <div class="field"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Special Requests</option></select></div>
+      <div class="field filter-source"><label>Source</label><select id="filterSource"><option value="">All</option><option value="dt">DT Submissions</option><option value="other">Special Requests</option></select></div>
       ${yearFilterControl}
       ${machineFilterControl}
       ${materialFilterControl}
       ${statusFilterControl}
-      <div class="field"><label>Sort</label><select id="filterSort"><option value="newest">Newest submitted</option><option value="priority">Priority</option><option value="time_newest">Newest timestamp</option><option value="oldest">Oldest active</option><option value="updated">Recently updated</option><option value="name">Requester A-Z</option></select></div>
+      <div class="field filter-sort"><label>Sort</label><select id="filterSort"><option value="newest">Newest first</option><option value="priority">Priority</option><option value="time_newest">Newest timestamp</option><option value="oldest">Oldest active</option><option value="updated">Recently updated</option><option value="name">Requester A-Z</option></select></div>
       <div class="field"><label>Teacher</label><select id="filterTeacher"><option value="">All teachers</option></select></div>
       <div class="field"><label>Class</label><input type="text" id="filterClass" placeholder="e.g. 8.1"></div>
       <div class="field"><label>Student</label><input type="text" id="filterStudentEmail" placeholder="Email"></div>
@@ -9069,7 +11552,7 @@ function renderHelpPage_() {
       <li>Checked that your design fits the <strong>size limit for your year group</strong></li>
       <li>Prepared the <strong>correct working file format</strong> (not a screenshot or image)</li>
       <li>Prepared a <strong>preview image</strong> if required by your year group</li>
-      <li>Used your <strong>school email address</strong> (not a personal email)</li>
+      <li>Used a <strong>school email address</strong> (@student.example.edu for students, @example.edu for teachers/staff)</li>
       <li>Entered your <strong>class number</strong> and <strong>teacher name</strong> correctly</li>
     </ul>
     <div class="alert alert-warning" style="margin-top:12px;">
@@ -9362,7 +11845,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (e.g. name@example.edu)</li>
+          <li>Your <strong>school email</strong> (studentID@student.example.edu or teacher@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -9403,7 +11886,7 @@ function renderHelpPage_() {
 
     <div class="help-checklist">
       <div class="help-checklist-title">&#128100; General</div>
-      <label><input type="checkbox"> I used my <strong>school email address</strong></label>
+      <label><input type="checkbox"> I used a <strong>school email address</strong></label>
       <label><input type="checkbox"> I entered my <strong>name, class, and teacher</strong> correctly</label>
       <label><input type="checkbox"> I selected the correct <strong>year group</strong></label>
       <label><input type="checkbox"> I selected the correct <strong>machine</strong> (Laser or 3D)</label>
@@ -9440,7 +11923,7 @@ function renderHelpPage_() {
   <!-- 12. After You Submit -->
   <div class="help-section" id="help-after">
     <div class="help-section-title">&#128270; 12. After You Submit <span class="help-badge-cat help-badge-everyone">Everyone</span></div>
-    <p>After submission, you will receive a <strong>case number</strong>. Save this number &mdash; you can use it on the <strong>My Status</strong> page and quote it when asking for help.</p>
+    <p>After submission, you will receive a <strong>case number</strong>. Save this number &mdash; you can use it on the <strong>Lookup</strong> page and quote it when asking for help.</p>
     <p>Your submission status will change as it is reviewed and processed by the technician team. You will also receive <strong>email notifications</strong> when your status changes.</p>
 
     <h4>Status Meanings</h4>
@@ -9462,7 +11945,7 @@ function renderHelpPage_() {
 
     <h4>What to do:</h4>
     <ol>
-      <li>Open the <strong>My Status</strong> page</li>
+      <li>Open the <strong>Lookup</strong> page</li>
       <li>Find your submission and read the <strong>remarks / issue notes</strong> carefully</li>
       <li>Fix the file <strong>exactly as requested</strong></li>
       <li>Speak to your <strong>teacher</strong> if you do not understand the problem</li>
@@ -9490,7 +11973,7 @@ function renderHelpPage_() {
           <li><strong>Exceeding the size limit</strong> for your year group</li>
           <li>Forgetting to upload a <strong>preview image</strong> when required</li>
           <li>Entering the <strong>wrong year group</strong> or <strong>wrong material</strong></li>
-          <li>Using a <strong>personal email</strong> instead of your school email</li>
+          <li>Using a <strong>personal email</strong> instead of a school email</li>
           <li>Uploading the file with a <strong>vague name</strong> (e.g. &ldquo;untitled&rdquo;)</li>
         </ul>
       </div>
@@ -9601,7 +12084,7 @@ function renderHelpPage_() {
       <li>Upload the <strong>correct working file type</strong> (.af / .afdesign for laser, .stl for 3D)</li>
       <li>Keep within the <strong>size limit for your year group</strong></li>
       <li>Upload the <strong>whole file</strong>, not a screenshot or partial export</li>
-      <li>Check <strong>My Status</strong> after submission for updates and remarks</li>
+      <li>Check <strong>Lookup</strong> after submission for updates and remarks</li>
       <li>` + APP.uiText.turnaroundQuickRule + `</li>
     </ol>
   </div>
@@ -9673,7 +12156,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.example.edu"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.example.edu or staff@example.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>

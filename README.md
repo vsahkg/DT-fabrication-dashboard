@@ -41,6 +41,7 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - DT coursework submission with prototype type selection (`low`, `hi`, `na`)
 - Special Request submission with sponsor / teacher approval fields
 - sheet-backed submission deadline and cutoff controls by year group or class
+- teacher-facing Class Submission tracker with expected roster status, teacher/class filters, missing-only review, class typo notes, and CSV spreadsheet export
 - merged reviewer queue across DT and Special Request records
 - default Admin queue ordering by latest spreadsheet row, so newly appended submissions appear first
 - full-row status colouring for faster queue scanning, including green completed rows and distinct active / needs-fix / rejected states
@@ -58,7 +59,7 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - machine guide content with workshop-specific guidance and manufacturer-verified specs
 - rules, users, submission controls, and audit views for admins
 
-This repository should be treated as a documentation-oriented working copy of the project. The published `code.gs` intentionally uses neutral `example.edu` contacts, generic teacher labels, and blank deployment metadata. Before deploying it to a school environment, configure contacts, script properties, and deployment settings locally.
+This repository should be treated as a documentation-oriented working copy of the project. The published `code.gs` intentionally uses neutral `example.edu` contacts, generic teacher labels, synthetic demo class rosters, and blank deployment metadata. Before deploying it to a school environment, configure contacts, real rosters, script properties, and deployment settings locally.
 
 ## Repository Contents
 
@@ -79,7 +80,7 @@ This repository should be treated as a documentation-oriented working copy of th
 |---|---|
 | **DT students** | Submit coursework jobs, track status, respond to review feedback |
 | **Non-DT students / clubs / departments** | Submit Special Requests with sponsor approval |
-| **Teachers** | Monitor student progress, receive updates, support fixes |
+| **Teachers** | Monitor student progress, check design-class submission completion, receive updates, support fixes |
 | **Technicians** | Operate the queue, review jobs, update statuses, communicate issues |
 | **Admins** | Full operational access including rules, users, submission controls, and audit log |
 
@@ -119,6 +120,17 @@ Technicians are intentionally restricted to production-side statuses only:
 
 Admins retain full workflow control.
 
+### 4. Class Submission Tracking
+
+Teachers and admins can use the Class Submission page to compare expected design-class rosters against dashboard submissions.
+
+- filters by teacher or design class
+- shows submitted, missing, needs-fix, completed, class typo, and extra-record counts
+- shows the latest case number and status for each roster student
+- identifies likely class-entry mistakes when a student submitted under another class number
+- exports the visible class-status report as CSV for spreadsheet follow-up
+- uses synthetic demo roster data in the public GitHub snapshot; live deployments should configure real rosters privately
+
 ## Feature Overview
 
 ### Submission System
@@ -143,6 +155,7 @@ Admins retain full workflow control.
 - explicit Refresh buttons that force a fresh spreadsheet read when staff need to verify newly-added rows
 - print-ready single labels with requester name, class/year, teacher/sponsor, machine type, and case number for workshop tracking
 - teacher-scoped queue view with “My students only” default
+- teacher-facing class tracker for checking who has submitted, who is missing, and who needs follow-up
 - review drawer with record context, activity history, remarks, and status actions
 - audit log entries for status changes, manual email sends, rule edits, and cutoff actions
 
@@ -162,6 +175,7 @@ Admins retain full workflow control.
 - user management page
 - audit log page
 - direct open-link to the backing spreadsheet
+- class tracker seed data configured in `APP.teacherBetaClasses`
 - system-admin-only access for rules, users, audit, and direct spreadsheet opening
 
 ### Guidance Content
@@ -513,7 +527,7 @@ Run at least one DT submission and one Special Request through the deployed app 
 ## Known Limitations
 
 - The whole application lives in one large `code.gs` file.
-- Teacher names are still tied to a hardcoded mapping and submit-page dropdown content.
+- Teacher names are still tied to a hardcoded mapping, submit-page dropdown content, and class-tracker roster configuration.
 - There is no automated test suite in this repository.
 - Google Sheets remains the operational data store, not a transactional database.
 - Resubmissions create new rows instead of versioning an existing submission.

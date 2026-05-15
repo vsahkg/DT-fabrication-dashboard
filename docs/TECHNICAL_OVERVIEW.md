@@ -29,6 +29,7 @@ Important sections include:
 - `APP.status` for the workflow enum
 - `APP.uiText` for shared user-facing wording
 - `APP.teacherEmails` for teacher-name to email resolution
+- `APP.teacherBetaClasses` for Class Submission tracker rosters and teacher/class grouping
 - `APP.adminEmailOverrides` for elevated-role email overrides
 - `APP.technicianCcEmail` for threaded `Needs Fix` communication
 
@@ -71,6 +72,7 @@ Other important constants outside `APP` include:
 - `renderRulesPage_()`
 - `renderUsersPage_()`
 - `renderAuditPage_()`
+- `renderTeacherBetaPage_()`
 
 These renderers are regression-sensitive because they rely on very large template strings.
 
@@ -146,6 +148,16 @@ This data feeds:
 - `getAdminOtherRequests()`
 - `attachStudentFeedback_()`
 
+### Class Submission tracking
+
+- `getTeacherBetaVisibleClasses_()` scopes the configured class roster list by current teacher/admin role
+- `buildTeacherBetaClassStatus_()` compares roster emails with dashboard submission rows
+- `getTeacherBetaClassStatus()` serves the interactive Class Submission page
+- `getTeacherBetaClassStatusCsv_()` produces the spreadsheet export used by the download action
+- the `teacher_class_csv` `doGet` action provides a server-side CSV fallback route
+
+The public GitHub snapshot keeps this feature structurally intact but uses synthetic demo rosters and generic teacher labels. Real rosters should stay in private deployment configuration only.
+
 ### Status updates
 
 - `updateSubmissionStatus()`
@@ -209,6 +221,7 @@ Role resolution currently blends:
 - sheet-based `Users`
 - hardcoded teacher mappings
 - hardcoded admin override emails
+- hardcoded class-tracker roster configuration
 
 That means documentation and deployment notes must treat these values as operational configuration, not just demo placeholders.
 
