@@ -2,6 +2,30 @@
 
 All notable documentation-facing changes to this repository are recorded here.
 
+## [1.3.0-public-v120-split-source] - 2026-05-19
+
+### Latest dashboard update
+
+- Published the current split Apps Script source instead of the older monolithic `code.gs` snapshot.
+- Added the latest student Lookup improvements: case-number search, case-number-only student references, approximate active-workshop position, estimated pickup window, submitted file links, and clearer next-action wording.
+- Added the student queue/machine status experience so queue health and recent request activity can be viewed away from the lookup result card.
+- Added deadline visibility on the submit form and laser queue popup, including year/class deadline handling through the `SubmissionControls` logic.
+- Added the admin-only Rules queue throughput chart as a 30-day submitted-vs-finished graph, with visible daily count labels for both the blue submitted curve and the green finished curve.
+- Improved queue filtering with multi-condition filtering, teacher dropdown options, material filtering, case-number quick search, dropdown auto-close behaviour, and cleaner filter controls.
+- Added or refined teacher class overview features: teacher/class filters, submitted-vs-missing status, possible class mismatch hints, and spreadsheet download for teacher follow-up.
+- Updated prototype type handling to include `Final Product`.
+- Improved automatic and draft email content so students receive their case number, know to use the Lookup page, and see a system-generated email footer.
+- Updated label printing so workshop labels include material as well as case number, requester, class/year, teacher/sponsor, and machine.
+- Simplified student upload validation messaging and kept Affinity `.af` / `.afdesign`, SVG, DXF, and STL handling aligned with the visible UI.
+
+### Public-safe preparation
+
+- Removed the old `code.gs` snapshot from the public repository and replaced it with split source files matching the current development structure.
+- Replaced live Apps Script deployment metadata with blank placeholders.
+- Replaced real student rosters with sample class rosters that preserve the teacher/class feature shape without exposing personal data.
+- Replaced real staff names, staff emails, admin overrides, technician contact, and school email domains with generic `example.edu` placeholders.
+- Re-ran syntax checks and privacy scans before publishing this update.
+
 ## [1.2.2-case-number-status-lookup] - 2026-05-05
 
 ### Latest dashboard update

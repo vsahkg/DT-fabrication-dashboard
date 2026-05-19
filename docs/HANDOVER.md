@@ -19,10 +19,11 @@ It should not be assumed to be a fully scrubbed public export at all times. Revi
 
 ## Before Real Deployment
 
-Review these configuration surfaces in `code.gs`:
+Review these configuration surfaces in the split Apps Script source:
 
 - `APP.technicianCcEmail`
 - `APP.teacherEmails`
+- `APP.teacherBetaClasses`
 - `APP.adminEmailOverrides`
 - `APP.uiText`
 
@@ -35,15 +36,15 @@ Also confirm:
 - user rows in the `Users` sheet
 - `Rules` and `SubmissionControls` rows match the intended policy
 
-## Working With A Single-File GAS Project
+## Working With The Split GAS Project
 
 ### Make focused edits
 
-UI, client logic, and shared wording are deeply interleaved inside template strings. Broad edits increase break risk.
+The source is split into six Apps Script files, but UI, client logic, and shared wording are still deeply interleaved inside template strings. Broad edits increase break risk.
 
 ### Validate after each change
 
-After editing `code.gs`, check Apps Script syntax and the rendered web app before considering the change done.
+After editing the source files, check Apps Script syntax and the rendered web app before considering the change done.
 
 ### Keep headers stable
 
@@ -51,7 +52,7 @@ Sheet headers and runtime object keys are tightly coupled. If you rename a heade
 
 ### Watch for config drift
 
-Teacher mappings, admin override emails, submit-page dropdown options, and public docs can drift apart if changed independently.
+Teacher mappings, class rosters, admin override emails, submit-page dropdown options, and public docs can drift apart if changed independently.
 
 ## Where To Edit Common Things
 
@@ -75,6 +76,7 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 ### Teacher and admin identity mapping
 
 - teacher mappings live in `APP.teacherEmails`
+- teacher class overview sample/live rosters live in `APP.teacherBetaClasses`
 - elevated-role email overrides live in `APP.adminEmailOverrides`
 - submit-page teacher dropdown content is hardcoded in `renderSubmitPage_()`
 
@@ -95,13 +97,14 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 - renaming a sheet header without updating all dependent code
 - changing a status without updating queue labels, notifications, and help text
 - changing teacher mappings but forgetting the submit-page dropdown
+- changing class rosters without re-testing teacher overview filters and downloads
 - updating deadline / cutoff logic without re-testing DT submission blocking
 - publishing school-specific contact values unintentionally
 
 ## Recommended Setup Process
 
 1. create a new Apps Script project
-2. paste in `code.gs`
+2. copy the six Apps Script source files into the project
 3. run `authorizeScopes()`
 4. run `bootstrap()`
 5. review the generated spreadsheet and folder tree
@@ -113,6 +116,7 @@ Teacher mappings, admin override emails, submit-page dropdown options, and publi
 ## What To Check Before Deployment
 
 - `APP.teacherEmails` matches the real staff list
+- `APP.teacherBetaClasses` contains only intended live rosters in private deployments and sample rosters in public copies
 - submit-page teacher dropdown options match the mapping
 - `APP.technicianCcEmail` is correct
 - `APP.adminEmailOverrides` only contains intended elevated accounts
@@ -137,7 +141,7 @@ After meaningful changes, verify:
 9. status changes write to sheets and `AuditLog`
 10. automatic emails still send correctly
 11. Machines and Help pages render correctly on desktop and mobile
-12. no new syntax or editor errors are reported in `code.gs`
+12. no new syntax or editor errors are reported in the Apps Script source files
 
 ## Public Publishing Discipline
 
@@ -152,7 +156,8 @@ Before pushing to a public GitHub repo, confirm the repository does not expose:
 
 Review these areas carefully:
 
-- top-level config values in `code.gs`
+- top-level config values in `00_ConfigAndReadiness.js`
+- sample/live rosters in `APP.teacherBetaClasses`
 - email examples and footer text
 - docs wording that implies a sanitised snapshot when the branch is not yet sanitised
 - screenshots and diagrams under `docs/assets/`

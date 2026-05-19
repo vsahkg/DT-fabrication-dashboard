@@ -1,21 +1,28 @@
 # Technical Overview
 
-This document explains how the current `code.gs` implementation is organised and where the main operational responsibilities live.
+This document explains how the current split Apps Script implementation is organised and where the main operational responsibilities live.
 
 For the broader repository overview, see [../README.md](../README.md). For maintenance and rollout guidance, see [HANDOVER.md](HANDOVER.md).
 
 ## Architecture Summary
 
-The application is a single-file Google Apps Script web app.
+The application is a Google Apps Script web app split across six source files:
 
-That one file contains four tightly coupled layers:
+- `00_ConfigAndReadiness.js` for configuration, schemas, sample data, machine specs, and readiness checks
+- `10_WebAndSubmissionApi.js` for the web entry point, submission APIs, lookup APIs, queue context, and teacher class overview APIs
+- `20_WorkflowEmailValidation.js` for workflow transitions, validation helpers, and email generation
+- `30_DataAdminSetup.js` for admin setup, roles, bootstrap, rules, users, audit, and deadline controls
+- `80_UiShell.js` for shared HTML shell output, CSS, client JavaScript, modals, charts, queue UI, and label printing
+- `90_UiPages.js` for page-level HTML renderers
+
+Those files still contain four tightly coupled layers:
 
 1. top-level configuration and seeded data
 2. server-side workflow and persistence functions
 3. HTML page renderers
 4. inline CSS and client-side JavaScript
 
-This is deployment-friendly inside Apps Script, but it makes changes more fragile than in a modular web application.
+This is deployment-friendly inside Apps Script and easier to maintain than the previous single-file snapshot, but UI template strings and client JavaScript are still regression-sensitive.
 
 ## Top-Level Configuration Surface
 
@@ -29,6 +36,7 @@ Important sections include:
 - `APP.status` for the workflow enum
 - `APP.uiText` for shared user-facing wording
 - `APP.teacherEmails` for teacher-name to email resolution
+- `APP.teacherBetaClasses` for the teacher class overview roster model
 - `APP.adminEmailOverrides` for elevated-role email overrides
 - `APP.technicianCcEmail` for threaded `Needs Fix` communication
 
@@ -65,6 +73,8 @@ Other important constants outside `APP` include:
 - `renderSubmitPage_()`
 - `renderOtherRequestPage_()`
 - `renderStatusPage_()`
+- `renderStudentQueuePage_()`
+- `renderTeacherBetaPage_()`
 - `renderAdminPage_()`
 - `renderMachinesPage_()`
 - `renderHelpPage_()`
@@ -128,6 +138,8 @@ Important functions:
 - `getSubmissionActivityByEmail_()`
 - `attachSubmissionActivity_()`
 - `getSubmissionActivity()`
+- `getStudentQueueSnapshot()`
+- `getAdminRulesQueueThroughputSnapshot()`
 
 This data feeds:
 
@@ -144,6 +156,8 @@ This data feeds:
 - `getOtherRequestStatuses()`
 - `getAdminRows()`
 - `getAdminOtherRequests()`
+- `getTeacherBetaClassStatus()`
+- `getTeacherBetaClassStatusCsv_()`
 - `attachStudentFeedback_()`
 
 ### Status updates
@@ -177,6 +191,12 @@ Both status update functions:
 - `normalizeEmailList_()`
 
 The manual draft tooling is a meaningful part of the current operational design and should be documented whenever reviewer workflow changes are made.
+
+### Label printing and visible references
+
+- Student-facing views use case numbers (`M###` for DT submissions and `A###` for Special Requests) rather than raw backend IDs.
+- Raw IDs remain backend/audit references.
+- `renderLabelHtml_()` and the review drawer label action print case number, requester, class/year, teacher/sponsor, machine, and material for 90 x 29 mm labels.
 
 ## Admin Configuration Functions
 

@@ -29,10 +29,11 @@ Review the repository for:
 
 ## Values That Need Explicit Review
 
-Check these parts of `code.gs` every time:
+Check these parts of the source every time:
 
 - `APP.technicianCcEmail`
 - `APP.teacherEmails`
+- `APP.teacherBetaClasses`
 - `APP.adminEmailOverrides`
 - any hardcoded example emails in page content
 - footer or help text that may reference internal branding or live behaviour
