@@ -4,7 +4,7 @@ A Google Apps Script fabrication workflow dashboard for managing DT coursework s
 
 ## Project Summary
 
-Design Fabrication Dashboard is a single-file Google Apps Script web app used to run a school workshop submission pipeline end to end:
+Design Fabrication Dashboard is a Google Apps Script web app used to run a school workshop submission pipeline end to end:
 
 - student and staff submission
 - file and dimension validation
@@ -27,8 +27,8 @@ That separation matters because DT coursework can be prioritised differently, Sp
 | **Project Name** | Design Fabrication Dashboard |
 | **Repository Name** | design-fabrication-dashboard |
 | **Platform** | Google Apps Script Web App |
-| **Main File** | `code.gs` |
-| **Architecture** | Single-file GAS app with inline server logic, HTML, CSS, and client JavaScript |
+| **Main Source Files** | `00_ConfigAndReadiness.js`, `10_WebAndSubmissionApi.js`, `20_WorkflowEmailValidation.js`, `30_DataAdminSetup.js`, `80_UiShell.js`, `90_UiPages.js` |
+| **Architecture** | Split GAS source files with shared config, server APIs, workflow/email logic, admin setup, UI shell, and page renderers |
 | **Storage** | Google Sheets (7 logical sheets) + Google Drive |
 | **Notifications** | MailApp automatic and reviewer-composed emails |
 | **Primary Users** | Students, teachers, technicians, admins |
@@ -36,11 +36,12 @@ That separation matters because DT coursework can be prioritised differently, Sp
 
 ## Current Snapshot
 
-The current `code.gs` snapshot is a public-safe sync of the latest Apps Script dashboard release. It includes:
+The current split-source snapshot is a public-safe sync of the latest Apps Script dashboard release. It includes:
 
-- DT coursework submission with prototype type selection (`low`, `hi`, `na`)
+- DT coursework submission with prototype type selection (`low`, `hi`, `final`, `na`)
 - Special Request submission with sponsor / teacher approval fields
 - sheet-backed submission deadline and cutoff controls by year group or class
+- student-facing deadline notices on the submit page and laser queue popup
 - merged reviewer queue across DT and Special Request records
 - default Admin queue ordering by latest spreadsheet row, so newly appended submissions appear first
 - full-row status colouring for faster queue scanning, including green completed rows and distinct active / needs-fix / rejected states
@@ -50,21 +51,32 @@ The current `code.gs` snapshot is a public-safe sync of the latest Apps Script d
 - reduced-capacity queue scale where Busy starts at 20 active queue items and Heavy starts above 30
 - student-facing laser capacity notice for periods when one laser cutter is offline and only one cutter is running
 - browser-based 90 x 29 mm fabrication label printing for Brother QL-style printer drivers from queue rows and the review drawer
+- printed labels that include case number, requester, class/year, teacher/sponsor, machine type, and material
 - source-aware case numbers where DT submissions use `M###` and Special Requests use `A###`
 - richer student Status Lookup cards with current step, next action, next checkpoint, submitted files, machine-specific checklists, and case-number-only student references
-- 14-day daily request activity context in the Status Lookup queue health panel
+- student lookup by case number, approximate active-workshop position, estimated pickup window, queue health, and a separate student queue/machine status page
+- 14-day student-facing request activity context plus an admin-only 30-day Rules throughput graph showing submitted and finished task counts
 - repeat-submission and last-24-hour activity signals for reviewers and submitters
 - manual email draft generation for students and teachers
+- improved automatic email wording with case number guidance and system-generated footer text
+- teacher class overview for tracking submitted / missing work, class/teacher filters, likely class mismatch hints, and spreadsheet download
 - machine guide content with workshop-specific guidance and manufacturer-verified specs
 - rules, users, submission controls, and audit views for admins
 
-This repository should be treated as a documentation-oriented working copy of the project. The published `code.gs` intentionally uses neutral `example.edu` contacts, generic teacher labels, and blank deployment metadata. Before deploying it to a school environment, configure contacts, script properties, and deployment settings locally.
+This repository should be treated as a documentation-oriented working copy of the project. The published source intentionally uses neutral `example.edu` contacts, generic teacher labels, sample rosters, and blank deployment metadata. Before deploying it to a school environment, configure contacts, script properties, rosters, and deployment settings locally.
 
 ## Repository Contents
 
 | File | Description |
 |---|---|
-| `code.gs` | Entire application: config, server functions, page renderers, CSS, and client JS |
+| `00_ConfigAndReadiness.js` | App config, sheet schemas, seed data, teacher/class sample data, machine specs, readiness checks |
+| `10_WebAndSubmissionApi.js` | Web entry point, submission APIs, status lookup, queue context, teacher class overview APIs |
+| `20_WorkflowEmailValidation.js` | Workflow transitions, validation helpers, confirmation/status email generation |
+| `30_DataAdminSetup.js` | Admin setup, roles, sheet bootstrap, rules/users/audit/deadline admin functions |
+| `80_UiShell.js` | Shared HTML shell, CSS, client JavaScript, queue UI, modals, charts, label printing |
+| `90_UiPages.js` | Page renderers for Submit, Special Request, Lookup, Teacher/Class, Rules, Users, Audit, Machines, Help |
+| `appsscript.json` | Sanitised Apps Script manifest for V8 runtime and web app settings |
+| `SECURITY-ANALYSIS-AND-HARDENING.md` | Security analysis and hardening checklist |
 | `README.md` | Project overview, workflows, setup, and operations guide |
 | `CHANGELOG.md` | Public-facing release notes for this repository |
 | `GITHUB_PUBLISHING.md` | GitHub publication and sanitisation checklist |
@@ -175,10 +187,10 @@ Admins retain full workflow control.
 ```text
 ┌──────────────────────────────────────────────┐
 │ Google Apps Script Web App                  │
-│ code.gs                                     │
+│ Split Apps Script Source                    │
 │                                              │
 │  Config + Seed Data                         │
-│  Server Functions                           │
+│  Server Functions + Workflow Logic          │
 │  HTML Renderers                             │
 │  Inline CSS + Client JS                     │
 └──────────────────────┬───────────────────────┘
@@ -419,7 +431,7 @@ The current codebase supports:
 
 1. Open `script.google.com`.
 2. Create a new project.
-3. Replace the default file contents with the repository `code.gs`.
+3. Copy the six Apps Script source files into the project.
 
 ### 2. Authorise Required Scopes
 
@@ -496,7 +508,13 @@ Run at least one DT submission and one Special Request through the deployed app 
 
 ```text
 .
-├── code.gs
+├── 00_ConfigAndReadiness.js
+├── 10_WebAndSubmissionApi.js
+├── 20_WorkflowEmailValidation.js
+├── 30_DataAdminSetup.js
+├── 80_UiShell.js
+├── 90_UiPages.js
+├── appsscript.json
 ├── README.md
 ├── CHANGELOG.md
 ├── GITHUB_PUBLISHING.md
@@ -512,7 +530,7 @@ Run at least one DT submission and one Special Request through the deployed app 
 
 ## Known Limitations
 
-- The whole application lives in one large `code.gs` file.
+- The application is now split into six Apps Script files, but HTML/CSS/client JS still live inside large template strings.
 - Teacher names are still tied to a hardcoded mapping and submit-page dropdown content.
 - There is no automated test suite in this repository.
 - Google Sheets remains the operational data store, not a transactional database.
