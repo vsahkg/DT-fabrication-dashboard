@@ -355,9 +355,14 @@ function sendOtherRequestConfirmation_(record) {
   var machineName = record.machine === '3d' ? '3D Print' : 'Laser Cut';
   var caseNo = emailCaseNumber_(record);
   var subject = 'Design Fabrication - ' + (caseNo ? caseNo + ' - ' : '') + 'Request Received - ' + (record.project_name || 'Special Request');
+  var holdTitle = APP.uiText.otherRequestHoldTitle || 'Special Requests on hold';
+  var holdText = APP.uiText.otherRequestHoldEmailText || 'Special Requests are currently on hold. You can still submit a request, but it may wait before scheduling or production.';
   var body =
     '<p>Dear ' + escapeHtml_(record.requester_name || 'Requester') + ',</p>' +
     '<p>Your Special Request has been received and is now waiting for review.</p>' +
+    '<div style="border:1px solid #fecaca;background:#fef2f2;color:#7f1d1d;border-radius:10px;padding:12px 14px;margin:12px 0;line-height:1.5;">' +
+    '<strong>' + escapeHtml_(holdTitle) + '</strong><br>' + escapeHtml_(holdText) +
+    '</div>' +
     emailCaseReferenceHtml_(caseNo) +
     '<table style="border-collapse:collapse;width:100%;margin:12px 0;">' +
     emailCaseTableRowHtml_(caseNo) +
@@ -587,6 +592,64 @@ function sendStatusNotification_(submissionId, newStatus, issueCode, remarks) {
    VALIDATION
    ========================= */
 
+function normalizeRosterYearGroup_(value) {
+  var raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!raw) return '';
+  var match = raw.match(/^Y?0?(\d{1,2})$/);
+  return match ? ('Y' + Number(match[1])) : raw;
+}
+
+function inferYearGroupFromClassNo_(classNo) {
+  var match = String(classNo || '').trim().match(/^0?(\d{1,2})(?:\D|$)/);
+  return match ? ('Y' + Number(match[1])) : '';
+}
+
+function getRosterPlacementForStudentEmail_(email) {
+  var target = normalizeEmail_(email);
+  if (!target) return null;
+  var classes = APP.teacherBetaClasses || [];
+  for (var i = 0; i < classes.length; i++) {
+    var cls = classes[i] || {};
+    var roster = cls.roster || [];
+    for (var j = 0; j < roster.length; j++) {
+      var student = roster[j] || {};
+      if (normalizeEmail_(student.email) === target) {
+        return {
+          student_name: student.name || '',
+          email: target,
+          year_group: normalizeRosterYearGroup_(cls.year_group),
+          class_no: String(cls.class_no || '').trim(),
+          teacher: cls.teacher || '',
+          label: cls.label || ('Class ' + (cls.class_no || ''))
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function assertSubmissionClassPlacement_(payload) {
+  var submittedYear = normalizeRosterYearGroup_(payload.year_group);
+  var submittedClass = String(payload.design_class_no || '').trim();
+  var submittedClassKey = normalizeClassNo_(submittedClass);
+  var classYear = inferYearGroupFromClassNo_(submittedClass);
+  if (submittedYear && classYear && submittedYear !== classYear) {
+    throw new Error('The selected Year Group does not match the Design Class No. Please use your real class and year group.');
+  }
+
+  var rosterPlacement = getRosterPlacementForStudentEmail_(payload.student_email);
+  if (!rosterPlacement) return;
+
+  var rosterClassKey = normalizeClassNo_(rosterPlacement.class_no);
+  if ((rosterPlacement.year_group && submittedYear !== rosterPlacement.year_group) ||
+      (rosterClassKey && submittedClassKey !== rosterClassKey)) {
+    throw new Error(
+      'This student email is registered to ' + rosterPlacement.year_group + ' / ' + rosterPlacement.label +
+      '. Please submit using your own year group and class. Deadline rules are checked against your registered class.'
+    );
+  }
+}
+
 function validateSubmission_(payload) {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid submission payload.');
@@ -634,6 +697,8 @@ function validateSubmission_(payload) {
   if (payload.prototype_fidelity === 'lo-fi') payload.prototype_fidelity = 'low';
   if (payload.prototype_fidelity === 'hi-fi') payload.prototype_fidelity = 'hi';
   if (payload.prototype_fidelity === 'final-product' || payload.prototype_fidelity === 'final_product') payload.prototype_fidelity = 'final';
+
+  assertSubmissionClassPlacement_(payload);
 
   var submissionControl = getSubmissionControlDecision_(payload.year_group, payload.design_class_no);
   if (submissionControl.blocked) {

@@ -2,6 +2,24 @@
 
 All notable documentation-facing changes to this repository are recorded here.
 
+## [1.3.1-public-v128-safe-sync] - 2026-05-29
+
+### Latest dashboard update
+
+- Synced the public-safe split Apps Script source with the current deployed code line through public deployment version 128.
+- Added the latest roster-backed submission guard logic so the private deployment can check submitted year group and class against configured class rosters before applying deadline controls.
+- Preserved the current student-facing deadline-closed state for Y9/Y10 DT submissions and the Special Request hold messaging used in the live dashboard.
+- Preserved the latest Teacher class overview shape, including class filters, submitted/missing tracking, class mismatch hints, and spreadsheet-download support.
+- Preserved the newest status/queue lookup refinements, label-printing material support, queue-position estimate logic, pickup-window wording, and email copy updates from the live source.
+
+### Public-safe preparation
+
+- Replaced live Apps Script script IDs, deployment IDs, target URLs, school domains, and staff contact values with blank or `example.edu` placeholders.
+- Replaced all real teacher names and teacher emails with generic `DT Teacher` / `DT Technician` / `System Admin` labels.
+- Replaced all real student rosters with small sample rosters that keep the same class-tracker structure without publishing real names or email addresses.
+- Updated submit-page teacher dropdown examples to match the generic public-safe teacher labels.
+- Re-ran Apps Script syntax checks and privacy scans for live deployment IDs, school email domains, real staff names, and student-ID email patterns before publishing.
+
 ## [1.3.0-public-v120-split-source] - 2026-05-19
 
 ### Latest dashboard update
