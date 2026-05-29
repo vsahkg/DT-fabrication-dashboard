@@ -16,6 +16,14 @@ function renderCompactDisclaimer_(text) {
   return '<div class="disclaimer-compact">' + text + '</div>';
 }
 
+function renderSpecialRequestHoldNotice_() {
+  return renderDisclaimerBox_(
+    APP.uiText.otherRequestHoldTitle || 'Special Requests on hold',
+    '<p>' + (APP.uiText.otherRequestHoldNotice || '') + '</p>',
+    'warning'
+  );
+}
+
 function renderWorkflowList_(steps) {
   return '<ol style="margin:0 0 10px 18px;padding:0;">' +
     steps.map(function(s) {
@@ -154,7 +162,7 @@ function renderSubmitPage_() {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="student_email" placeholder="student@example.edu or teacher@example.edu" required>
+              <input type="email" name="student_email" placeholder="studentID@student.example.edu or teacher@example.edu" required>
               <div class="helper">Use a school email: students use @student.example.edu; teachers and staff use @example.edu.</div>
             </div>
             <div class="field">
@@ -172,17 +180,16 @@ function renderSubmitPage_() {
               <label>Teacher Name <span class="req">*</span></label>
               <select name="design_teacher" required>
                 <option value="">&mdash; Select teacher &mdash;</option>
+                <option value="DT Teacher 1">DT Teacher 1</option>
                 <option value="DT Teacher 2">DT Teacher 2</option>
-                <option value="DT Teacher 4">DT Teacher 4</option>
-                <option value="DT Technician">DT Technician</option>
                 <option value="DT Teacher 3">DT Teacher 3</option>
+                <option value="DT Teacher 4">DT Teacher 4</option>
                 <option value="DT Teacher 5">DT Teacher 5</option>
                 <option value="DT Teacher 6">DT Teacher 6</option>
-                <option value="DT Teacher 1">DT Teacher 1</option>
-                <option value="System Admin">System Admin</option>
                 <option value="DT Teacher 7">DT Teacher 7</option>
                 <option value="DT Teacher 8">DT Teacher 8</option>
-                <option value="DT Teacher 9">DT Teacher 9</option>
+                <option value="DT Technician">DT Technician</option>
+                <option value="System Admin">System Admin</option>
               </select>
             </div>
             <div class="field">
@@ -293,6 +300,8 @@ function renderSubmitPage_() {
 
         ` + renderCompactDisclaimer_('&#128337; <strong>Reminder:</strong> ' + APP.uiText.turnaroundCompact) + `
         <div id="dtRepeatReminder" class="disclaimer-compact" style="display:none;margin-top:6px;">&#9888;&#65039; <strong>Duplicate?</strong> Please check your submission history before submitting again. Repeated identical submissions slow the review queue.</div>
+        ` + renderCompactDisclaimer_('&#9200; <strong>Y9/Y10 deadline passed:</strong> Y9/Y10 DT submissions are now closed. The technician team is still working on submitted requests, so please keep using the <strong>Lookup</strong> page to track your request and pick up your work when it is ready.') + `
+        ` + renderCompactDisclaimer_('&#128274; <strong>Class check:</strong> Use your real Design Class No. and Year Group. The system checks your student email against the class list, so choosing another year or class will not bypass deadline rules.') + `
 
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;">
           <button type="submit" id="submitBtn" class="btn btn-primary" style="min-width:140px;">Submit</button>
@@ -428,6 +437,8 @@ function renderOtherRequestPage_(boot) {
     </div>
   </div>
 
+  ` + renderSpecialRequestHoldNotice_() + `
+
   <div class="card">
     <div class="section-title">&#128301; Request Form</div>
     <div class="section-sub">Complete the details below so the workshop can judge feasibility, timing, and machine fit.</div>
@@ -461,6 +472,7 @@ function renderOtherRequestPage_(boot) {
         </div>
       </div>
       <div class="bys-notices">
+        <span class="bys-notice">&#9208;&#65039; ${APP.uiText.otherRequestHoldNotice}</span>
         <span class="bys-notice">&#9888;&#65039; ${APP.uiText.otherRequestPriorityNotice}</span>
         <span class="bys-notice">&#128274; ${APP.uiText.otherRequestApprovalNotice}</span>
         <span class="bys-notice">&#128337; ${APP.uiText.otherRequestNoGuarantee}</span>
@@ -480,7 +492,7 @@ function renderOtherRequestPage_(boot) {
           <div class="grid g2">
             <div class="field">
               <label>Email <span class="req">*</span></label>
-              <input type="email" name="requester_email" placeholder="student@example.edu or your-email@example.edu" required>
+              <input type="email" name="requester_email" placeholder="your-email@student.example.edu or your-email@example.edu" required>
               <div class="helper">Students use @student.example.edu. Staff use @example.edu.</div>
             </div>
             <div class="field">
@@ -743,6 +755,8 @@ function renderOtherRequestPage_(boot) {
         <div class="id-box-hint">Click to copy &mdash; this is the fastest reference for teachers and technicians.</div>
         <div id="otherSuccessSubmittedAt" class="disclaimer-compact" style="display:none;margin-top:8px;"></div>
       </div>
+
+      ` + renderSpecialRequestHoldNotice_() + `
 
       <div class="success-body">
         <div class="success-next">
@@ -1870,7 +1884,7 @@ function renderHelpPage_() {
     <ul class="do-list">
       <li><span><code>Y8_ChanTaiMan_3mm.afdesign</code></span></li>
       <li><span><code>Y10_LokWaiYan_final.stl</code></span></li>
-      <li><span><code>Y9_WongSiuMing_acrylic_v2.svg</code></span></li>
+      <li><span><code>Y9_SampleStudent_acrylic_v2.svg</code></span></li>
     </ul>
 
     <h4>&#10060; Do NOT Use Vague Names</h4>
@@ -1893,7 +1907,7 @@ function renderHelpPage_() {
       <div class="help-card">
         <h4>&#128100; Student Details</h4>
         <ul>
-          <li>Your <strong>school email</strong> (student@example.edu or teacher@example.edu)</li>
+          <li>Your <strong>school email</strong> (studentID@student.example.edu or teacher@example.edu)</li>
           <li>Your <strong>full name</strong></li>
           <li>Your <strong>design class number</strong> (e.g. 8.1)</li>
           <li>Your <strong>teacher name</strong> (select from dropdown)</li>
@@ -2214,7 +2228,7 @@ function renderUsersPage_() {
     </div>
     <div id="addUserForm" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
       <div class="grid g3">
-        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="student@example.edu or staff@example.edu"></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" placeholder="studentID@student.example.edu or staff@example.edu"></div>
         <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="Display name"></div>
         <div class="field"><label>Role</label><select id="newUserRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="technician">Technician</option><option value="admin">Admin</option></select></div>
       </div>

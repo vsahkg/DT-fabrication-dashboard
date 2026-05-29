@@ -901,6 +901,8 @@ function renderPage_(page, boot) {
     .laser-capacity-body { padding: 18px 20px 20px; display: grid; gap: 14px; }
 	    .laser-capacity-alert { border-radius: 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; padding: 13px 14px; font-size: 13px; line-height: 1.55; }
 	    .laser-capacity-alert strong { display: block; color: #9a3412; margin-bottom: 3px; }
+	    .laser-capacity-alert--special { border-color: #fecaca; background: #fef2f2; color: #7f1d1d; }
+	    .laser-capacity-alert--special strong { color: #991b1b; }
 	    .deadline-summary-panel { border-radius: 12px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; padding: 13px 14px; font-size: 13px; line-height: 1.5; }
 	    .deadline-summary-panel strong { display: block; color: #1e40af; margin-bottom: 6px; }
 	    .deadline-summary-list { display: grid; gap: 6px; margin-top: 2px; }
@@ -2921,20 +2923,34 @@ function renderPage_(page, boot) {
         return;
       }
       if (document.getElementById('laserCapacityOverlay')) return;
+      var noticeMode = String(LASER_CAPACITY_NOTICE.mode || 'capacity');
 	      var summary = LASER_CAPACITY_NOTICE.summary || 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.';
 	      var detail = LASER_CAPACITY_NOTICE.detail || 'Please avoid duplicate submissions and check Status for updates.';
 	      var scale = LASER_CAPACITY_NOTICE.scaleLabel || ('Busy starts at ' + QUEUE_BUSY_THRESHOLD + ' active queue items. Heavy starts above ' + QUEUE_HEAVY_THRESHOLD + ' active queue items.');
 	      var deadlineHtml = renderStudentDeadlineSummaryHtml_('Submission deadlines');
+	      var specialHoldTitle = (BOOT.uiText && BOOT.uiText.otherRequestHoldTitle) || 'Special Requests on hold';
+	      var specialHoldNotice = (BOOT.uiText && BOOT.uiText.otherRequestHoldNotice) || '';
+	      var specialHoldHtml = specialHoldNotice
+	        ? '<div class="laser-capacity-alert laser-capacity-alert--special"><strong>' + esc(specialHoldTitle) + '</strong>' + specialHoldNotice + '</div>'
+	        : '';
 	      var overlay = document.createElement('div');
 	      overlay.id = 'laserCapacityOverlay';
       overlay.className = 'overlay';
-      overlay.innerHTML =
-        '<div class="modal laser-capacity-modal" role="dialog" aria-modal="true" aria-labelledby="laserCapacityTitle" tabindex="-1">' +
-          '<div class="modal-head"><h3 id="laserCapacityTitle">&#128293; ' + esc(LASER_CAPACITY_NOTICE.title || 'Laser queue update') + '</h3><button class="modal-close" onclick="closeLaserCapacityNotice_()" aria-label="Close laser queue update">&times;</button></div>' +
-	          '<div class="laser-capacity-body">' +
-	            '<div class="laser-capacity-alert"><strong>Reduced laser capacity</strong>' + esc(summary) + '</div>' +
-	            deadlineHtml +
-	            '<div class="laser-capacity-scale" aria-label="Current queue scale">' +
+      var modalIcon = noticeMode === 'deadline_only' ? '&#9200;' : '&#128293;';
+      var bodyHtml = noticeMode === 'deadline_only'
+        ? '<div class="laser-capacity-body">' +
+            '<div class="laser-capacity-alert laser-capacity-alert--special"><strong>' + esc(summary || 'Deadline passed') + '</strong>' + esc(detail || '') + '</div>' +
+            specialHoldHtml +
+            '<div class="laser-capacity-actions">' +
+              '<button class="btn btn-ghost btn-sm" onclick="closeLaserCapacityNotice_()">Close</button>' +
+              '<button class="btn btn-primary btn-sm" onclick="closeLaserCapacityNotice_(); switchPage(\\'status\\')">&#128270; Status Lookup</button>' +
+            '</div>' +
+          '</div>'
+        : '<div class="laser-capacity-body">' +
+            '<div class="laser-capacity-alert"><strong>Reduced laser capacity</strong>' + esc(summary) + '</div>' +
+            deadlineHtml +
+            specialHoldHtml +
+            '<div class="laser-capacity-scale" aria-label="Current queue scale">' +
               '<div class="laser-capacity-scale-item"><strong>Busy</strong><span>' + QUEUE_BUSY_THRESHOLD + '-' + QUEUE_HEAVY_THRESHOLD + ' active queue items.</span></div>' +
               '<div class="laser-capacity-scale-item"><strong>Heavy</strong><span>More than ' + QUEUE_HEAVY_THRESHOLD + ' active queue items.</span></div>' +
             '</div>' +
@@ -2944,7 +2960,11 @@ function renderPage_(page, boot) {
               '<button class="btn btn-ghost btn-sm" onclick="closeLaserCapacityNotice_(); switchPage(\\'status\\')">&#128270; Check Status</button>' +
               '<button class="btn btn-primary btn-sm" onclick="closeLaserCapacityNotice_(); switchPage(\\'help\\'); setTimeout(function(){ helpJump_(\\'help-laser\\'); }, 250);">&#128221; Laser Checklist</button>' +
             '</div>' +
-          '</div>' +
+          '</div>';
+      overlay.innerHTML =
+        '<div class="modal laser-capacity-modal" role="dialog" aria-modal="true" aria-labelledby="laserCapacityTitle" tabindex="-1">' +
+          '<div class="modal-head"><h3 id="laserCapacityTitle">' + modalIcon + ' ' + esc(LASER_CAPACITY_NOTICE.title || 'Student notice') + '</h3><button class="modal-close" onclick="closeLaserCapacityNotice_()" aria-label="Close student notice">&times;</button></div>' +
+          bodyHtml +
         '</div>';
       document.body.appendChild(overlay);
       overlay.addEventListener('click', function(e){ if (e.target === overlay) closeLaserCapacityNotice_(); });

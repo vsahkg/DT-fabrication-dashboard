@@ -20,9 +20,9 @@ function authorizeScopes() {
 
 const DEPLOYMENT_INFO = {
   appName: 'Design Fabrication Dashboard',
-  version: '2026-05-19-public-v120-sanitized-sync',
+  version: '2026-05-29-public-safe-v128-source-sync',
   channel: 'public-safe-github',
-  updatedAt: '2026-05-19',
+  updatedAt: '2026-05-29',
   scriptId: '',
   targetDeploymentId: '',
   targetUrl: '',
@@ -193,7 +193,7 @@ const APP = {
       class_no: '',
       deadline_at: '2026-05-20T23:59:00+08:00',
       is_closed: 'FALSE',
-      message: 'Y9 DT submission deadline: 20 May 2026 23:59 Hong Kong time. This applies to Laser Cut and 3D Print submissions. If you need an exception, speak to your DT teacher before submitting.',
+      message: 'Y9 DT submission deadline passed on 20 May 2026 23:59 Hong Kong time. Y9 DT submissions are now closed. The technician team is still working on submitted requests, so please keep using Lookup to track your request and pick up your work when it is ready.',
       active: 'TRUE',
       updated_at: '2026-05-18T00:00:00+08:00',
       updated_by: 'system default'
@@ -204,7 +204,7 @@ const APP = {
       class_no: '',
       deadline_at: '2026-05-20T23:59:00+08:00',
       is_closed: 'FALSE',
-      message: 'Y10 DT submission deadline: 20 May 2026 23:59 Hong Kong time. This applies to Laser Cut and 3D Print submissions. If you need an exception, speak to your DT teacher before submitting.',
+      message: 'Y10 DT submission deadline passed on 20 May 2026 23:59 Hong Kong time. Y10 DT submissions are now closed. The technician team is still working on submitted requests, so please keep using Lookup to track your request and pick up your work when it is ready.',
       active: 'TRUE',
       updated_at: '2026-05-18T00:00:00+08:00',
       updated_by: 'system default'
@@ -381,11 +381,12 @@ const APP = {
     },
     laserCapacityNotice: {
       active: true,
-      version: '2026-05-04-laser-reduced-capacity',
-      title: 'Laser queue update',
-      summary: 'One laser cutter is currently offline. Only one laser cutter is running, so laser jobs may move more slowly than usual.',
-      detail: 'Please avoid duplicate submissions. Check Status for updates, and keep your file ready in case a revision is requested.',
-      scaleLabel: 'Busy starts at 20 active queue items. Heavy starts above 30 active queue items.'
+      version: '2026-05-21-deadline-passed-tracking-special-hold',
+      mode: 'deadline_only',
+      title: 'DT submission deadline update',
+      summary: 'The Y9 and Y10 DT submission deadline has passed.',
+      detail: 'The deadline was 2026-05-20 23:59 Hong Kong time. Y9/Y10 DT submissions are now closed. The technician team is still working on submitted requests, so please keep using Lookup to track your request and pick up your work when it is ready.',
+      scaleLabel: ''
     }
   },
 
@@ -456,6 +457,9 @@ const APP = {
     otherRequestPriorityNotice: 'DT curriculum work may be <strong>prioritised</strong> over non-DT requests. Non-DT jobs may take longer depending on current workload and machine availability.',
     otherRequestApprovalNotice: 'All requests must have a <strong>responsible teacher or staff sponsor</strong>. Requests without clear approval may be rejected or placed on hold.',
     otherRequestNoGuarantee: 'Submitting a request does <strong>not</strong> guarantee acceptance, same-day production, or deadline fulfilment. Please plan ahead and submit early.',
+    otherRequestHoldTitle: 'Special Requests on hold',
+    otherRequestHoldNotice: 'All Special Requests are currently <strong>on hold until June and further notice</strong>. You can still submit a request, but it will be recorded in the system and will wait before it moves into workshop scheduling or production.',
+    otherRequestHoldEmailText: 'All Special Requests are currently on hold until June and further notice. You can still submit a request, but it will be recorded in the system and will wait before it moves into workshop scheduling or production.',
     otherRequestChecklist: [
       'You have a responsible teacher / staff member who has approved this request.',
       'Your file is final or near-final quality &mdash; not a rough draft.',
@@ -534,7 +538,6 @@ const APP = {
     'DT Teacher 6': 'teacher6@example.edu',
     'DT Teacher 7': 'teacher7@example.edu',
     'DT Teacher 8': 'teacher8@example.edu',
-    'DT Teacher 9': 'teacher9@example.edu',
     'DT Technician': 'technician@example.edu',
     'System Admin': 'admin@example.edu'
   },
@@ -665,15 +668,83 @@ const APP = {
       { homeroom: "Y10X", student_no: "3", name: "Sample Student 104-03", email: "student10403@student.example.edu" },
       { homeroom: "Y10X", student_no: "4", name: "Sample Student 104-04", email: "student10404@student.example.edu" },
       { homeroom: "Y10X", student_no: "5", name: "Sample Student 104-05", email: "student10405@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 4', teacher_email: 'teacher4@example.edu', year_group: 'Y8', class_no: '8.2', label: 'Class 8.2', roster: [
+      { homeroom: "Y08X", student_no: "1", name: "Sample Student 82-01", email: "student8201@student.example.edu" },
+      { homeroom: "Y08X", student_no: "2", name: "Sample Student 82-02", email: "student8202@student.example.edu" },
+      { homeroom: "Y08X", student_no: "3", name: "Sample Student 82-03", email: "student8203@student.example.edu" },
+      { homeroom: "Y08X", student_no: "4", name: "Sample Student 82-04", email: "student8204@student.example.edu" },
+      { homeroom: "Y08X", student_no: "5", name: "Sample Student 82-05", email: "student8205@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 4', teacher_email: 'teacher4@example.edu', year_group: 'Y8', class_no: '8.5', label: 'Class 8.5', roster: [
+      { homeroom: "Y08X", student_no: "1", name: "Sample Student 85-01", email: "student8501@student.example.edu" },
+      { homeroom: "Y08X", student_no: "2", name: "Sample Student 85-02", email: "student8502@student.example.edu" },
+      { homeroom: "Y08X", student_no: "3", name: "Sample Student 85-03", email: "student8503@student.example.edu" },
+      { homeroom: "Y08X", student_no: "4", name: "Sample Student 85-04", email: "student8504@student.example.edu" },
+      { homeroom: "Y08X", student_no: "5", name: "Sample Student 85-05", email: "student8505@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 4', teacher_email: 'teacher4@example.edu', year_group: 'Y9', class_no: '9.4', label: 'Class 9.4', roster: [
+      { homeroom: "Y09X", student_no: "1", name: "Sample Student 94-01", email: "student9401@student.example.edu" },
+      { homeroom: "Y09X", student_no: "2", name: "Sample Student 94-02", email: "student9402@student.example.edu" },
+      { homeroom: "Y09X", student_no: "3", name: "Sample Student 94-03", email: "student9403@student.example.edu" },
+      { homeroom: "Y09X", student_no: "4", name: "Sample Student 94-04", email: "student9404@student.example.edu" },
+      { homeroom: "Y09X", student_no: "5", name: "Sample Student 94-05", email: "student9405@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 4', teacher_email: 'teacher4@example.edu', year_group: 'Y10', class_no: '10.2', label: 'Class 10.2', roster: [
+      { homeroom: "Y10X", student_no: "1", name: "Sample Student 102-01", email: "student10201@student.example.edu" },
+      { homeroom: "Y10X", student_no: "2", name: "Sample Student 102-02", email: "student10202@student.example.edu" },
+      { homeroom: "Y10X", student_no: "3", name: "Sample Student 102-03", email: "student10203@student.example.edu" },
+      { homeroom: "Y10X", student_no: "4", name: "Sample Student 102-04", email: "student10204@student.example.edu" },
+      { homeroom: "Y10X", student_no: "5", name: "Sample Student 102-05", email: "student10205@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 5', teacher_email: 'teacher5@example.edu', year_group: 'Y7', class_no: '7.9', label: 'Class 7.9', roster: [
+      { homeroom: "Y07X", student_no: "1", name: "Sample Student 79-01", email: "student7901@student.example.edu" },
+      { homeroom: "Y07X", student_no: "2", name: "Sample Student 79-02", email: "student7902@student.example.edu" },
+      { homeroom: "Y07X", student_no: "3", name: "Sample Student 79-03", email: "student7903@student.example.edu" },
+      { homeroom: "Y07X", student_no: "4", name: "Sample Student 79-04", email: "student7904@student.example.edu" },
+      { homeroom: "Y07X", student_no: "5", name: "Sample Student 79-05", email: "student7905@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 5', teacher_email: 'teacher5@example.edu', year_group: 'Y8', class_no: '8.4', label: 'Class 8.4', roster: [
+      { homeroom: "Y08X", student_no: "1", name: "Sample Student 84-01", email: "student8401@student.example.edu" },
+      { homeroom: "Y08X", student_no: "2", name: "Sample Student 84-02", email: "student8402@student.example.edu" },
+      { homeroom: "Y08X", student_no: "3", name: "Sample Student 84-03", email: "student8403@student.example.edu" },
+      { homeroom: "Y08X", student_no: "4", name: "Sample Student 84-04", email: "student8404@student.example.edu" },
+      { homeroom: "Y08X", student_no: "5", name: "Sample Student 84-05", email: "student8405@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 5', teacher_email: 'teacher5@example.edu', year_group: 'Y8', class_no: '8.8', label: 'Class 8.8', roster: [
+      { homeroom: "Y08X", student_no: "1", name: "Sample Student 88-01", email: "student8801@student.example.edu" },
+      { homeroom: "Y08X", student_no: "2", name: "Sample Student 88-02", email: "student8802@student.example.edu" },
+      { homeroom: "Y08X", student_no: "3", name: "Sample Student 88-03", email: "student8803@student.example.edu" },
+      { homeroom: "Y08X", student_no: "4", name: "Sample Student 88-04", email: "student8804@student.example.edu" },
+      { homeroom: "Y08X", student_no: "5", name: "Sample Student 88-05", email: "student8805@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 5', teacher_email: 'teacher5@example.edu', year_group: 'Y9', class_no: '9.7', label: 'Class 9.7', roster: [
+      { homeroom: "Y09X", student_no: "1", name: "Sample Student 97-01", email: "student9701@student.example.edu" },
+      { homeroom: "Y09X", student_no: "2", name: "Sample Student 97-02", email: "student9702@student.example.edu" },
+      { homeroom: "Y09X", student_no: "3", name: "Sample Student 97-03", email: "student9703@student.example.edu" },
+      { homeroom: "Y09X", student_no: "4", name: "Sample Student 97-04", email: "student9704@student.example.edu" },
+      { homeroom: "Y09X", student_no: "5", name: "Sample Student 97-05", email: "student9705@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 6', teacher_email: 'teacher6@example.edu', year_group: 'Y6', class_no: '6.3', label: 'Class 6.3', roster: [
+      { homeroom: "Y06X", student_no: "1", name: "Sample Student 63-01", email: "student6301@student.example.edu" },
+      { homeroom: "Y06X", student_no: "2", name: "Sample Student 63-02", email: "student6302@student.example.edu" },
+      { homeroom: "Y06X", student_no: "3", name: "Sample Student 63-03", email: "student6303@student.example.edu" },
+      { homeroom: "Y06X", student_no: "4", name: "Sample Student 63-04", email: "student6304@student.example.edu" },
+      { homeroom: "Y06X", student_no: "5", name: "Sample Student 63-05", email: "student6305@student.example.edu" }
+    ] },
+    { teacher: 'DT Teacher 6', teacher_email: 'teacher6@example.edu', year_group: 'Y8', class_no: '8.9', label: 'Class 8.9', roster: [
+      { homeroom: "Y08X", student_no: "1", name: "Sample Student 89-01", email: "student8901@student.example.edu" },
+      { homeroom: "Y08X", student_no: "2", name: "Sample Student 89-02", email: "student8902@student.example.edu" },
+      { homeroom: "Y08X", student_no: "3", name: "Sample Student 89-03", email: "student8903@student.example.edu" },
+      { homeroom: "Y08X", student_no: "4", name: "Sample Student 89-04", email: "student8904@student.example.edu" },
+      { homeroom: "Y08X", student_no: "5", name: "Sample Student 89-05", email: "student8905@student.example.edu" }
     ] }
   ],
 
   adminEmailOverrides: [
     'admin@example.edu',
     'technician@example.edu',
-    'teacher1@example.edu',
-    'teacher2@example.edu',
-    'teacher3@example.edu'
+    'teacher1@example.edu'
   ]
 };
 
